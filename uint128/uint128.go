@@ -14,7 +14,7 @@ func (self Uint128) IsZero() bool {
 	return self.Lo == 0 && self.Hi == 0
 }
 
-func (self Uint128) Equals(other Uint128) bool {
+func (self Uint128) Equal(other Uint128) bool {
 	return self.Lo == other.Lo && self.Hi == other.Hi
 }
 

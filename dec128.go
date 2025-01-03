@@ -10,17 +10,21 @@ type Dec128 struct {
 }
 
 func (self Dec128) IsZero() bool {
-	return self.coef.IsZero()
+	return !self.nan && self.coef.IsZero()
 }
 
 func (self Dec128) IsNeg() bool {
-	return self.neg && !self.coef.IsZero()
+	return self.neg && !self.nan && !self.coef.IsZero()
 }
 
 func (self Dec128) IsPos() bool {
-	return !self.neg && !self.coef.IsZero()
+	return !self.neg && !self.nan && !self.coef.IsZero()
 }
 
 func (self Dec128) IsNaN() bool {
 	return self.nan
+}
+
+func (self Dec128) Equal(other Dec128) bool {
+	return self.coef.Equal(other.coef) && self.prec == other.prec && self.neg == other.neg && self.nan == other.nan
 }

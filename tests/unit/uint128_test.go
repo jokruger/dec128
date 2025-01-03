@@ -66,10 +66,10 @@ func TestUint128ConvBytes(t *testing.T) {
 		le := u.Bytes()
 		u2 := uint128.FromBytesBigEndian(be)
 		u3 := uint128.FromBytes(le)
-		if !u2.Equals(u) {
+		if !u2.Equal(u) {
 			t.Errorf("[big endian] Expected %v, got %v", u, u2)
 		}
-		if !u3.Equals(u) {
+		if !u3.Equal(u) {
 			t.Errorf("[little endian] Expected %v, got %v", u, u3)
 		}
 		s := u2.String()
@@ -95,7 +95,7 @@ func TestUint128ConvBigInt(t *testing.T) {
 		u, _ := uint128.FromString(tc)
 		i := u.BigInt()
 		u2, _ := uint128.FromBigInt(i)
-		if !u2.Equals(u) {
+		if !u2.Equal(u) {
 			t.Errorf("Expected %v, got %v", u, u2)
 		}
 	}
@@ -103,7 +103,7 @@ func TestUint128ConvBigInt(t *testing.T) {
 		u, _ := uint128.FromString(tc)
 		i, _ := big.NewInt(0).SetString(tc, 10)
 		u2, _ := uint128.FromBigInt(i)
-		if !u2.Equals(u) {
+		if !u2.Equal(u) {
 			t.Errorf("Expected %v, got %v", u, u2)
 		}
 		s := u2.String()
@@ -136,7 +136,7 @@ func TestUint128(t *testing.T) {
 		t.Errorf("Expected 1, got %v", i2.BitLen())
 	}
 
-	if i1.Equals(i2) != false {
+	if i1.Equal(i2) != false {
 		t.Errorf("Expected false, got true")
 	}
 
