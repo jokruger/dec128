@@ -1,24 +1,14 @@
 package dec128
 
 import (
-	"fmt"
-
+	"github.com/jokruger/dec128/errors"
 	"github.com/jokruger/dec128/uint128"
 )
 
 const maxPrecision = uint8(uint128.MaxSafeStrLen64)
 
 var (
-	ErrOverflow      = uint128.ErrOverflow
-	ErrUnderflow     = uint128.ErrUnderflow
-	ErrNegative      = uint128.ErrNegative
-	ErrDivByZero     = uint128.ErrDivByZero
-	ErrInvalidFormat = uint128.ErrInvalidFormat
-	ErrPrecision     = fmt.Errorf("precision out of range")
-	ErrNaN           = fmt.Errorf("not a number")
-
 	Zero = Dec128{}
-	NaN  = Dec128{nan: true}
 
 	ZeroStr = "0"
 	NaNStr  = "NaN"
@@ -53,8 +43,7 @@ var (
 
 func SetDefaultPrecision(prec uint8) {
 	if prec > maxPrecision {
-		panic(ErrPrecision)
+		panic(errors.PrecisionOutOfRange.Value())
 	}
-
 	defaultPrecision = prec
 }

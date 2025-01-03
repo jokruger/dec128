@@ -1,7 +1,6 @@
 package uint128
 
 import (
-	"errors"
 	"math"
 )
 
@@ -19,11 +18,4 @@ var (
 
 	Max   = Uint128{math.MaxUint64, math.MaxUint64}
 	Max64 = Uint128{math.MaxUint64, 0}
-
-	ErrDivByZero     = errors.New("division by zero")
-	ErrNegative      = errors.New("negative value")
-	ErrOverflow      = errors.New("overflow")
-	ErrUnderflow     = errors.New("underflow")
-	ErrNotEnough     = errors.New("not enough bytes")
-	ErrInvalidFormat = errors.New("invalid format")
 )

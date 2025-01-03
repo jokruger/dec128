@@ -3,22 +3,23 @@ package dec128
 import (
 	"strings"
 
+	"github.com/jokruger/dec128/errors"
 	"github.com/jokruger/dec128/uint128"
 )
 
 // Returns coef, prec, error
 func (self Dec128) Uint64() (uint64, uint8, error) {
-	if self.nan {
-		return 0, 0, ErrNaN
+	if self.err != errors.None {
+		return 0, 0, self.err.Value()
 	}
 
 	if self.neg {
-		return 0, 0, ErrNegative
+		return 0, 0, errors.Negative.Value()
 	}
 
 	i, err := self.coef.Uint64()
-	if err != nil {
-		return 0, 0, err
+	if err != errors.None {
+		return 0, 0, err.Value()
 	}
 
 	return i, self.prec, nil
@@ -26,19 +27,19 @@ func (self Dec128) Uint64() (uint64, uint8, error) {
 
 // Returns coef, prec, error
 func (self Dec128) Uint128() (uint128.Uint128, uint8, error) {
-	if self.nan {
-		return uint128.Zero, 0, ErrNaN
+	if self.err != errors.None {
+		return uint128.Zero, 0, self.err.Value()
 	}
 
 	if self.neg {
-		return uint128.Zero, 0, ErrNegative
+		return uint128.Zero, 0, errors.Negative.Value()
 	}
 
 	return self.coef, self.prec, nil
 }
 
 func (self Dec128) String() string {
-	if self.nan {
+	if self.err != errors.None {
 		return NaNStr
 	}
 

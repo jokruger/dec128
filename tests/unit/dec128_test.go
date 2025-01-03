@@ -57,7 +57,7 @@ func TestDecimalConvString(t *testing.T) {
 		{"-0.0000000000001", "-0.0000000000001", ""},
 		{"-0.0000000000000001", "-0.0000000000000001", ""},
 		{"-0.0000000000000000001", "-0.0000000000000000001", ""},
-		{"NaN", "NaN", ""},
+		{"NaN", "NaN", "invalid format"},
 		{"1.2.3", "NaN", "invalid format"},
 		{"-", "NaN", "invalid format"},
 		{"-+", "NaN", "invalid format"},
@@ -79,12 +79,12 @@ func TestDecimalConvString(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("TestDecimalConvString(%s)", tc.i), func(t *testing.T) {
-			d, err := dec128.FromString(tc.i)
-			if tc.e != "" && err == nil {
+			d := dec128.FromString(tc.i)
+			if tc.e != "" && !d.IsNaN() {
 				t.Errorf("Expected error '%s', got nil", tc.e)
 			}
-			if tc.e == "" && err != nil {
-				t.Errorf("Expected no error, got: %v", err)
+			if tc.e == "" && d.IsNaN() {
+				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
 			}
 			s := d.String()
 			if s != tc.s {
@@ -96,12 +96,8 @@ func TestDecimalConvString(t *testing.T) {
 
 func TestDecimalBasics(t *testing.T) {
 	var d dec128.Dec128
-	var err error
 
-	d, err = dec128.FromString("NaN")
-	if err != nil {
-		t.Errorf("Expected no error, got: %v", err)
-	}
+	d = dec128.FromString("NaN")
 	if !d.IsNaN() {
 		t.Errorf("Expected NaN, got: %s", d.String())
 	}
@@ -115,10 +111,7 @@ func TestDecimalBasics(t *testing.T) {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
 
-	d, err = dec128.FromString("0")
-	if err != nil {
-		t.Errorf("Expected no error, got: %v", err)
-	}
+	d = dec128.FromString("0")
 	if !d.IsZero() {
 		t.Errorf("Expected zero, got: %s", d.String())
 	}
@@ -132,10 +125,7 @@ func TestDecimalBasics(t *testing.T) {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
 
-	d, err = dec128.FromString("1")
-	if err != nil {
-		t.Errorf("Expected no error, got: %v", err)
-	}
+	d = dec128.FromString("1")
 	if d.IsZero() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
@@ -149,10 +139,7 @@ func TestDecimalBasics(t *testing.T) {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
 
-	d, err = dec128.FromString("-1")
-	if err != nil {
-		t.Errorf("Expected no error, got: %v", err)
-	}
+	d = dec128.FromString("-1")
 	if d.IsZero() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
@@ -193,10 +180,7 @@ func TestDecimalFromUint64(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("TestDecimalFromUint64(%v)", tc), func(t *testing.T) {
-			d, err := dec128.FromUint64(tc.i, tc.p)
-			if err != nil {
-				t.Errorf("Expected no error, got: %v", err)
-			}
+			d := dec128.FromUint64(tc.i, tc.p)
 			s := d.String()
 			if s != tc.s {
 				t.Errorf("Expected '%s', got: %s", tc.s, s)
@@ -232,10 +216,7 @@ func TestDecimalConvToUint64(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("TestDecimalConvToUint64(%s)", tc.i), func(t *testing.T) {
-			d, err := dec128.FromString(tc.i)
-			if err != nil {
-				t.Errorf("Expected no error, got: %v", err)
-			}
+			d := dec128.FromString(tc.i)
 			u, p, err := d.Uint64()
 			if tc.e != "" && err == nil {
 				t.Errorf("Expected error '%s', got nil", tc.e)
@@ -254,19 +235,19 @@ func TestDecimalConvToUint64(t *testing.T) {
 }
 
 func TestDecimalConvUint128(t *testing.T) {
-	d, _ := dec128.FromString("NaN")
+	d := dec128.FromString("NaN")
 	_, _, err := d.Uint128()
 	if err == nil {
 		t.Errorf("Expected error, got nil")
 	}
 
-	d, _ = dec128.FromString("-1")
+	d = dec128.FromString("-1")
 	_, _, err = d.Uint128()
 	if err == nil {
 		t.Errorf("Expected error, got nil")
 	}
 
-	d, _ = dec128.FromString("340282366920938463463374607431768211456")
+	d = dec128.FromString("340282366920938463463374607431768211456")
 	_, _, err = d.Uint128()
 	if err == nil {
 		t.Errorf("Expected error, got nil")
@@ -275,15 +256,15 @@ func TestDecimalConvUint128(t *testing.T) {
 	testCases := [...]string{"0", "1", "1234567890", "1234567890.123456789", "340282366920938463463374607431768211455", "12345678901234567890.123456789"}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("TestDecimalConvUint128(%s)", tc), func(t *testing.T) {
-			d, err := dec128.FromString(tc)
-			if err != nil {
-				t.Errorf("Expected no error, got: %v", err)
+			d := dec128.FromString(tc)
+			if d.IsNaN() {
+				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
 			}
 			u, p, err := d.Uint128()
 			if err != nil {
 				t.Errorf("Expected no error, got: %v", err)
 			}
-			d2, _ := dec128.FromUint128(u, p)
+			d2 := dec128.FromUint128(u, p)
 			if !d.Equal(d2) {
 				t.Errorf("Expected %s, got: %s", d.String(), d2.String())
 			}

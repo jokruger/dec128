@@ -12,8 +12,8 @@ func TestUint128ConvUint64(t *testing.T) {
 	for _, i := range testCases {
 		u := uint128.FromUint64(i)
 		j, err := u.Uint64()
-		if err != nil {
-			t.Errorf("Error converting uint128 to uint64: %v", err)
+		if err.Value() != nil {
+			t.Errorf("Error converting uint128 to uint64: %v", err.Value())
 		}
 		if i != j {
 			t.Errorf("Expected %v, got %v", i, j)
@@ -23,8 +23,8 @@ func TestUint128ConvUint64(t *testing.T) {
 	u := uint128.FromUint64(18446744073709551615)
 	u, _ = u.Add(uint128.FromUint64(1))
 	_, err := u.Uint64()
-	if err == nil {
-		t.Errorf("Expected error")
+	if err.Value() == nil {
+		t.Errorf("Expected error: %v", err.Value())
 	}
 }
 
@@ -32,8 +32,8 @@ func TestUint128ConvString(t *testing.T) {
 	testCases := [...]string{"0", "1", "1234567890", "18446744073709551615", "18446744073709551616", "340282366920938463463374607431768211455"}
 	for _, tc := range testCases {
 		u, err := uint128.FromString(tc)
-		if err != nil {
-			t.Errorf("Error converting string to uint128: %v", err)
+		if err.Value() != nil {
+			t.Errorf("Error converting string to uint128: %v", err.Value())
 		}
 		s := u.String()
 		if tc != s {
@@ -115,8 +115,8 @@ func TestUint128ConvBigInt(t *testing.T) {
 
 func TestUint128(t *testing.T) {
 	i1, err := uint128.FromString("0")
-	if err != nil {
-		t.Errorf("Error creating uint128: %v", err)
+	if err.Value() != nil {
+		t.Errorf("Error creating uint128: %v", err.Value())
 	}
 	if i1.IsZero() != true {
 		t.Errorf("Expected true, got false")
@@ -126,8 +126,8 @@ func TestUint128(t *testing.T) {
 	}
 
 	i2, err := uint128.FromString("1")
-	if err != nil {
-		t.Errorf("Error creating uint128: %v", err)
+	if err.Value() != nil {
+		t.Errorf("Error creating uint128: %v", err.Value())
 	}
 	if i2.IsZero() != false {
 		t.Errorf("Expected false, got true")
@@ -141,8 +141,8 @@ func TestUint128(t *testing.T) {
 	}
 
 	i3, err := uint128.FromString("123456789012345678901234567890")
-	if err != nil {
-		t.Errorf("Error creating uint128: %v", err)
+	if err.Value() != nil {
+		t.Errorf("Error creating uint128: %v", err.Value())
 	}
 	if i3.IsZero() != false {
 		t.Errorf("Expected false, got true")
@@ -180,11 +180,11 @@ func TestUint128Add(t *testing.T) {
 		if tc.c != s {
 			t.Errorf("Expected %v, got %v", tc.c, s)
 		}
-		if tc.e == "" && err != nil {
-			t.Errorf("Expected no error, got: %v", err)
+		if tc.e == "" && err.Value() != nil {
+			t.Errorf("Expected no error, got: %v", err.Value())
 		}
-		if tc.e != "" && (err == nil || err.Error() != tc.e) {
-			t.Errorf("Expected error, got %v", err)
+		if tc.e != "" && (err.Value() == nil || err.Error() != tc.e) {
+			t.Errorf("Expected error, got %v", err.Value())
 		}
 	}
 }
@@ -220,11 +220,11 @@ func TestUint128Sub(t *testing.T) {
 		if tc.c != s {
 			t.Errorf("Expected %v, got %v", tc.c, s)
 		}
-		if tc.e == "" && err != nil {
-			t.Errorf("Expected no error, got: %v", err)
+		if tc.e == "" && err.Value() != nil {
+			t.Errorf("Expected no error, got: %v", err.Value())
 		}
-		if tc.e != "" && (err == nil || err.Error() != tc.e) {
-			t.Errorf("Expected error, got %v", err)
+		if tc.e != "" && (err.Value() == nil || err.Error() != tc.e) {
+			t.Errorf("Expected error, got %v", err.Value())
 		}
 	}
 }
@@ -264,11 +264,11 @@ func TestUint128Mul(t *testing.T) {
 		if tc.c != s {
 			t.Errorf("Expected %v, got %v", tc.c, s)
 		}
-		if tc.e == "" && err != nil {
-			t.Errorf("Expected no error, got: %v", err)
+		if tc.e == "" && err.Value() != nil {
+			t.Errorf("Expected no error, got: %v", err.Value())
 		}
-		if tc.e != "" && (err == nil || err.Error() != tc.e) {
-			t.Errorf("Expected error, got %v", err)
+		if tc.e != "" && (err.Value() == nil || err.Error() != tc.e) {
+			t.Errorf("Expected error, got %v", err.Value())
 		}
 	}
 }
@@ -314,11 +314,11 @@ func TestUint128Div(t *testing.T) {
 		if tc.c != s {
 			t.Errorf("Expected %v, got %v", tc.c, s)
 		}
-		if tc.e == "" && err != nil {
+		if tc.e == "" && err.Value() != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
-		if tc.e != "" && (err == nil || err.Error() != tc.e) {
-			t.Errorf("Expected error, got %v", err)
+		if tc.e != "" && (err.Value() == nil || err.Error() != tc.e) {
+			t.Errorf("Expected error, got %v", err.Value())
 		}
 	}
 }

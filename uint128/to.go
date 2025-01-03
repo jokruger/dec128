@@ -1,12 +1,16 @@
 package uint128
 
-import "math/big"
+import (
+	"math/big"
 
-func (self Uint128) Uint64() (uint64, error) {
+	"github.com/jokruger/dec128/errors"
+)
+
+func (self Uint128) Uint64() (uint64, errors.Error) {
 	if self.Hi != 0 {
-		return 0, ErrOverflow
+		return 0, errors.Overflow
 	}
-	return self.Lo, nil
+	return self.Lo, errors.None
 }
 
 func (self Uint128) Bytes() [16]byte {
