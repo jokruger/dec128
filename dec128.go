@@ -93,3 +93,48 @@ func (self Dec128) Equal(other Dec128) bool {
 
 	return false
 }
+
+func (self Dec128) Compare(other Dec128) int {
+	if self.err != errors.None && other.err != errors.None {
+		return 0
+	}
+
+	if self.err != errors.None {
+		return -1
+	}
+
+	if other.err != errors.None {
+		return 1
+	}
+
+	if self.neg && !other.neg {
+		return -1
+	}
+
+	if !self.neg && other.neg {
+		return 1
+	}
+
+	if self.prec == other.prec {
+		if self.neg {
+			return -self.coef.Compare(other.coef)
+		}
+		return self.coef.Compare(other.coef)
+	}
+
+	prec := max(self.prec, other.prec)
+	a := self.Rescale(prec)
+	if a.IsNaN() {
+		return 1
+	}
+	b := other.Rescale(prec)
+	if b.IsNaN() {
+		return -1
+	}
+
+	if a.neg {
+		return -a.coef.Compare(b.coef)
+	}
+
+	return a.coef.Compare(b.coef)
+}
