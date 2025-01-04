@@ -8,6 +8,43 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
+func TestDecimalParseStringHLE(t *testing.T) {
+	type testCase struct {
+		i string
+		h uint64
+		l uint64
+		e uint8
+	}
+
+	testCases := [...]testCase{
+		{"", 0, 0, 0},
+		{"0", 0, 0, 0},
+		{"1", 0, 1, 0},
+		{"10", 0, 10, 0},
+		{"1.0", 0, 10, 1},
+		{"1.00", 0, 100, 2},
+		{"1.000", 0, 1000, 3},
+		{"18446744073709551615", 0, 18446744073709551615, 0},
+		{"18446744073709551616", 1, 0, 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalParseStringHLE(%s)", tc.i), func(t *testing.T) {
+			d := dec128.FromString(tc.i)
+			if d.IsNaN() {
+				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
+			}
+			u, e, err := d.Uint128()
+			if err != nil {
+				t.Errorf("Expected no error, got: %v", err)
+			}
+			if u.Hi != tc.h || u.Lo != tc.l || e != tc.e {
+				t.Errorf("Expected %d %d %d, got: %d %d %d", tc.h, tc.l, tc.e, u.Hi, u.Lo, e)
+			}
+		})
+	}
+}
+
 func TestDecimalConvString(t *testing.T) {
 	type testCase struct {
 		i string
@@ -384,5 +421,52 @@ func TestDecimalCompare(t *testing.T) {
 	}
 	if b.Compare(a) != 1 {
 		t.Errorf("Expected 1, got %d", b.Compare(a))
+	}
+}
+
+func TestDecimalCanonical(t *testing.T) {
+	type testCase struct {
+		i  string
+		s  string
+		e1 uint8
+		e2 uint8
+	}
+
+	testCases := [...]testCase{
+		{"0", "0", 0, 0},
+		{"1", "1", 0, 0},
+		{"10", "10", 0, 0},
+		{"100", "100", 0, 0},
+		{"1.0", "1", 1, 0},
+		{"1.00", "1", 2, 0},
+		{"1.000", "1", 3, 0},
+		{"1.01", "1.01", 2, 2},
+		{"1.010", "1.01", 3, 2},
+		{"1.001", "1.001", 3, 3},
+		{"1.0010", "1.001", 4, 3},
+		{"1.00100", "1.001", 5, 3},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalCanonical(%s)", tc.i), func(t *testing.T) {
+			d := dec128.FromString(tc.i)
+			if d.IsNaN() {
+				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
+			}
+			c := d.Canonical()
+			if c.IsNaN() {
+				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+			}
+			s := c.String()
+			if s != tc.s {
+				t.Errorf("Expected '%s', got: %s", tc.s, s)
+			}
+			if d.Precision() != tc.e1 {
+				t.Errorf("Expected %d, got: %d", tc.e1, d.Precision())
+			}
+			if c.Precision() != tc.e2 {
+				t.Errorf("Expected %d, got: %d", tc.e2, c.Precision())
+			}
+		})
 	}
 }

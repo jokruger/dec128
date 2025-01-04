@@ -49,6 +49,24 @@ func (self Dec128) ErrorDetails() error {
 	return self.err.Value()
 }
 
+// Sign returns -1 if the Dec128 is negative, 0 if it is zero, and 1 if it is positive.
+func (self Dec128) Sign() int {
+	if self.err != errors.None || self.IsZero() {
+		return 0
+	}
+
+	if self.IsNeg() {
+		return -1
+	}
+
+	return 1
+}
+
+// Precision returns the precision of the Dec128.
+func (self Dec128) Precision() uint8 {
+	return self.exp
+}
+
 // Rescale returns a new Dec128 with the given precision.
 func (self Dec128) Rescale(prec uint8) Dec128 {
 	if self.err != errors.None {
@@ -155,4 +173,35 @@ func (self Dec128) Compare(other Dec128) int {
 	}
 
 	return a.coef.Compare(b.coef)
+}
+
+// Canonical returns a new Dec128 with the canonical representation.
+func (self Dec128) Canonical() Dec128 {
+	if self.err != errors.None {
+		return Dec128{err: self.err}
+	}
+
+	if self.IsZero() {
+		return Zero
+	}
+
+	if self.exp == 0 {
+		return self
+	}
+
+	coef := self.coef
+	exp := self.exp
+	for {
+		t, r, err := coef.QuoRem64(10)
+		if err != errors.None || r != 0 {
+			break
+		}
+		coef = t
+		exp--
+		if exp == 0 {
+			break
+		}
+	}
+
+	return Dec128{coef: coef, exp: exp, neg: self.neg}
 }
