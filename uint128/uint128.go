@@ -36,23 +36,23 @@ func (self Uint128) BitLen() int {
 	return 128 - self.LeadingZeroBitsCount()
 }
 
-func (self *Uint128) Scan(s fmt.ScanState, ch rune) errors.Error {
+func (self *Uint128) Scan(s fmt.ScanState, ch rune) error {
 	i := new(big.Int)
 
 	if err := i.Scan(s, ch); err != nil {
-		return errors.InvalidFormat
+		return errors.InvalidFormat.Value()
 	}
 
 	if i.Sign() < 0 {
-		return errors.Negative
+		return errors.Negative.Value()
 	}
 
 	if i.BitLen() > 128 {
-		return errors.Overflow
+		return errors.Overflow.Value()
 	}
 
 	self.Lo = i.Uint64()
 	self.Hi = i.Rsh(i, 64).Uint64()
 
-	return errors.None
+	return nil
 }
