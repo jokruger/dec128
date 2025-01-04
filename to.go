@@ -7,7 +7,8 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
-// Returns coef, prec, error
+// Uint64 returns the Dec128 decomposed into uint64 coefficient and uint8 exponent.
+// Negative values are not allowed.
 func (self Dec128) Uint64() (uint64, uint8, error) {
 	if self.err != errors.None {
 		return 0, 0, self.err.Value()
@@ -22,10 +23,11 @@ func (self Dec128) Uint64() (uint64, uint8, error) {
 		return 0, 0, err.Value()
 	}
 
-	return i, self.prec, nil
+	return i, self.exp, nil
 }
 
-// Returns coef, prec, error
+// Uint128 returns the Dec128 decomposed into uint128 coefficient and uint8 exponent.
+// Negative values are not allowed.
 func (self Dec128) Uint128() (uint128.Uint128, uint8, error) {
 	if self.err != errors.None {
 		return uint128.Zero, 0, self.err.Value()
@@ -35,9 +37,12 @@ func (self Dec128) Uint128() (uint128.Uint128, uint8, error) {
 		return uint128.Zero, 0, errors.Negative.Value()
 	}
 
-	return self.coef, self.prec, nil
+	return self.coef, self.exp, nil
 }
 
+// String returns the string representation of the Dec128 with the trailing zeros removed.
+// If the Dec128 is zero, the string "0" is returned.
+// If the Dec128 is NaN, the string "NaN" is returned.
 func (self Dec128) String() string {
 	if self.err != errors.None {
 		return NaNStr
@@ -48,7 +53,7 @@ func (self Dec128) String() string {
 	}
 
 	coef := self.coef.String()
-	prec := int(self.prec)
+	prec := int(self.exp)
 
 	if prec == 0 {
 		if self.neg {

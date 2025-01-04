@@ -5,7 +5,9 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
-const maxPrecision = uint8(uint128.MaxSafeStrLen64)
+// MaxPrecision is the maximum number of digits after the decimal point that can be represented.
+// MaxPrecision = 19
+const MaxPrecision = uint8(uint128.MaxSafeStrLen64)
 
 var (
 	Zero = Dec128{}
@@ -13,10 +15,8 @@ var (
 	ZeroStr = "0"
 	NaNStr  = "NaN"
 
-	defaultPrecision = maxPrecision
-)
+	defaultPrecision = MaxPrecision
 
-var (
 	pow10 = [...]uint64{
 		1,                    // 10^0
 		10,                   // 10^1
@@ -41,8 +41,9 @@ var (
 	}
 )
 
+// SetDefaultPrecision sets the default precision for all Dec128 instances, where precision is the number of digits after the decimal point.
 func SetDefaultPrecision(prec uint8) {
-	if prec > maxPrecision {
+	if prec > MaxPrecision {
 		panic(errors.PrecisionOutOfRange.Value())
 	}
 	defaultPrecision = prec

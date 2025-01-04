@@ -7,8 +7,9 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
-func FromUint64(coef uint64, prec uint8) Dec128 {
-	if prec > maxPrecision {
+// FromUint64 creates a new Dec128 from a uint64 coefficient and uint8 exponent.
+func FromUint64(coef uint64, exp uint8) Dec128 {
+	if exp > MaxPrecision {
 		return NaN(errors.PrecisionOutOfRange)
 	}
 
@@ -16,11 +17,12 @@ func FromUint64(coef uint64, prec uint8) Dec128 {
 		return Zero
 	}
 
-	return Dec128{coef: uint128.FromUint64(coef), prec: prec}
+	return Dec128{coef: uint128.FromUint64(coef), exp: exp}
 }
 
-func FromUint128(coef uint128.Uint128, prec uint8) Dec128 {
-	if prec > maxPrecision {
+// FromUint128 creates a new Dec128 from a uint128 coefficient and uint8 exponent.
+func FromUint128(coef uint128.Uint128, exp uint8) Dec128 {
+	if exp > MaxPrecision {
 		return NaN(errors.PrecisionOutOfRange)
 	}
 
@@ -28,9 +30,10 @@ func FromUint128(coef uint128.Uint128, prec uint8) Dec128 {
 		return Zero
 	}
 
-	return Dec128{coef: coef, prec: prec}
+	return Dec128{coef: coef, exp: exp}
 }
 
+// FromString creates a new Dec128 from a string.
 func FromString(s string) Dec128 {
 	sz := len(s)
 
@@ -75,7 +78,7 @@ func FromString(s string) Dec128 {
 		if u == 0 {
 			return Zero
 		}
-		return Dec128{coef: uint128.FromUint64(u), prec: uint8(prec), neg: neg}
+		return Dec128{coef: uint128.FromUint64(u), exp: uint8(prec), neg: neg}
 	}
 
 	j := strings.IndexByte(s, '.')
@@ -87,7 +90,7 @@ func FromString(s string) Dec128 {
 		if err != errors.None {
 			return NaN(err)
 		}
-		return Dec128{coef: coef, prec: 0, neg: neg}
+		return Dec128{coef: coef, exp: 0, neg: neg}
 	}
 
 	prec = sz - j - 1
@@ -120,5 +123,5 @@ func FromString(s string) Dec128 {
 		return Zero
 	}
 
-	return Dec128{coef: coef, prec: uint8(prec), neg: neg}
+	return Dec128{coef: coef, exp: uint8(prec), neg: neg}
 }
