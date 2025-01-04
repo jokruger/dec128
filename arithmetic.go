@@ -14,14 +14,14 @@ func (self Dec128) Add(other Dec128) Dec128 {
 		return other
 	}
 
-	r, ok := self.add(other)
+	r, ok := self.tryAdd(other)
 	if ok {
 		return r
 	}
 
 	a := self.Canonical()
 	b := other.Canonical()
-	r, ok = a.add(b)
+	r, ok = a.tryAdd(b)
 	if ok {
 		return r
 	}
@@ -39,14 +39,14 @@ func (self Dec128) Sub(other Dec128) Dec128 {
 		return other
 	}
 
-	r, ok := self.sub(other)
+	r, ok := self.trySub(other)
 	if ok {
 		return r
 	}
 
 	a := self.Canonical()
 	b := other.Canonical()
-	r, ok = a.sub(b)
+	r, ok = a.trySub(b)
 	if ok {
 		return r
 	}

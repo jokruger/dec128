@@ -4,7 +4,7 @@ import (
 	"github.com/jokruger/dec128/errors"
 )
 
-func (self Dec128) add(other Dec128) (Dec128, bool) {
+func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
 	prec := max(self.exp, other.exp)
 
 	a := self.Rescale(prec)
@@ -43,7 +43,7 @@ func (self Dec128) add(other Dec128) (Dec128, bool) {
 	}
 }
 
-func (self Dec128) sub(other Dec128) (Dec128, bool) {
+func (self Dec128) trySub(other Dec128) (Dec128, bool) {
 	prec := max(self.exp, other.exp)
 
 	a := self.Rescale(prec)
