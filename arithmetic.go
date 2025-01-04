@@ -4,6 +4,7 @@ import (
 	"github.com/jokruger/dec128/errors"
 )
 
+// Add returns the sum of the Dec128 and the other Dec128.
 func (self Dec128) Add(other Dec128) Dec128 {
 	if self.err != errors.None {
 		return self
