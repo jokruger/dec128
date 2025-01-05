@@ -19,3 +19,15 @@
 - **Precision**: The number of decimal places in a number. For example, 1.00 has a precision of 2 and 1.0000 has a precision of 4.
 - **Expontent**: Same as precision, but in the context of low-level implementation details or Dec128 encoding.
 - **Canonical**: The representation of a number with the minimum number of decimal places required to represent the number.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
+
+### Attribution
+
+This project includes code derived from:
+- A project licensed under the BSD 3-Clause License (Copyright © 2025 Quang).
+- A project licensed under the MIT License (Copyright © 2019 Luke Champine).
+
+See the `LICENSE` file for full license texts.
