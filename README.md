@@ -3,6 +3,7 @@
 
 ## Key Objectives
 - [ ] High performance
+- [ ] Minimal or zero memory allocation
 - [x] High precision in financial calculations
 - [x] No panic or error arithmetics (use NaN instead)
 - [x] Basic arithmetic operations required for financial calculations (specifically for banking and accounting)
