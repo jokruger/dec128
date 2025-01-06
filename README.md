@@ -3,9 +3,10 @@
 
 ## Key Objectives
 - [ ] High performance
-- [ ] High precision in financial calculations
+- [x] High precision in financial calculations
 - [x] No panic or error arithmetics (use NaN instead)
-- [ ] Basic arithmetic operations required for financial calculations (specifically for banking and accounting)
+- [x] Basic arithmetic operations required for financial calculations (specifically for banking and accounting)
+- [ ] Additional arithmetic operations for scientific calculations
 - [x] Easy to use
 - [ ] Easy to inegrate with external systems (e.g. databases, accounting systems, JSON, etc.)
 - [ ] Financially correct rounding
