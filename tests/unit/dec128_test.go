@@ -710,3 +710,44 @@ func TestDecimalDiv(t *testing.T) {
 		})
 	}
 }
+
+func TestSign(t *testing.T) {
+	type testCase struct {
+		a    string
+		want int
+	}
+
+	testCases := [...]testCase{
+		{"1234567890123456789", 1},
+		{"123.123", 1},
+		{"-123.123", -1},
+		{"-123.1234567890123456789", -1},
+		{"123.1234567890123456789", 1},
+		{"123.1230000000000000001", 1},
+		{"-123.1230000000000000001", -1},
+		{"123.1230000000000000002", 1},
+		{"-123.1230000000000000002", -1},
+		{"123.123000000001", 1},
+		{"-123.123000000001", -1},
+		{"123.1230000", 1},
+		{"123.1001", 1},
+		{"0", 0},
+		{"0.0", 0},
+		{"-0", 0},
+		{"-0.000", 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestSign(%s)", tc.a), func(t *testing.T) {
+			a := dec128.FromString(tc.a)
+			if a.IsNaN() {
+				t.Errorf("Expected no error, got: %v", a.ErrorDetails())
+			}
+
+			c := a.Sign()
+			if c != tc.want {
+				t.Errorf("Expected %d, got: %d", tc.want, c)
+			}
+		})
+	}
+}
