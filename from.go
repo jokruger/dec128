@@ -13,7 +13,7 @@ func FromUint64(coef uint64, exp uint8) Dec128 {
 		return NaN(errors.PrecisionOutOfRange)
 	}
 
-	if coef == 0 {
+	if coef == 0 && exp == 0 {
 		return Zero
 	}
 
@@ -42,7 +42,7 @@ func FromString(s string) Dec128 {
 	}
 
 	switch s {
-	case "0", "0.0", "0.00", ".0", ".00":
+	case "0":
 		return Zero
 	case "+", "-", ".", "+.", "-.":
 		return NaN(errors.InvalidFormat)
@@ -75,7 +75,7 @@ func FromString(s string) Dec128 {
 			}
 			u = u*10 + uint64(s[i]-'0')
 		}
-		if u == 0 {
+		if u == 0 && prec == 0 {
 			return Zero
 		}
 		return Dec128{coef: uint128.FromUint64(u), exp: uint8(prec), neg: neg}
@@ -119,7 +119,7 @@ func FromString(s string) Dec128 {
 		return NaN(err)
 	}
 
-	if coef.IsZero() {
+	if coef.IsZero() && prec == 0 {
 		return Zero
 	}
 

@@ -87,3 +87,53 @@ func (self Dec128) String() string {
 
 	return strings.TrimRight(coef, ".")
 }
+
+// StringFixed returns the string representation of the Dec128 with the trailing zeros preserved.
+// If the Dec128 is NaN, the string "NaN" is returned.
+func (self Dec128) StringFixed() string {
+	if self.err != errors.None {
+		return NaNStr
+	}
+
+	if self.IsZero() {
+		if self.exp == 0 {
+			return "0"
+		}
+		return "0." + strings.Repeat("0", int(self.exp))
+	}
+
+	coef := self.coef.String()
+	prec := int(self.exp)
+
+	if prec == 0 {
+		if self.neg {
+			return "-" + coef
+		}
+		return coef
+	}
+
+	sz := len(coef)
+
+	if prec > sz {
+		coef = strings.Repeat("0", prec-sz) + coef
+		if self.neg {
+			coef = "-0." + coef
+		} else {
+			coef = "0." + coef
+		}
+	} else if prec == sz {
+		if self.neg {
+			coef = "-0." + coef
+		} else {
+			coef = "0." + coef
+		}
+	} else {
+		if self.neg {
+			coef = "-" + coef[:sz-prec] + "." + coef[sz-prec:]
+		} else {
+			coef = coef[:sz-prec] + "." + coef[sz-prec:]
+		}
+	}
+
+	return coef
+}

@@ -751,3 +751,76 @@ func TestSign(t *testing.T) {
 		})
 	}
 }
+
+func TestDecimalToStringFixed(t *testing.T) {
+	type testCase struct {
+		i uint64
+		e uint8
+		s string
+	}
+
+	testCases := [...]testCase{
+		{0, 0, "0"},
+		{0, 1, "0.0"},
+		{0, 2, "0.00"},
+		{0, 3, "0.000"},
+		{1, 0, "1"},
+		{1, 1, "0.1"},
+		{1, 2, "0.01"},
+		{1, 3, "0.001"},
+		{1, 6, "0.000001"},
+		{10, 6, "0.000010"},
+		{100, 6, "0.000100"},
+		{1000, 6, "0.001000"},
+		{10000, 6, "0.010000"},
+		{100000, 6, "0.100000"},
+		{1000000, 6, "1.000000"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalToStringFixed(%v)", tc), func(t *testing.T) {
+			d := dec128.FromUint64(tc.i, tc.e)
+			s := d.StringFixed()
+			if s != tc.s {
+				t.Errorf("Expected '%s', got: %s", tc.s, s)
+			}
+		})
+	}
+}
+
+func TestDecimalToStringFixed2(t *testing.T) {
+	type testCase struct {
+		i string
+		s string
+	}
+
+	testCases := [...]testCase{
+		{"0", "0"},
+		{"0.0", "0.0"},
+		{"0.00", "0.00"},
+		{"1", "1"},
+		{"0.1", "0.1"},
+		{"0.01", "0.01"},
+		{"0.001", "0.001"},
+		{"1.0", "1.0"},
+		{"1.00", "1.00"},
+		{"1.000", "1.000"},
+		{"1.000000", "1.000000"},
+		{"1.000001", "1.000001"},
+		{"1.000010", "1.000010"},
+		{"1.000100", "1.000100"},
+		{"1.001000", "1.001000"},
+		{"1.010000", "1.010000"},
+		{"1.100000", "1.100000"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalToStringFixed2(%v)", tc), func(t *testing.T) {
+			d := dec128.FromString(tc.i)
+			s := d.StringFixed()
+			if s != tc.s {
+				t.Errorf("Expected '%s', got: %s", tc.s, s)
+			}
+		})
+	}
+}

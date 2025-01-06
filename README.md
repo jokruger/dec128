@@ -13,7 +13,7 @@
 - [x] Correct comparison of numbers encoded in different precisions (e.g. 1.0 == 1.00)
 - [x] Correct handling of NaN values (e.g. NaN + 1 = NaN)
 - [x] Conversion to canonical representation (e.g. 1.0000 -> 1)
-- [ ] Conversion to fixed string representation (e.g. 1.0000 -> "1.0000")
+- [x] Conversion to fixed string representation (e.g. 1.0000 -> "1.0000")
 - [x] Conversion to human-readable string representation (e.g. 1.0000 -> "1")
 
 ## Notes on Terminology
