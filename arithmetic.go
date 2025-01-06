@@ -80,7 +80,5 @@ func (self Dec128) Mul(other Dec128) Dec128 {
 		return r
 	}
 
-	// TODO: try big.Int
-
 	return NaN(errors.Overflow)
 }
