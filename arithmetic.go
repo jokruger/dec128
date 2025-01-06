@@ -53,3 +53,34 @@ func (self Dec128) Sub(other Dec128) Dec128 {
 
 	return NaN(errors.Overflow)
 }
+
+// Mul returns self * other.
+func (self Dec128) Mul(other Dec128) Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+
+	if other.err != errors.None {
+		return other
+	}
+
+	if self.IsZero() || other.IsZero() {
+		return Zero
+	}
+
+	r, ok := self.tryMul(other)
+	if ok {
+		return r
+	}
+
+	a := self.Canonical()
+	b := other.Canonical()
+	r, ok = a.tryMul(b)
+	if ok {
+		return r
+	}
+
+	// TODO: try big.Int
+
+	return NaN(errors.Overflow)
+}

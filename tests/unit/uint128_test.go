@@ -7,6 +7,16 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
+func TestUint128Pow10(t *testing.T) {
+	u := uint128.FromUint64(1)
+	for i := 0; i < len(uint128.Pow10); i++ {
+		if !u.Equal(uint128.Pow10[i]) {
+			t.Errorf("Expected %v, got %v", uint128.Pow10[i], u)
+		}
+		u, _ = u.Mul(uint128.FromUint64(10))
+	}
+}
+
 func TestUint128ConvUint64(t *testing.T) {
 	testCases := [...]uint64{0, 1, 1234567890, 18446744073709551615}
 	for _, i := range testCases {

@@ -64,6 +64,32 @@ func (self Uint128) Mul(other Uint128) (Uint128, errors.Error) {
 	return Uint128{lo, hi}, errors.None
 }
 
+// MulCarry returns self * other and carry.
+func (self Uint128) MulCarry(other Uint128) (Uint128, Uint128) {
+	if self.Hi == 0 && other.Hi == 0 {
+		hi, lo := bits.Mul64(self.Lo, other.Lo)
+		return Uint128{Lo: lo, Hi: hi}, Zero
+	}
+
+	hi, lo := bits.Mul64(self.Lo, other.Lo)
+	p0, p1 := bits.Mul64(self.Hi, other.Lo)
+	p2, p3 := bits.Mul64(self.Lo, other.Hi)
+
+	// calculate hi + p1 + p3
+	// total carry = carry(hi+p1) + carry(hi+p1+p3)
+	hi, c0 := bits.Add64(hi, p1, 0)
+	hi, c1 := bits.Add64(hi, p3, 0)
+	c1 += c0
+
+	// calculate upper part of out carry
+	e0, e1 := bits.Mul64(self.Hi, other.Hi)
+	d, d0 := bits.Add64(p0, p2, 0)
+	d, d1 := bits.Add64(d, c1, 0)
+	e2, e3 := bits.Add64(d, e1, 0)
+
+	return Uint128{Lo: lo, Hi: hi}, Uint128{Lo: e2, Hi: e0 + d0 + d1 + e3}
+}
+
 func (self Uint128) Mul64(other uint64) (Uint128, errors.Error) {
 	hi, lo := bits.Mul64(self.Lo, other)
 	p0, p1 := bits.Mul64(self.Hi, other)

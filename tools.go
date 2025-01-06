@@ -2,6 +2,7 @@ package dec128
 
 import (
 	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/uint128"
 )
 
 func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
@@ -79,5 +80,38 @@ func (self Dec128) trySub(other Dec128) (Dec128, bool) {
 			return NaN(err), false
 		}
 		return Dec128{coef: coef, exp: prec, neg: !a.neg}, true
+	}
+}
+
+func (self Dec128) tryMul(other Dec128) (Dec128, bool) {
+	neg := self.neg != other.neg
+	prec := self.exp + other.exp
+	rcoef, rcarry := self.coef.MulCarry(other.coef)
+
+	if rcarry.IsZero() {
+		r := Dec128{coef: rcoef, exp: prec, neg: neg}
+		if prec <= MaxPrecision {
+			return r, true
+		}
+		r = r.Canonical()
+		return r, r.exp <= MaxPrecision
+	}
+
+	i := prec
+	for {
+		if i == 0 {
+			return NaN(errors.Overflow), false
+		}
+		q, r, err := uint128.QuoRem256By128(rcoef, rcarry, uint128.Pow10[i])
+		if err == errors.None && r.IsZero() {
+			return Dec128{coef: q, exp: prec - i, neg: neg}, true
+		}
+		if err == errors.Overflow {
+			return NaN(errors.Overflow), false
+		}
+		i--
+		if prec-i > MaxPrecision {
+			return NaN(errors.Overflow), false
+		}
 	}
 }
