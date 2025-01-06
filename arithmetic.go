@@ -82,3 +82,36 @@ func (self Dec128) Mul(other Dec128) Dec128 {
 
 	return NaN(errors.Overflow)
 }
+
+// Div returns self / other.
+func (self Dec128) Div(other Dec128) Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+
+	if other.err != errors.None {
+		return other
+	}
+
+	if other.IsZero() {
+		return NaN(errors.DivisionByZero)
+	}
+
+	if self.IsZero() {
+		return Zero
+	}
+
+	r, ok := self.tryDiv(other)
+	if ok {
+		return r
+	}
+
+	a := self.Canonical()
+	b := other.Canonical()
+	r, ok = a.tryDiv(b)
+	if ok {
+		return r
+	}
+
+	return NaN(errors.Overflow)
+}

@@ -115,3 +115,19 @@ func (self Dec128) tryMul(other Dec128) (Dec128, bool) {
 		}
 	}
 }
+
+func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
+	neg := self.neg != other.neg
+	factor := other.exp
+	prec := self.exp
+	if prec < defaultPrecision {
+		factor = factor + defaultPrecision - prec
+		prec = defaultPrecision
+	}
+	u, c := self.coef.MulCarry(uint128.Pow10[factor])
+	q, _, err := uint128.QuoRem256By128(u, c, other.coef)
+	if err != errors.None {
+		return NaN(err), false
+	}
+	return Dec128{coef: q, exp: prec, neg: neg}, true
+}

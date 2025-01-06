@@ -498,6 +498,9 @@ func TestDecimalAdd(t *testing.T) {
 		{"999999.9999999", "0.0000001", "1000000"},
 		{"340282366920938463463374607431768211454", "1", "340282366920938463463374607431768211455"},
 		{"340282366920938463463374607431768211454", "1.00", "340282366920938463463374607431768211455"}, // overflow due to precision fixed by auto canonicalization
+		{"NaN", "1", "NaN"},
+		{"1", "NaN", "NaN"},
+		{"NaN", "NaN", "NaN"},
 	}
 
 	for _, tc := range testCases {
@@ -540,6 +543,9 @@ func TestDecimalSub(t *testing.T) {
 		{"999999.9999999", "-0.0000001", "1000000"},
 		{"340282366920938463463374607431768211455", "1", "340282366920938463463374607431768211454"},
 		{"340282366920938463463374607431768211455", "1.00", "340282366920938463463374607431768211454"}, // overflow due to precision fixed by auto canonicalization
+		{"NaN", "1", "NaN"},
+		{"1", "NaN", "NaN"},
+		{"NaN", "NaN", "NaN"},
 	}
 
 	for _, tc := range testCases {
@@ -585,6 +591,9 @@ func TestDecimalMul(t *testing.T) {
 		{"340282366920938463463374607431768211455", "1", "340282366920938463463374607431768211455", ""},
 		{"340282366920938463463374607431768211455", "1.000000", "340282366920938463463374607431768211455", ""}, // overflow due to precision fixed by auto canonicalization
 		{"340282366920938463463374607431768211455", "1.1", "NaN", "overflow"},
+		{"NaN", "1", "NaN", "invalid format"},
+		{"1", "NaN", "NaN", "invalid format"},
+		{"NaN", "NaN", "NaN", "invalid format"},
 	}
 
 	for _, tc := range testCases {
@@ -598,6 +607,72 @@ func TestDecimalMul(t *testing.T) {
 			}
 			if tc.e != "" && !c.IsNaN() {
 				t.Errorf("Expected error '%s', got nil", tc.e)
+			}
+			if tc.e == "" && c.IsNaN() {
+				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+			}
+		})
+	}
+}
+
+func TestDecimalDiv(t *testing.T) {
+	type testCase struct {
+		a string
+		b string
+		r string
+		e string
+	}
+
+	dec128.SetDefaultPrecision(10)
+
+	testCases := [...]testCase{
+		{"0", "0", "NaN", "division by zero"},
+		{"NaN", "1", "NaN", "invalid format"},
+		{"1", "NaN", "NaN", "invalid format"},
+		{"NaN", "NaN", "NaN", "invalid format"},
+		{"0", "1", "0", ""},
+		{"1", "1", "1", ""},
+		{"-1", "1", "-1", ""},
+		{"1", "-1", "-1", ""},
+		{"-1", "-1", "1", ""},
+		{"10", "10", "1", ""},
+		{"10", "10.00", "1", ""},
+		{"100", "10", "10", ""},
+		{"1", "0.1", "10", ""},
+		{"1", "10", "0.1", ""},
+		{"1", "0.0000001", "10000000", ""},
+		{"1234567890", "10", "123456789", ""},
+		{"1234567890", "1000", "1234567.89", ""},
+		{"1234567890.123456789", "1000", "1234567.8901234567", ""},
+		{"18446744073709551615", "1", "18446744073709551615", ""},
+		{"18446744073709551615", "0.1", "184467440737095516150", ""},
+		{"18446744073709551615", "0.0001", "184467440737095516150000", ""},
+		{"18446744073709551615.000000000000000000", "0.0001", "184467440737095516150000", ""}, // overflow due to precision fixed by auto canonicalization
+		{"12345678901234567890", "365", "33823777811601555.8630136986", ""},
+		{"1", "2", "0.5", ""},
+		{"1", "3", "0.3333333333", ""},
+		{"1", "4", "0.25", ""},
+		{"1", "5", "0.2", ""},
+		{"1", "6", "0.1666666666", ""},
+		{"1", "7", "0.1428571428", ""},
+		{"1", "8", "0.125", ""},
+		{"1", "9", "0.1111111111", ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalDiv(%s / %s)", tc.a, tc.b), func(t *testing.T) {
+			a := dec128.FromString(tc.a)
+			b := dec128.FromString(tc.b)
+			c := a.Div(b)
+			s := c.String()
+			if s != tc.r {
+				t.Errorf("Expected '%s', got: %s", tc.r, s)
+			}
+			if tc.e != "" && !c.IsNaN() {
+				t.Errorf("Expected error '%s', got nil", tc.e)
+			}
+			if tc.e == "" && c.IsNaN() {
+				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
 			}
 		})
 	}
