@@ -15,6 +15,7 @@ func TestDecimalTrunc(t *testing.T) {
 	}
 
 	testCases := [...]testCase{
+		{"Nan", 2, "NaN"},
 		{"0", 0, "0"},
 		{"0", 1, "0"},
 		{"1.12345", 4, "1.1234"},
@@ -102,6 +103,7 @@ func TestDecimalCeil(t *testing.T) {
 	}
 
 	testCases := [...]testCase{
+		{"Nan", "NaN"},
 		{"0", "0"},
 		{"123.456000", "124"},
 		{"-123.456000", "-123"},
@@ -144,6 +146,7 @@ func TestDecimalFloor(t *testing.T) {
 	}
 
 	testCases := [...]testCase{
+		{"Nan", "NaN"},
 		{"0", "0"},
 		{"123.456000", "123"},
 		{"123.1234567890987654321", "123"},
@@ -188,6 +191,7 @@ func TestDecimalRoundHalfTowardZero(t *testing.T) {
 	}
 
 	testCases := [...]testCase{
+		{"Nan", 2, "NaN"},
 		{"0", 0, "0"},
 		{"1.12345", 4, "1.1234"},
 		{"1.12335", 4, "1.1233"},
@@ -286,6 +290,7 @@ func TestDecimalRoundHalfAwayFromZero(t *testing.T) {
 	}
 
 	testCases := [...]testCase{
+		{"Nan", 2, "NaN"},
 		{"0", 0, "0"},
 		{"1.12345", 4, "1.1235"},
 		{"1.12335", 4, "1.1234"},
@@ -371,6 +376,44 @@ func TestDecimalRoundHalfAwayFromZero(t *testing.T) {
 			s := d.RoundHalfAwayFromZero(tc.p).StringFixed()
 			if s != tc.s {
 				t.Errorf("RoundHalfAwayFromZero(%v, %v) = %v, want %v", tc.i, tc.p, s, tc.s)
+			}
+		})
+	}
+}
+
+func TestDecimalRoundAwayFromZero(t *testing.T) {
+	type testCase struct {
+		i string
+		p uint8
+		s string
+	}
+
+	testCases := [...]testCase{
+		{"Nan", 2, "NaN"},
+		{"0", 0, "0"},
+		{"1.12345", 4, "1.1235"},
+		{"1.12335", 4, "1.1234"},
+		{"1.5", 0, "2"},
+		{"-1.5", 0, "-2"},
+		{"1.12", 1, "1.2"},
+		{"1.15", 1, "1.2"},
+		{"-1.12", 1, "-1.2"},
+		{"-1.15", 1, "-1.2"},
+		{"9999999999999999999.9999999999999999999", 3, "10000000000000000000.000"},
+		{"-9999999999999999999.9999999999999999999", 3, "-10000000000000000000.000"},
+		{"123.456000", 0, "124"},
+		{"123.456000", 4, "123.4560"},
+		{"123.1234567890987654321", 6, "123.123457"},
+		{"-123.456000", 7, "-123.456000"},
+		{"-123.1234567890987654321", 7, "-123.1234568"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalRoundAwayFromZero(%v)", tc), func(t *testing.T) {
+			d := dec128.FromString(tc.i)
+			s := d.RoundAwayFromZero(tc.p).StringFixed()
+			if s != tc.s {
+				t.Errorf("RoundAwayFromZero(%v, %v) = %v, want %v", tc.i, tc.p, s, tc.s)
 			}
 		})
 	}

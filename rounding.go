@@ -4,6 +4,48 @@ import (
 	"github.com/jokruger/dec128/errors"
 )
 
+// RoundAwayFromZero rounds the decimal to the specified prec using Away From Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_away_from_zero).
+//
+// Examples:
+//
+//	Round(1.12, 1) = 1.2
+//	Round(1.15, 1) = 1.2
+//	Round(-1.12, 1) = -1.2
+//	Round(-1.15, 1) = -1.2
+func (self Dec128) RoundAwayFromZero(prec uint8) Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+
+	if prec >= self.exp {
+		return self
+	}
+
+	q, r, err := self.coef.QuoRem64(pow10[self.exp-prec])
+	if err != errors.None {
+		return NaN(err)
+	}
+
+	if r != 0 {
+		q, err = q.Add64(1)
+		if err != errors.None {
+			return NaN(err)
+		}
+	}
+
+	return Dec128{coef: q, exp: prec, neg: self.neg}
+}
+
+// RoundTowardZero rounds the decimal to the specified prec using Toward Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_toward_zero).
+//
+// Examples:
+//
+//	Trunc(1.12345, 4) = 1.1234
+//	Trunc(1.12335, 4) = 1.1233
+func (self Dec128) RoundTowardZero(prec uint8) Dec128 {
+	return self.Trunc(prec)
+}
+
 // RoundHalfAwayFromZero rounds the decimal to the specified prec using Half Away from Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_half_away_from_zero).
 //
 // Examples:
