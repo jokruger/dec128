@@ -47,6 +47,15 @@ func (self Uint128) String() string {
 }
 
 func (self Uint128) StringToBuf(buf []byte) int {
+	if self.Hi == 0 {
+		i := len(buf)
+		for u := self.Lo; u != 0; i-- {
+			buf[i-1] += byte(u % 10)
+			u /= 10
+		}
+		return i
+	}
+
 	u := self
 	for i := len(buf); ; i -= 19 {
 		q, r, _ := u.QuoRem64(1e19)
