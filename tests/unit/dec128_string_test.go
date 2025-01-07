@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jokruger/dec128"
+	"github.com/jokruger/dec128/uint128"
 )
 
 func TestDecimalParseStringHLE(t *testing.T) {
@@ -33,7 +34,9 @@ func TestDecimalParseStringHLE(t *testing.T) {
 			if d.IsNaN() {
 				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
 			}
-			u, e, err := d.Uint128()
+			u := d.Coefficient()
+			e := d.Exponent()
+			err := d.ErrorDetails()
 			if err != nil {
 				t.Errorf("Expected no error, got: %v", err)
 			}
@@ -191,7 +194,7 @@ func TestDecimalToStringFixed(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("TestDecimalToStringFixed(%v)", tc), func(t *testing.T) {
-			d := dec128.FromUint64(tc.i, tc.e)
+			d := dec128.New(uint128.FromUint64(tc.i), tc.e, false)
 			s := d.StringFixed()
 			if s != tc.s {
 				t.Errorf("Expected '%s', got: %s", tc.s, s)

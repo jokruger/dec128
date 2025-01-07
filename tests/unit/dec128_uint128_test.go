@@ -7,43 +7,32 @@ import (
 	"github.com/jokruger/dec128"
 )
 
-func TestDecimalConvUint128(t *testing.T) {
-	d := dec128.FromString("NaN")
-	_, _, err := d.Uint128()
-	if err == nil {
-		t.Errorf("Expected error, got nil")
+func TestDecimalUint128Encoding(t *testing.T) {
+	type testCase struct {
+		i string
+		p uint8
+		s string
 	}
 
-	d = dec128.FromString("-1")
-	_, _, err = d.Uint128()
-	if err == nil {
-		t.Errorf("Expected error, got nil")
+	testCases := [...]testCase{
+		{"0", 6, "0"},
+		{"1", 6, "1"},
+		{"1.1", 6, "1.1"},
+		{"1.01", 6, "1.01"},
+		{"123.456", 6, "123.456"},
+		{"1234567890.1234567890", 6, "1234567890.123456"},
 	}
 
-	d = dec128.FromString("340282366920938463463374607431768211456")
-	_, _, err = d.Uint128()
-	if err == nil {
-		t.Errorf("Expected error, got nil")
-	}
-
-	testCases := [...]string{"0", "1", "1234567890", "1234567890.123456789", "340282366920938463463374607431768211455", "12345678901234567890.123456789"}
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("TestDecimalConvUint128(%s)", tc), func(t *testing.T) {
-			d := dec128.FromString(tc)
-			if d.IsNaN() {
-				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
-			}
-			u, p, err := d.Uint128()
+		t.Run(fmt.Sprintf("TestDecimalFromUint128(%v)", tc), func(t *testing.T) {
+			d := dec128.FromString(tc.i)
+			u, err := d.EncodeToUint128(tc.p)
 			if err != nil {
-				t.Errorf("Expected no error, got: %v", err)
+				t.Errorf("Error: %v", err)
 			}
-			d2 := dec128.FromUint128(u, p)
-			if !d.Equal(d2) {
-				t.Errorf("Expected %s, got: %s", d.String(), d2.String())
-			}
-			s := d2.String()
-			if s != tc {
-				t.Errorf("Expected '%s', got: %s", tc, s)
+			s := dec128.New(u, tc.p, false).String()
+			if s != tc.s {
+				t.Errorf("Expected: %v, got: %v", tc.s, s)
 			}
 		})
 	}

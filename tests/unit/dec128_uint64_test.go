@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/jokruger/dec128"
+	"github.com/jokruger/dec128/uint128"
 )
 
-func TestDecimalFromUint64(t *testing.T) {
+func TestDecimalFromUint64Encoding(t *testing.T) {
 	type testCase struct {
 		i uint64
 		p uint8
@@ -33,7 +34,7 @@ func TestDecimalFromUint64(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("TestDecimalFromUint64(%v)", tc), func(t *testing.T) {
-			d := dec128.FromUint64(tc.i, tc.p)
+			d := dec128.New(uint128.FromUint64(tc.i), tc.p, false)
 			s := d.String()
 			if s != tc.s {
 				t.Errorf("Expected '%s', got: %s", tc.s, s)
@@ -42,7 +43,7 @@ func TestDecimalFromUint64(t *testing.T) {
 	}
 }
 
-func TestDecimalConvToUint64(t *testing.T) {
+func TestDecimalUint64Encoding(t *testing.T) {
 	type testCase struct {
 		i string
 		u uint64
@@ -65,12 +66,15 @@ func TestDecimalConvToUint64(t *testing.T) {
 		{"1844674407.3709551615", 18446744073709551615, 10, ""},
 		{"18446744073709551616", 0, 0, "overflow"},
 		{"-1", 0, 0, "negative"},
+		{"1", 1000000, 6, ""},
+		{"123", 123000000, 6, ""},
+		{"123.456", 123456000, 6, ""},
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("TestDecimalConvToUint64(%s)", tc.i), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestDecimalUint64Encoding(%s)", tc.i), func(t *testing.T) {
 			d := dec128.FromString(tc.i)
-			u, p, err := d.Uint64()
+			u, err := d.EncodeToUint64(tc.p)
 			if tc.e != "" && err == nil {
 				t.Errorf("Expected error '%s', got nil", tc.e)
 			}
@@ -80,8 +84,34 @@ func TestDecimalConvToUint64(t *testing.T) {
 			if u != tc.u {
 				t.Errorf("Expected %d, got: %d", tc.u, u)
 			}
-			if p != tc.p {
-				t.Errorf("Expected %d, got: %d", tc.p, p)
+		})
+	}
+}
+
+func TestDecimalUint64Encoding2(t *testing.T) {
+	type testCase struct {
+		i string
+		p uint8
+		s string
+	}
+
+	testCases := [...]testCase{
+		{"0", 3, "0"},
+		{"123", 3, "123"},
+		{"123.456", 3, "123.456"},
+		{"1234567890.123456", 3, "1234567890.123"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalUint64Encoding2(%s)", tc.i), func(t *testing.T) {
+			d := dec128.FromString(tc.i)
+			u, err := d.EncodeToUint64(tc.p)
+			if err != nil {
+				t.Errorf("Expected no error, got: %v", err)
+			}
+			s := dec128.New(uint128.FromUint64(u), tc.p, false).String()
+			if s != tc.s {
+				t.Errorf("Expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}

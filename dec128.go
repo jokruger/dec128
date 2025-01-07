@@ -12,6 +12,19 @@ type Dec128 struct {
 	neg  bool
 }
 
+// New creates a new Dec128 from a uint64 coefficient, uint8 exponent, and negative flag.
+func New(coef uint128.Uint128, exp uint8, neg bool) Dec128 {
+	if exp > MaxPrecision {
+		return NaN(errors.PrecisionOutOfRange)
+	}
+
+	if coef.IsZero() && exp == 0 {
+		return Zero
+	}
+
+	return Dec128{coef: coef, exp: exp, neg: neg}
+}
+
 // NaN returns a Dec128 with the given error.
 func NaN(reason errors.Error) Dec128 {
 	if reason == errors.None {
@@ -204,4 +217,14 @@ func (self Dec128) Canonical() Dec128 {
 	}
 
 	return Dec128{coef: coef, exp: exp, neg: self.neg}
+}
+
+// Exponent returns the exponent of the Dec128.
+func (self Dec128) Exponent() uint8 {
+	return self.exp
+}
+
+// Coefficient returns the coefficient of the Dec128.
+func (self Dec128) Coefficient() uint128.Uint128 {
+	return self.coef
 }

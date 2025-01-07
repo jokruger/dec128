@@ -2,14 +2,14 @@
 128-bit fixed-point decimal numbers in go.
 
 ## Key Objectives
-- [ ] High performance
-- [ ] Minimal or zero memory allocation
+- [x] High performance
+- [x] Minimal or zero memory allocation
 - [x] High precision in financial calculations
 - [x] No panic or error arithmetics (use NaN instead)
 - [x] Basic arithmetic operations required for financial calculations (specifically for banking and accounting)
 - [ ] Additional arithmetic operations for scientific calculations
 - [x] Easy to use
-- [ ] Easy to inegrate with external systems (e.g. databases, accounting systems, JSON, etc.)
+- [x] Easy to inegrate with external systems (e.g. databases, accounting systems, JSON, etc.)
 - [x] Financially correct rounding
 - [x] Correct comparison of numbers encoded in different precisions (e.g. 1.0 == 1.00)
 - [x] Correct handling of NaN values (e.g. NaN + 1 = NaN)

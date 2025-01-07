@@ -49,8 +49,8 @@ func TestDecimalCompare(t *testing.T) {
 		t.Errorf("Expected -1, got %d", b.Compare(a))
 	}
 
-	a = dec128.FromUint64(1000, 1)
-	b = dec128.FromUint64(10000, 2)
+	a = dec128.New(uint128.FromUint64(1000), 1, false)
+	b = dec128.New(uint128.FromUint64(10000), 2, false)
 	if a.Compare(b) != 0 {
 		t.Errorf("Expected 0, got %d", a.Compare(b))
 	}

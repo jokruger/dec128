@@ -7,32 +7,6 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
-// FromUint64 creates a new Dec128 from a uint64 coefficient and uint8 exponent.
-func FromUint64(coef uint64, exp uint8) Dec128 {
-	if exp > MaxPrecision {
-		return NaN(errors.PrecisionOutOfRange)
-	}
-
-	if coef == 0 && exp == 0 {
-		return Zero
-	}
-
-	return Dec128{coef: uint128.FromUint64(coef), exp: exp}
-}
-
-// FromUint128 creates a new Dec128 from a uint128 coefficient and uint8 exponent.
-func FromUint128(coef uint128.Uint128, exp uint8) Dec128 {
-	if exp > MaxPrecision {
-		return NaN(errors.PrecisionOutOfRange)
-	}
-
-	if coef.IsZero() {
-		return Zero
-	}
-
-	return Dec128{coef: coef, exp: exp}
-}
-
 // FromString creates a new Dec128 from a string.
 func FromString(s string) Dec128 {
 	sz := len(s)
@@ -124,4 +98,30 @@ func FromString(s string) Dec128 {
 	}
 
 	return Dec128{coef: coef, exp: uint8(prec), neg: neg}
+}
+
+// FromInt creates a new Dec128 from an int.
+func FromInt(i int) Dec128 {
+	if i == 0 {
+		return Zero
+	}
+
+	if i > 0 {
+		return Dec128{coef: uint128.FromUint64(uint64(i))}
+	}
+
+	return Dec128{coef: uint128.FromUint64(uint64(-i)), neg: true}
+}
+
+// FromInt64 creates a new Dec128 from an int64.
+func FromInt64(i int64) Dec128 {
+	if i == 0 {
+		return Zero
+	}
+
+	if i > 0 {
+		return Dec128{coef: uint128.FromUint64(uint64(i))}
+	}
+
+	return Dec128{coef: uint128.FromUint64(uint64(-i)), neg: true}
 }

@@ -5,37 +5,41 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
-// Uint64 returns the Dec128 decomposed into uint64 coefficient and uint8 exponent.
-// Negative values are not allowed.
-func (self Dec128) Uint64() (uint64, uint8, error) {
-	if self.err != errors.None {
-		return 0, 0, self.err.Value()
-	}
-
+// EncodeToUint64 returns the Dec128 encoded as uint64 coefficient with requested exponent.
+// Negative and too large values are not allowed.
+func (self Dec128) EncodeToUint64(exp uint8) (uint64, error) {
 	if self.neg {
-		return 0, 0, errors.Negative.Value()
+		return 0, errors.Negative.Value()
 	}
 
-	i, err := self.coef.Uint64()
+	d := self.Rescale(exp)
+
+	if d.err != errors.None {
+		return 0, d.err.Value()
+	}
+
+	i, err := d.coef.Uint64()
 	if err != errors.None {
-		return 0, 0, err.Value()
+		return 0, err.Value()
 	}
 
-	return i, self.exp, nil
+	return i, nil
 }
 
-// Uint128 returns the Dec128 decomposed into uint128 coefficient and uint8 exponent.
+// EncodeToUint128 returns the Dec128 encoded as uint128 coefficient with requested exponent.
 // Negative values are not allowed.
-func (self Dec128) Uint128() (uint128.Uint128, uint8, error) {
-	if self.err != errors.None {
-		return uint128.Zero, 0, self.err.Value()
-	}
-
+func (self Dec128) EncodeToUint128(exp uint8) (uint128.Uint128, error) {
 	if self.neg {
-		return uint128.Zero, 0, errors.Negative.Value()
+		return uint128.Zero, errors.Negative.Value()
 	}
 
-	return self.coef, self.exp, nil
+	d := self.Rescale(exp)
+
+	if d.err != errors.None {
+		return uint128.Zero, d.err.Value()
+	}
+
+	return d.coef, nil
 }
 
 // String returns the string representation of the Dec128 with the trailing zeros removed.
