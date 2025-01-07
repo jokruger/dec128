@@ -4,6 +4,42 @@ import (
 	"github.com/jokruger/dec128/errors"
 )
 
+// RoundBank uses half up to even (banker's rounding) to round the decimal to the specified precision.
+//
+// Examples:
+//
+//	RoundBank(2.121, 2) = 2.12 ; rounded down
+//	RoundBank(2.125, 2) = 2.12 ; rounded down, rounding digit is an even number
+//	RoundBank(2.135, 2) = 2.14 ; rounded up, rounding digit is an odd number
+//	RoundBank(2.1351, 2) = 2.14; rounded up
+//	RoundBank(2.127, 2) = 2.13 ; rounded up
+func (self Dec128) RoundBank(prec uint8) Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+
+	if prec >= self.exp {
+		return self
+	}
+
+	factor := pow10[self.exp-prec]
+	half := factor / 2
+
+	q, r, err := self.coef.QuoRem64(factor)
+	if err != errors.None {
+		return NaN(err)
+	}
+
+	if half < r || (half == r && q.Lo%2 == 1) {
+		q, err = q.Add64(1)
+		if err != errors.None {
+			return NaN(err)
+		}
+	}
+
+	return Dec128{coef: q, exp: prec, neg: self.neg}
+}
+
 // RoundAwayFromZero rounds the decimal to the specified prec using Away From Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_away_from_zero).
 //
 // Examples:
