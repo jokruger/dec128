@@ -12,6 +12,22 @@ const MaxPrecision = uint8(uint128.MaxSafeStrLen64)
 var (
 	Zero = Dec128{}
 
+	Decimal0    = FromInt(0)
+	Decimal1    = FromInt(1)
+	Decimal2    = FromInt(2)
+	Decimal3    = FromInt(3)
+	Decimal4    = FromInt(4)
+	Decimal5    = FromInt(5)
+	Decimal6    = FromInt(6)
+	Decimal7    = FromInt(7)
+	Decimal8    = FromInt(8)
+	Decimal9    = FromInt(9)
+	Decimal10   = FromInt(10)
+	Decimal100  = FromInt(100)
+	Decimal365  = FromInt(365)
+	Decimal366  = FromInt(366)
+	Decimal1000 = FromInt(1000)
+
 	ZeroStr = "0"
 	NaNStr  = "NaN"
 
