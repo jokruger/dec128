@@ -1,8 +1,6 @@
 package dec128
 
 import (
-	"strings"
-
 	"github.com/jokruger/dec128/errors"
 	"github.com/jokruger/dec128/uint128"
 )
@@ -52,40 +50,20 @@ func (self Dec128) String() string {
 		return ZeroStr
 	}
 
-	coef := self.coef.String()
-	prec := int(self.exp)
+	sb, trim := self.toString()
+	i := len(sb)
 
-	if prec == 0 {
-		if self.neg {
-			return "-" + coef
+	if trim {
+		for i > 0 && sb[i-1] == '0' {
+			i--
 		}
-		return coef
-	}
 
-	sz := len(coef)
-
-	if prec > sz {
-		coef = strings.Repeat("0", prec-sz) + strings.TrimRight(coef, "0")
-		if self.neg {
-			coef = "-0." + coef
-		} else {
-			coef = "0." + coef
-		}
-	} else if prec == sz {
-		if self.neg {
-			coef = "-0." + strings.TrimRight(coef, "0")
-		} else {
-			coef = "0." + strings.TrimRight(coef, "0")
-		}
-	} else {
-		if self.neg {
-			coef = "-" + coef[:sz-prec] + "." + strings.TrimRight(coef[sz-prec:], "0")
-		} else {
-			coef = coef[:sz-prec] + "." + strings.TrimRight(coef[sz-prec:], "0")
+		if i > 0 && sb[i-1] == '.' {
+			i--
 		}
 	}
 
-	return strings.TrimRight(coef, ".")
+	return sb[:i]
 }
 
 // StringFixed returns the string representation of the Dec128 with the trailing zeros preserved.
@@ -96,44 +74,74 @@ func (self Dec128) StringFixed() string {
 	}
 
 	if self.IsZero() {
-		if self.exp == 0 {
-			return "0"
-		}
-		return "0." + strings.Repeat("0", int(self.exp))
+		return zeroStrs[self.exp]
 	}
 
-	coef := self.coef.String()
+	sb, _ := self.toString()
+
+	return sb
+}
+
+func (self Dec128) toString() (string, bool) {
+	buf := [uint128.MaxStrLen]byte{}
+	for i := range uint128.MaxStrLen {
+		buf[i] = '0'
+	}
+	n := self.coef.StringToBuf(buf[:])
+	coef := buf[n:]
+
 	prec := int(self.exp)
+	sz := len(coef)
+	sb := [uint128.MaxStrLen + 2]byte{}
+	i := 0
+
+	if self.neg {
+		sb[i] = '-'
+		i++
+	}
 
 	if prec == 0 {
-		if self.neg {
-			return "-" + coef
+		for j := 0; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
 		}
-		return coef
+		return string(sb[:i]), false
 	}
-
-	sz := len(coef)
 
 	if prec > sz {
-		coef = strings.Repeat("0", prec-sz) + coef
-		if self.neg {
-			coef = "-0." + coef
-		} else {
-			coef = "0." + coef
+		sb[i] = '0'
+		i++
+		sb[i] = '.'
+		i++
+		for j := 0; j < prec-sz; j++ {
+			sb[i] = '0'
+			i++
+		}
+		for j := 0; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
 		}
 	} else if prec == sz {
-		if self.neg {
-			coef = "-0." + coef
-		} else {
-			coef = "0." + coef
+		sb[i] = '0'
+		i++
+		sb[i] = '.'
+		i++
+		for j := 0; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
 		}
 	} else {
-		if self.neg {
-			coef = "-" + coef[:sz-prec] + "." + coef[sz-prec:]
-		} else {
-			coef = coef[:sz-prec] + "." + coef[sz-prec:]
+		for j := 0; j < sz-prec; j++ {
+			sb[i] = coef[j]
+			i++
+		}
+		sb[i] = '.'
+		i++
+		for j := sz - prec; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
 		}
 	}
 
-	return coef
+	return string(sb[:i]), true
 }

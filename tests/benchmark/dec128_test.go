@@ -13,6 +13,7 @@ func BenchmarkDec128FromString(b *testing.B) {
 	s4 := "12345.12"
 	s5 := "1234567890.12345"
 	s6 := "123456789012345678901234567890.123456789"
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = dec128.FromString(s1)
 		_ = dec128.FromString(s2)
@@ -30,6 +31,7 @@ func BenchmarkDec128ToString(b *testing.B) {
 	s4 := dec128.FromString("12345.12")
 	s5 := dec128.FromString("1234567890.12345")
 	s6 := dec128.FromString("123456789012345678901234567890.123456789")
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = s1.String()
 		_ = s2.String()

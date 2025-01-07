@@ -37,8 +37,17 @@ func (self Uint128) String() string {
 		return "0"
 	}
 
+	buf := [MaxStrLen]byte{}
+	for i := range MaxStrLen {
+		buf[i] = '0'
+	}
+
+	n := self.StringToBuf(buf[:])
+	return string(buf[n:])
+}
+
+func (self Uint128) StringToBuf(buf []byte) int {
 	u := self
-	buf := []byte("0000000000000000000000000000000000000000")
 	for i := len(buf); ; i -= 19 {
 		q, r, _ := u.QuoRem64(1e19)
 		var n int
@@ -47,7 +56,7 @@ func (self Uint128) String() string {
 			buf[i-n] += byte(r % 10)
 		}
 		if q.IsZero() {
-			return string(buf[i-n:])
+			return i - n
 		}
 		u = q
 	}
