@@ -40,7 +40,7 @@ func TestDecimalCompare(t *testing.T) {
 		t.Errorf("Expected -1, got %d", b.Compare(a))
 	}
 
-	a = dec128.FromString(uint128.MaxStr)
+	a = dec128.FromString(uint128.MaxUint128Str)
 	b = dec128.FromString("0.0001")
 	if a.Compare(b) != 1 {
 		t.Errorf("Expected 1, got %d", a.Compare(b))

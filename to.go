@@ -88,9 +88,6 @@ func (self Dec128) StringFixed() string {
 
 func (self Dec128) toString() (string, bool) {
 	buf := [uint128.MaxStrLen]byte{}
-	for i := range uint128.MaxStrLen {
-		buf[i] = '0'
-	}
 	n := self.coef.StringToBuf(buf[:])
 	coef := buf[n:]
 

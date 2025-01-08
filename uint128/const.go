@@ -5,12 +5,12 @@ import (
 )
 
 const (
-	MaxStrLen       = 40 // maximum number of digits in a 128-bit unsigned integer
+	MaxUint64Str  = "18446744073709551615"
+	MaxUint128Str = "340282366920938463463374607431768211455"
+
+	MaxStrLen       = 39 // maximum number of digits in a 128-bit unsigned integer
 	MaxStrLen64     = 20 // maximum number of digits in a 64-bit unsigned integer
 	MaxSafeStrLen64 = 19 // maximum number of digits that can be safely parsed as a 64-bit unsigned integer
-
-	MaxStr   = "340282366920938463463374607431768211455"
-	MaxStr64 = "18446744073709551615"
 )
 
 var (
