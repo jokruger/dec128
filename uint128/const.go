@@ -11,6 +11,8 @@ const (
 	MaxStrLen       = 39 // maximum number of digits in a 128-bit unsigned integer
 	MaxStrLen64     = 20 // maximum number of digits in a 64-bit unsigned integer
 	MaxSafeStrLen64 = 19 // maximum number of digits that can be safely parsed as a 64-bit unsigned integer
+
+	ZeroStr = "0"
 )
 
 var (

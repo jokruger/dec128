@@ -4,10 +4,26 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"fmt"
+
+	"github.com/jokruger/dec128/errors"
 )
 
 func (self Dec128) MarshalText() ([]byte, error) {
-	return []byte(self.String()), nil
+	if self.err != errors.None {
+		return NaNStrBytes, nil
+	}
+
+	if self.IsZero() {
+		return ZeroStrBytes, nil
+	}
+
+	buf := [MaxStrLen]byte{}
+	sb, trim := self.stringToBuf(buf[:])
+	if trim {
+		return trimTrailingZeros(sb), nil
+	}
+
+	return sb, nil
 }
 
 func (self *Dec128) UnmarshalText(data []byte) error {
@@ -58,14 +74,10 @@ func (self *Dec128) Scan(src any) error {
 		if self.IsNaN() {
 			err = self.ErrorDetails()
 		}
-	//case int64:
-	//	*d, err = NewFromInt64(v, 0)
-	//case int:
-	//	*d, err = NewFromInt64(int64(v), 0)
-	//case int32:
-	//	*d, err = NewFromInt64(int64(v), 0)
-	//case float64:
-	//	*d, err = NewFromFloat64(v)
+	case int:
+		*self = FromInt(v)
+	case int64:
+		*self = FromInt64(v)
 	case nil:
 		*self = Zero
 	default:

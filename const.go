@@ -9,6 +9,10 @@ import (
 // MaxPrecision = 19
 const MaxPrecision = uint8(uint128.MaxSafeStrLen64)
 
+// MaxStrLen is the maximum number of characters that can be in a string representation of a Dec128.
+// MaxStrLen = uint128.MaxStrLen + dot + sign
+const MaxStrLen = uint128.MaxStrLen + 2
+
 var (
 	Zero = Dec128{}
 
@@ -28,8 +32,11 @@ var (
 	Decimal366  = FromInt(366)
 	Decimal1000 = FromInt(1000)
 
-	ZeroStr = "0"
-	NaNStr  = "NaN"
+	ZeroStr      = "0"
+	ZeroStrBytes = []byte(ZeroStr)
+
+	NaNStr      = "NaN"
+	NaNStrBytes = []byte(NaNStr)
 
 	Pow10Uint64  = uint128.Pow10Uint64
 	Pow10Uint128 = uint128.Pow10Uint128

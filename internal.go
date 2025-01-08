@@ -156,3 +156,78 @@ func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
 	}
 	return Dec128{coef: q, exp: prec, neg: neg}, true
 }
+
+// returns slice of input buf containing the string representation of the Dec128, and a boolean indicating if trailing zeros should be trimmed (i.e. if decimal point is present)
+func (self Dec128) stringToBuf(sb []byte) ([]byte, bool) {
+	buf := [uint128.MaxStrLen]byte{}
+	n := self.coef.StringToBuf(buf[:])
+	coef := buf[n:]
+
+	prec := int(self.exp)
+	sz := len(coef)
+	i := 0
+
+	if self.neg {
+		sb[i] = '-'
+		i++
+	}
+
+	if prec == 0 {
+		for j := 0; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
+		}
+		return sb[:i], false
+	}
+
+	if prec > sz {
+		sb[i] = '0'
+		i++
+		sb[i] = '.'
+		i++
+		for j := 0; j < prec-sz; j++ {
+			sb[i] = '0'
+			i++
+		}
+		for j := 0; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
+		}
+	} else if prec == sz {
+		sb[i] = '0'
+		i++
+		sb[i] = '.'
+		i++
+		for j := 0; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
+		}
+	} else {
+		for j := 0; j < sz-prec; j++ {
+			sb[i] = coef[j]
+			i++
+		}
+		sb[i] = '.'
+		i++
+		for j := sz - prec; j < sz; j++ {
+			sb[i] = coef[j]
+			i++
+		}
+	}
+
+	return sb[:i], true
+}
+
+func trimTrailingZeros(sb []byte) []byte {
+	i := len(sb)
+
+	for i > 0 && sb[i-1] == '0' {
+		i--
+	}
+
+	if i > 0 && sb[i-1] == '.' {
+		i--
+	}
+
+	return sb[:i]
+}

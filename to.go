@@ -54,20 +54,13 @@ func (self Dec128) String() string {
 		return ZeroStr
 	}
 
-	sb, trim := self.toString()
-	i := len(sb)
-
+	buf := [MaxStrLen]byte{}
+	sb, trim := self.stringToBuf(buf[:])
 	if trim {
-		for i > 0 && sb[i-1] == '0' {
-			i--
-		}
-
-		if i > 0 && sb[i-1] == '.' {
-			i--
-		}
+		return string(trimTrailingZeros(sb))
 	}
 
-	return sb[:i]
+	return string(sb)
 }
 
 // StringFixed returns the string representation of the Dec128 with the trailing zeros preserved.
@@ -81,68 +74,8 @@ func (self Dec128) StringFixed() string {
 		return zeroStrs[self.exp]
 	}
 
-	sb, _ := self.toString()
+	buf := [MaxStrLen]byte{}
+	sb, _ := self.stringToBuf(buf[:])
 
-	return sb
-}
-
-func (self Dec128) toString() (string, bool) {
-	buf := [uint128.MaxStrLen]byte{}
-	n := self.coef.StringToBuf(buf[:])
-	coef := buf[n:]
-
-	prec := int(self.exp)
-	sz := len(coef)
-	sb := [uint128.MaxStrLen + 2]byte{}
-	i := 0
-
-	if self.neg {
-		sb[i] = '-'
-		i++
-	}
-
-	if prec == 0 {
-		for j := 0; j < sz; j++ {
-			sb[i] = coef[j]
-			i++
-		}
-		return string(sb[:i]), false
-	}
-
-	if prec > sz {
-		sb[i] = '0'
-		i++
-		sb[i] = '.'
-		i++
-		for j := 0; j < prec-sz; j++ {
-			sb[i] = '0'
-			i++
-		}
-		for j := 0; j < sz; j++ {
-			sb[i] = coef[j]
-			i++
-		}
-	} else if prec == sz {
-		sb[i] = '0'
-		i++
-		sb[i] = '.'
-		i++
-		for j := 0; j < sz; j++ {
-			sb[i] = coef[j]
-			i++
-		}
-	} else {
-		for j := 0; j < sz-prec; j++ {
-			sb[i] = coef[j]
-			i++
-		}
-		sb[i] = '.'
-		i++
-		for j := sz - prec; j < sz; j++ {
-			sb[i] = coef[j]
-			i++
-		}
-	}
-
-	return string(sb[:i]), true
+	return string(sb)
 }

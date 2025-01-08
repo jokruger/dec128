@@ -34,7 +34,7 @@ func (self Uint128) BigInt() *big.Int {
 
 func (self Uint128) String() string {
 	if self.IsZero() {
-		return "0"
+		return ZeroStr
 	}
 
 	buf := [MaxStrLen]byte{}
