@@ -17,10 +17,10 @@ func TestDecimalBasics(t *testing.T) {
 	if d.IsZero() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
-	if d.IsNeg() {
+	if d.IsNegative() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
-	if d.IsPos() {
+	if d.IsPosistive() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
 
@@ -28,10 +28,10 @@ func TestDecimalBasics(t *testing.T) {
 	if !d.IsZero() {
 		t.Errorf("Expected zero, got: %s", d.String())
 	}
-	if d.IsNeg() {
+	if d.IsNegative() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
-	if d.IsPos() {
+	if d.IsPosistive() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
 	if d.IsNaN() {
@@ -42,10 +42,10 @@ func TestDecimalBasics(t *testing.T) {
 	if d.IsZero() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
-	if d.IsNeg() {
+	if d.IsNegative() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
-	if !d.IsPos() {
+	if !d.IsPosistive() {
 		t.Errorf("Expected true, got: %s", d.String())
 	}
 	if d.IsNaN() {
@@ -56,10 +56,10 @@ func TestDecimalBasics(t *testing.T) {
 	if d.IsZero() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
-	if !d.IsNeg() {
+	if !d.IsNegative() {
 		t.Errorf("Expected true, got: %s", d.String())
 	}
-	if d.IsPos() {
+	if d.IsPosistive() {
 		t.Errorf("Expected false, got: %s", d.String())
 	}
 	if d.IsNaN() {

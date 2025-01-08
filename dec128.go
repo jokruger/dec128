@@ -39,15 +39,15 @@ func (self Dec128) IsZero() bool {
 	return self.err == errors.None && self.coef.IsZero()
 }
 
-// IsNeg returns true if the Dec128 is negative and false otherwise.
+// IsNegative returns true if the Dec128 is negative and false otherwise.
 // If the Dec128 is NaN, it returns false.
-func (self Dec128) IsNeg() bool {
+func (self Dec128) IsNegative() bool {
 	return self.neg && self.err == errors.None && !self.coef.IsZero()
 }
 
-// IsPos returns true if the Dec128 is positive and false otherwise.
+// IsPosistive returns true if the Dec128 is positive and false otherwise.
 // If the Dec128 is NaN, it returns false.
-func (self Dec128) IsPos() bool {
+func (self Dec128) IsPosistive() bool {
 	return !self.neg && self.err == errors.None && !self.coef.IsZero()
 }
 
@@ -68,7 +68,7 @@ func (self Dec128) Sign() int {
 		return 0
 	}
 
-	if self.IsNeg() {
+	if self.IsNegative() {
 		return -1
 	}
 
@@ -227,4 +227,24 @@ func (self Dec128) Exponent() uint8 {
 // Coefficient returns the coefficient of the Dec128.
 func (self Dec128) Coefficient() uint128.Uint128 {
 	return self.coef
+}
+
+// LessThan returns true if the Dec128 is less than the other Dec128.
+func (self Dec128) LessThan(other Dec128) bool {
+	return self.Compare(other) < 0
+}
+
+// LessThanOrEqual returns true if the Dec128 is less than or equal to the other Dec128.
+func (self Dec128) LessThanOrEqual(other Dec128) bool {
+	return self.Compare(other) <= 0
+}
+
+// GreaterThan returns true if the Dec128 is greater than the other Dec128.
+func (self Dec128) GreaterThan(other Dec128) bool {
+	return self.Compare(other) > 0
+}
+
+// GreaterThanOrEqual returns true if the Dec128 is greater than or equal to the other Dec128.
+func (self Dec128) GreaterThanOrEqual(other Dec128) bool {
+	return self.Compare(other) >= 0
 }
