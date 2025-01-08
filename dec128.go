@@ -45,9 +45,9 @@ func (self Dec128) IsNegative() bool {
 	return self.neg && self.err == errors.None && !self.coef.IsZero()
 }
 
-// IsPosistive returns true if the Dec128 is positive and false otherwise.
+// IsPositive returns true if the Dec128 is positive and false otherwise.
 // If the Dec128 is NaN, it returns false.
-func (self Dec128) IsPosistive() bool {
+func (self Dec128) IsPositive() bool {
 	return !self.neg && self.err == errors.None && !self.coef.IsZero()
 }
 
