@@ -5,6 +5,31 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
+var (
+	zeroStrs = [...]string{
+		"0",                     // 10^0
+		"0.0",                   // 10^1
+		"0.00",                  // 10^2
+		"0.000",                 // 10^3
+		"0.0000",                // 10^4
+		"0.00000",               // 10^5
+		"0.000000",              // 10^6
+		"0.0000000",             // 10^7
+		"0.00000000",            // 10^8
+		"0.000000000",           // 10^9
+		"0.0000000000",          // 10^10
+		"0.00000000000",         // 10^11
+		"0.000000000000",        // 10^12
+		"0.0000000000000",       // 10^13
+		"0.00000000000000",      // 10^14
+		"0.000000000000000",     // 10^15
+		"0.0000000000000000",    // 10^16
+		"0.00000000000000000",   // 10^17
+		"0.000000000000000000",  // 10^18
+		"0.0000000000000000000", // 10^19
+	}
+)
+
 func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
 	prec := max(self.exp, other.exp)
 
@@ -102,7 +127,7 @@ func (self Dec128) tryMul(other Dec128) (Dec128, bool) {
 		if i == 0 {
 			return NaN(errors.Overflow), false
 		}
-		q, r, err := uint128.QuoRem256By128(rcoef, rcarry, uint128.Pow10[i])
+		q, r, err := uint128.QuoRem256By128(rcoef, rcarry, Pow10Uint128[i])
 		if err == errors.None && r.IsZero() {
 			return Dec128{coef: q, exp: prec - i, neg: neg}, true
 		}
@@ -124,7 +149,7 @@ func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
 		factor = factor + defaultPrecision - prec
 		prec = defaultPrecision
 	}
-	u, c := self.coef.MulCarry(uint128.Pow10[factor])
+	u, c := self.coef.MulCarry(Pow10Uint128[factor])
 	q, _, err := uint128.QuoRem256By128(u, c, other.coef)
 	if err != errors.None {
 		return NaN(err), false

@@ -9,9 +9,9 @@ import (
 
 func TestUint128Pow10(t *testing.T) {
 	u := uint128.FromUint64(1)
-	for i := 0; i < len(uint128.Pow10); i++ {
-		if !u.Equal(uint128.Pow10[i]) {
-			t.Errorf("Expected %v, got %v", uint128.Pow10[i], u)
+	for i := range len(uint128.Pow10Uint128) {
+		if !u.Equal(uint128.Pow10Uint128[i]) {
+			t.Errorf("Expected %v, got %v", uint128.Pow10Uint128[i], u)
 		}
 		u, _ = u.Mul(uint128.FromUint64(10))
 	}

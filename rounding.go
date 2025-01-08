@@ -17,7 +17,7 @@ func (self Dec128) RoundDown(prec uint8) Dec128 {
 		return self
 	}
 
-	q, r, err := self.coef.QuoRem64(pow10[self.exp-prec])
+	q, r, err := self.coef.QuoRem64(Pow10Uint64[self.exp-prec])
 	if err != errors.None {
 		return NaN(err)
 	}
@@ -47,7 +47,7 @@ func (self Dec128) RoundUp(prec uint8) Dec128 {
 		return self
 	}
 
-	q, r, err := self.coef.QuoRem64(pow10[self.exp-prec])
+	q, r, err := self.coef.QuoRem64(Pow10Uint64[self.exp-prec])
 	if err != errors.None {
 		return NaN(err)
 	}
@@ -95,7 +95,7 @@ func (self Dec128) RoundAwayFromZero(prec uint8) Dec128 {
 		return self
 	}
 
-	q, r, err := self.coef.QuoRem64(pow10[self.exp-prec])
+	q, r, err := self.coef.QuoRem64(Pow10Uint64[self.exp-prec])
 	if err != errors.None {
 		return NaN(err)
 	}
@@ -129,7 +129,7 @@ func (self Dec128) RoundHalfTowardZero(prec uint8) Dec128 {
 		return self
 	}
 
-	factor := pow10[self.exp-prec]
+	factor := Pow10Uint64[self.exp-prec]
 	half := factor / 2
 
 	q, r, err := self.coef.QuoRem64(factor)
@@ -166,7 +166,7 @@ func (self Dec128) RoundHalfAwayFromZero(prec uint8) Dec128 {
 		return self
 	}
 
-	factor := pow10[self.exp-prec]
+	factor := Pow10Uint64[self.exp-prec]
 	half := factor / 2
 
 	q, r, err := self.coef.QuoRem64(factor)
@@ -202,7 +202,7 @@ func (self Dec128) RoundBank(prec uint8) Dec128 {
 		return self
 	}
 
-	factor := pow10[self.exp-prec]
+	factor := Pow10Uint64[self.exp-prec]
 	half := factor / 2
 
 	q, r, err := self.coef.QuoRem64(factor)
@@ -235,7 +235,7 @@ func (self Dec128) Trunc(prec uint8) Dec128 {
 		return self
 	}
 
-	q, _, err := self.coef.QuoRem64(pow10[self.exp-prec])
+	q, _, err := self.coef.QuoRem64(Pow10Uint64[self.exp-prec])
 	if err != errors.None {
 		return NaN(err)
 	}

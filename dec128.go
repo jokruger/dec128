@@ -97,7 +97,7 @@ func (self Dec128) Rescale(prec uint8) Dec128 {
 	if prec > self.exp {
 		// scale up
 		diff := prec - self.exp
-		coef, err := self.coef.Mul64(pow10[diff])
+		coef, err := self.coef.Mul64(Pow10Uint64[diff])
 		if err != errors.None {
 			return NaN(err)
 		}
@@ -106,7 +106,7 @@ func (self Dec128) Rescale(prec uint8) Dec128 {
 
 	// scale down
 	diff := self.exp - prec
-	coef, err := self.coef.Div64(pow10[diff])
+	coef, err := self.coef.Div64(Pow10Uint64[diff])
 	if err != errors.None {
 		return NaN(err)
 	}

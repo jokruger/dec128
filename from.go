@@ -83,7 +83,7 @@ func FromString(s string) Dec128 {
 	}
 
 	// max prec is 19, so the fpart.Hi is always 0 and prec is always <= len(pow10)
-	coef, err := ipart.Mul64(pow10[prec])
+	coef, err := ipart.Mul64(Pow10Uint64[prec])
 	if err != errors.None {
 		return NaN(err)
 	}
