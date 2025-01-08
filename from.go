@@ -1,6 +1,8 @@
 package dec128
 
 import (
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/jokruger/dec128/errors"
@@ -134,4 +136,12 @@ func DecodeFromUint128(coef uint128.Uint128, exp uint8) Dec128 {
 // DecodeFromUint64 decodes a Dec128 from a uint64 and an exponent.
 func DecodeFromUint64(coef uint64, exp uint8) Dec128 {
 	return New(uint128.FromUint64(coef), exp, false)
+}
+
+// FromFloat64 returns a decimal from float64.
+func FromFloat64(f float64) Dec128 {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return NaN(errors.NotANumber)
+	}
+	return FromString(strconv.FormatFloat(f, 'f', -1, 64))
 }

@@ -2,6 +2,7 @@ package dec128
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/jokruger/dec128/errors"
 	"github.com/jokruger/dec128/uint128"
@@ -120,4 +121,13 @@ func (self Dec128) Int64() (int64, error) {
 	}
 
 	return int64(t.coef.Lo), nil
+}
+
+// InexactFloat64 returns the float64 representation of the decimal.
+// The result may not be 100% accurate due to the limitation of float64 (less decimal precision).
+func (self Dec128) InexactFloat64() (float64, error) {
+	if self.err != errors.None {
+		return 0, self.err.Value()
+	}
+	return strconv.ParseFloat(self.String(), 64)
 }
