@@ -125,3 +125,13 @@ func FromInt64(i int64) Dec128 {
 
 	return Dec128{coef: uint128.FromUint64(uint64(-i)), neg: true}
 }
+
+// DecodeFromUint128 decodes a Dec128 from a uint128 and an exponent.
+func DecodeFromUint128(coef uint128.Uint128, exp uint8) Dec128 {
+	return New(coef, exp, false)
+}
+
+// DecodeFromUint64 decodes a Dec128 from a uint64 and an exponent.
+func DecodeFromUint64(coef uint64, exp uint8) Dec128 {
+	return New(uint128.FromUint64(coef), exp, false)
+}
