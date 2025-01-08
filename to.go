@@ -1,6 +1,8 @@
 package dec128
 
 import (
+	"math"
+
 	"github.com/jokruger/dec128/errors"
 	"github.com/jokruger/dec128/uint128"
 )
@@ -78,4 +80,44 @@ func (self Dec128) StringFixed() string {
 	sb, _ := self.stringToBuf(buf[:])
 
 	return string(sb)
+}
+
+// Int returns the integer part of the Dec128 as int.
+func (self Dec128) Int() (int, error) {
+	t := self.Rescale(0)
+	if t.err != errors.None {
+		return 0, t.err.Value()
+	}
+	if t.coef.Hi != 0 {
+		return 0, errors.Overflow.Value()
+	}
+	if t.coef.Lo > math.MaxInt {
+		return 0, errors.Overflow.Value()
+	}
+
+	if t.neg {
+		return -int(t.coef.Lo), nil
+	}
+
+	return int(t.coef.Lo), nil
+}
+
+// Int64 returns the integer part of the Dec128 as int64.
+func (self Dec128) Int64() (int64, error) {
+	t := self.Rescale(0)
+	if t.err != errors.None {
+		return 0, t.err.Value()
+	}
+	if t.coef.Hi != 0 {
+		return 0, errors.Overflow.Value()
+	}
+	if t.coef.Lo > math.MaxInt64 {
+		return 0, errors.Overflow.Value()
+	}
+
+	if t.neg {
+		return -int64(t.coef.Lo), nil
+	}
+
+	return int64(t.coef.Lo), nil
 }

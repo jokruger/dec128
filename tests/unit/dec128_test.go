@@ -9,6 +9,8 @@ import (
 
 func TestDecimalBasics(t *testing.T) {
 	var d dec128.Dec128
+	var a dec128.Dec128
+	var b dec128.Dec128
 
 	d = dec128.FromString("NaN")
 	if !d.IsNaN() {
@@ -64,6 +66,58 @@ func TestDecimalBasics(t *testing.T) {
 	}
 	if d.IsNaN() {
 		t.Errorf("Expected false, got: %s", d.String())
+	}
+
+	d = dec128.FromString("-123.456")
+	if d.Abs().String() != "123.456" {
+		t.Errorf("Expected 123.456, got: %s", d.String())
+	}
+	if d.Neg().String() != "123.456" {
+		t.Errorf("Expected 123.456, got: %s", d.String())
+	}
+
+	d = dec128.FromString("123.456")
+	if d.Abs().String() != "123.456" {
+		t.Errorf("Expected 123.456, got: %s", d.String())
+	}
+	if d.Neg().String() != "-123.456" {
+		t.Errorf("Expected -123.456, got: %s", d.String())
+	}
+
+	a = dec128.FromString("123.456")
+	b = dec128.FromString("123.5")
+	if a.Compare(b) != -1 {
+		t.Errorf("Expected -1, got: %d", a.Compare(b))
+	}
+	if b.Compare(a) != 1 {
+		t.Errorf("Expected 1, got: %d", b.Compare(a))
+	}
+	if a.Compare(a) != 0 {
+		t.Errorf("Expected 0, got: %d", a.Compare(a))
+	}
+	if !a.LessThan(b) {
+		t.Errorf("Expected true, got: %t", a.LessThan(b))
+	}
+	if b.LessThan(a) {
+		t.Errorf("Expected false, got: %t", b.LessThan(a))
+	}
+	if a.LessThan(a) {
+		t.Errorf("Expected false, got: %t", a.LessThan(a))
+	}
+	if a.GreaterThan(b) {
+		t.Errorf("Expected false, got: %t", a.GreaterThan(b))
+	}
+	if !b.GreaterThan(a) {
+		t.Errorf("Expected true, got: %t", b.GreaterThan(a))
+	}
+	if a.GreaterThan(a) {
+		t.Errorf("Expected false, got: %t", a.GreaterThan(a))
+	}
+	if !a.LessThanOrEqual(b) {
+		t.Errorf("Expected true, got: %t", a.LessThanOrEqual(b))
+	}
+	if !a.GreaterThanOrEqual(a) {
+		t.Errorf("Expected true, got: %t", a.GreaterThanOrEqual(a))
 	}
 }
 
