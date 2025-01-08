@@ -115,3 +115,19 @@ func (self Dec128) Div(other Dec128) Dec128 {
 
 	return NaN(errors.Overflow)
 }
+
+// Abs returns |d|
+func (self Dec128) Abs() Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+	return Dec128{coef: self.coef, exp: self.exp}
+}
+
+// Neg returns -d
+func (self Dec128) Neg() Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+	return Dec128{coef: self.coef, exp: self.exp, neg: !self.neg}
+}

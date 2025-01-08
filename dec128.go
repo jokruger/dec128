@@ -248,3 +248,11 @@ func (self Dec128) GreaterThan(other Dec128) bool {
 func (self Dec128) GreaterThanOrEqual(other Dec128) bool {
 	return self.Compare(other) >= 0
 }
+
+// Copy returns a copy of the Dec128.
+func (self Dec128) Copy() Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+	return Dec128{coef: self.coef, exp: self.exp, neg: self.neg}
+}
