@@ -28,7 +28,7 @@ Run `go get github.com/jokruger/dec128`
 
 ## Requirements
 
-Dec128 library requires Go version `>=1.23`
+This library requires Go version `>=1.23`
 
 ## Documentation
 
