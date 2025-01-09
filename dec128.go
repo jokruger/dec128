@@ -1,3 +1,4 @@
+// Package dec128 provides 128-bit fixed-point decimal type, operations and constants.
 package dec128
 
 import (
@@ -5,6 +6,7 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
+// Dec128 represents a 128-bit fixed-point decimal number.
 type Dec128 struct {
 	coef uint128.Uint128
 	exp  uint8
@@ -13,6 +15,7 @@ type Dec128 struct {
 }
 
 // New creates a new Dec128 from a uint64 coefficient, uint8 exponent, and negative flag.
+// In case of errors it returns NaN with the error.
 func New(coef uint128.Uint128, exp uint8, neg bool) Dec128 {
 	if exp > MaxPrecision {
 		return NaN(errors.PrecisionOutOfRange)
@@ -81,6 +84,8 @@ func (self Dec128) Precision() uint8 {
 }
 
 // Rescale returns a new Dec128 with the given precision.
+// If the Dec128 is NaN, it returns itself.
+// In case of errors it returns NaN with the error.
 func (self Dec128) Rescale(prec uint8) Dec128 {
 	if self.err != errors.None {
 		return self
@@ -189,6 +194,7 @@ func (self Dec128) Compare(other Dec128) int {
 }
 
 // Canonical returns a new Dec128 with the canonical representation.
+// If the Dec128 is NaN, it returns itself.
 func (self Dec128) Canonical() Dec128 {
 	if self.err != errors.None {
 		return Dec128{err: self.err}

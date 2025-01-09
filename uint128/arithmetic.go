@@ -6,6 +6,7 @@ import (
 	"github.com/jokruger/dec128/errors"
 )
 
+// Add returns self + other and an error if the result overflows.
 func (self Uint128) Add(other Uint128) (Uint128, errors.Error) {
 	lo, carry := bits.Add64(self.Lo, other.Lo, 0)
 	hi, carry := bits.Add64(self.Hi, other.Hi, carry)
@@ -17,6 +18,7 @@ func (self Uint128) Add(other Uint128) (Uint128, errors.Error) {
 	return Uint128{lo, hi}, errors.None
 }
 
+// Add64 returns self + other and an error if the result overflows.
 func (self Uint128) Add64(other uint64) (Uint128, errors.Error) {
 	lo, carry := bits.Add64(self.Lo, other, 0)
 	hi, carry := bits.Add64(self.Hi, 0, carry)
@@ -28,6 +30,7 @@ func (self Uint128) Add64(other uint64) (Uint128, errors.Error) {
 	return Uint128{lo, hi}, errors.None
 }
 
+// Sub returns self - other and an error if the result underflows.
 func (self Uint128) Sub(other Uint128) (Uint128, errors.Error) {
 	lo, borrow := bits.Sub64(self.Lo, other.Lo, 0)
 	hi, borrow := bits.Sub64(self.Hi, other.Hi, borrow)
@@ -39,6 +42,7 @@ func (self Uint128) Sub(other Uint128) (Uint128, errors.Error) {
 	return Uint128{lo, hi}, errors.None
 }
 
+// Sub64 returns self - other and an error if the result underflows.
 func (self Uint128) Sub64(other uint64) (Uint128, errors.Error) {
 	lo, borrow := bits.Sub64(self.Lo, other, 0)
 	hi, borrow := bits.Sub64(self.Hi, 0, borrow)
@@ -50,6 +54,7 @@ func (self Uint128) Sub64(other uint64) (Uint128, errors.Error) {
 	return Uint128{lo, hi}, errors.None
 }
 
+// Mul returns self * other and an error if the result overflows.
 func (self Uint128) Mul(other Uint128) (Uint128, errors.Error) {
 	hi, lo := bits.Mul64(self.Lo, other.Lo)
 	p0, p1 := bits.Mul64(self.Hi, other.Lo)
@@ -90,6 +95,7 @@ func (self Uint128) MulCarry(other Uint128) (Uint128, Uint128) {
 	return Uint128{Lo: lo, Hi: hi}, Uint128{Lo: e2, Hi: e0 + d0 + d1 + e3}
 }
 
+// Mul64 returns self * other and an error if the result overflows.
 func (self Uint128) Mul64(other uint64) (Uint128, errors.Error) {
 	hi, lo := bits.Mul64(self.Lo, other)
 	p0, p1 := bits.Mul64(self.Hi, other)
@@ -102,26 +108,31 @@ func (self Uint128) Mul64(other uint64) (Uint128, errors.Error) {
 	return Uint128{lo, hi}, errors.None
 }
 
+// Div returns self / other and an error if the divisor is zero.
 func (self Uint128) Div(other Uint128) (Uint128, errors.Error) {
 	q, _, err := self.QuoRem(other)
 	return q, err
 }
 
+// Div64 returns self / other and an error if the divisor is zero.
 func (self Uint128) Div64(other uint64) (Uint128, errors.Error) {
 	q, _, err := self.QuoRem64(other)
 	return q, err
 }
 
+// Mod returns self % other and an error if the divisor is zero.
 func (self Uint128) Mod(other Uint128) (Uint128, errors.Error) {
 	_, r, err := self.QuoRem(other)
 	return r, err
 }
 
+// Mod64 returns self % other and an error if the divisor is zero.
 func (self Uint128) Mod64(other uint64) (uint64, errors.Error) {
 	_, r, err := self.QuoRem64(other)
 	return r, err
 }
 
+// QuoRem returns self / other and self % other and an error if the divisor is zero.
 func (self Uint128) QuoRem(other Uint128) (Uint128, Uint128, errors.Error) {
 	if other.IsZero() {
 		return Zero, Zero, errors.DivisionByZero
@@ -172,6 +183,7 @@ func (self Uint128) QuoRem(other Uint128) (Uint128, Uint128, errors.Error) {
 	return q, r, errors.None
 }
 
+// QuoRem64 returns self / other and self % other and an error if the divisor is zero.
 func (self Uint128) QuoRem64(other uint64) (Uint128, uint64, errors.Error) {
 	if other == 0 {
 		return Zero, 0, errors.DivisionByZero

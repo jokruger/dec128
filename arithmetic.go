@@ -5,6 +5,8 @@ import (
 )
 
 // Add returns the sum of the Dec128 and the other Dec128.
+// If any of the Dec128 is NaN, the result will be NaN.
+// In case of overflow, the result will be NaN.
 func (self Dec128) Add(other Dec128) Dec128 {
 	if self.err != errors.None {
 		return self
@@ -30,6 +32,8 @@ func (self Dec128) Add(other Dec128) Dec128 {
 }
 
 // Sub returns the difference of the Dec128 and the other Dec128.
+// If any of the Dec128 is NaN, the result will be NaN.
+// In case of overflow/underflow, the result will be NaN.
 func (self Dec128) Sub(other Dec128) Dec128 {
 	if self.err != errors.None {
 		return self
@@ -55,6 +59,8 @@ func (self Dec128) Sub(other Dec128) Dec128 {
 }
 
 // Mul returns self * other.
+// If any of the Dec128 is NaN, the result will be NaN.
+// In case of overflow, the result will be NaN.
 func (self Dec128) Mul(other Dec128) Dec128 {
 	if self.err != errors.None {
 		return self
@@ -84,6 +90,8 @@ func (self Dec128) Mul(other Dec128) Dec128 {
 }
 
 // Div returns self / other.
+// If any of the Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
 func (self Dec128) Div(other Dec128) Dec128 {
 	if self.err != errors.None {
 		return self
@@ -117,6 +125,7 @@ func (self Dec128) Div(other Dec128) Dec128 {
 }
 
 // Abs returns |d|
+// If Dec128 is NaN, the result will be NaN.
 func (self Dec128) Abs() Dec128 {
 	if self.err != errors.None {
 		return self
@@ -125,6 +134,7 @@ func (self Dec128) Abs() Dec128 {
 }
 
 // Neg returns -d
+// If Dec128 is NaN, the result will be NaN.
 func (self Dec128) Neg() Dec128 {
 	if self.err != errors.None {
 		return self

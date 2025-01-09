@@ -5,22 +5,36 @@ import (
 )
 
 const (
-	MaxUint64Str  = "18446744073709551615"
+	// MaxUint64Str is the string representation of the maximum uint64 value.
+	MaxUint64Str = "18446744073709551615"
+
+	// MaxUint128Str is the string representation of the maximum uint128 value.
 	MaxUint128Str = "340282366920938463463374607431768211455"
 
-	MaxStrLen       = 39 // maximum number of digits in a 128-bit unsigned integer
-	MaxStrLen64     = 20 // maximum number of digits in a 64-bit unsigned integer
-	MaxSafeStrLen64 = 19 // maximum number of digits that can be safely parsed as a 64-bit unsigned integer
+	// MaxStrLen is the maximum number of digits in a 128-bit unsigned integer.
+	MaxStrLen = 39
 
+	// MaxStrLen64 is the maximum number of digits in a 64-bit unsigned integer.
+	MaxStrLen64 = 20
+
+	// MaxSafeStrLen64 is the maximum number of digits that can be safely parsed as a 64-bit unsigned integer.
+	MaxSafeStrLen64 = 19
+
+	// ZeroStr is the string representation of the zero value.
 	ZeroStr = "0"
 )
 
 var (
+	// Zero is the zero Uint128 value.
 	Zero = Uint128{}
 
-	Max   = Uint128{math.MaxUint64, math.MaxUint64}
+	// Max is the maximum Uint128 value.
+	Max = Uint128{math.MaxUint64, math.MaxUint64}
+
+	// Max64 is the maximum Uint128 value that fits in a 64-bit unsigned integer.
 	Max64 = Uint128{math.MaxUint64, 0}
 
+	// Pow10Uint64 is an array of precalculated powers of 10 for uint64 values (from 10^0 to 10^19).
 	Pow10Uint64 = [...]uint64{
 		1,                    // 10^0
 		10,                   // 10^1
@@ -44,6 +58,7 @@ var (
 		10000000000000000000, // 10^19
 	}
 
+	// Pow10Uint128 is an array of precalculated powers of 10 for Uint128 values (from 10^0 to 10^38).
 	Pow10Uint128 = [...]Uint128{
 		{Lo: 1},                                           // 10^0
 		{Lo: 10},                                          // 10^1

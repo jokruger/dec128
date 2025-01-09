@@ -10,6 +10,9 @@ import (
 )
 
 // FromString creates a new Dec128 from a string.
+// The string must be in the format of [+-][0-9]+(.[0-9]+)?
+// In case of empty string, it returns Zero.
+// In case of errors, it returns NaN with the corresponding error.
 func FromString(s string) Dec128 {
 	sz := len(s)
 
@@ -128,7 +131,7 @@ func FromInt64(i int64) Dec128 {
 	return Dec128{coef: uint128.FromUint64(uint64(-i)), neg: true}
 }
 
-// DecodeFromUint128 decodes a Dec128 from a uint128 and an exponent.
+// DecodeFromUint128 decodes a Dec128 from a Uint128 and an exponent.
 func DecodeFromUint128(coef uint128.Uint128, exp uint8) Dec128 {
 	return New(coef, exp, false)
 }

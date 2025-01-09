@@ -1,3 +1,4 @@
+// Package errors provides custom error type and error codes for uint128 and dec128 packages.
 package errors
 
 import "errors"

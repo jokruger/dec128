@@ -8,6 +8,7 @@ import (
 	"github.com/jokruger/dec128/errors"
 )
 
+// MarshalText implements the encoding.TextMarshaler interface.
 func (self Dec128) MarshalText() ([]byte, error) {
 	if self.err != errors.None {
 		return NaNStrBytes, nil
@@ -26,6 +27,7 @@ func (self Dec128) MarshalText() ([]byte, error) {
 	return sb, nil
 }
 
+// UnmarshalText implements the encoding.TextUnmarshaler interface.
 func (self *Dec128) UnmarshalText(data []byte) error {
 	if len(data) == 0 {
 		*self = Zero
@@ -41,12 +43,14 @@ func (self *Dec128) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaler interface.
 func (self Dec128) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + self.String() + `"`), nil
 }
 
 var nullValue = []byte("null")
 
+// UnmarshalJSON implements the json.Unmarshaler interface.
 func (self *Dec128) UnmarshalJSON(data []byte) error {
 	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
 		data = data[1 : len(data)-1]
@@ -66,6 +70,7 @@ func (self *Dec128) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Scan implements the sql.Scanner interface.
 func (self *Dec128) Scan(src any) error {
 	var err error
 	switch v := src.(type) {
@@ -87,6 +92,7 @@ func (self *Dec128) Scan(src any) error {
 	return err
 }
 
+// Value implements the driver.Valuer interface.
 func (self Dec128) Value() (driver.Value, error) {
 	return self.String(), nil
 }

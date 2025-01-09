@@ -7,6 +7,7 @@ import (
 	"github.com/jokruger/dec128/errors"
 )
 
+// PutBytes writes the Uint128 to the byte slice bs in little-endian order.
 func (self Uint128) PutBytes(bs []byte) errors.Error {
 	if len(bs) < 16 {
 		return errors.NotEnoughBytes
@@ -18,6 +19,7 @@ func (self Uint128) PutBytes(bs []byte) errors.Error {
 	return errors.None
 }
 
+// PutBytesBigEndian writes the Uint128 to the byte slice bs in big-endian order.
 func (self Uint128) PutBytesBigEndian(bs []byte) errors.Error {
 	if len(bs) < 16 {
 		return errors.NotEnoughBytes
@@ -29,23 +31,26 @@ func (self Uint128) PutBytesBigEndian(bs []byte) errors.Error {
 	return errors.None
 }
 
+// AppendBytes appends the Uint128 to the byte slice bs in little-endian order.
 func (self Uint128) AppendBytes(bs []byte) []byte {
 	bs = binary.LittleEndian.AppendUint64(bs, self.Lo)
 	bs = binary.LittleEndian.AppendUint64(bs, self.Hi)
 	return bs
 }
 
+// AppendBytesBigEndian appends the Uint128 to the byte slice bs in big-endian order.
 func (self Uint128) AppendBytesBigEndian(bs []byte) []byte {
 	bs = binary.BigEndian.AppendUint64(bs, self.Hi)
 	bs = binary.BigEndian.AppendUint64(bs, self.Lo)
 	return bs
 }
 
+// ReverseBytes returns the Uint128 with the byte order reversed.
 func (self Uint128) ReverseBytes() Uint128 {
 	return Uint128{bits.ReverseBytes64(self.Hi), bits.ReverseBytes64(self.Lo)}
 }
 
-// fastQuo returns quotient and remainder of u/v
+// QuoRem256By128 returns quotient, remainder and error.
 func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, errors.Error) {
 	if carry.IsZero() {
 		return Uint128{Lo: u.Lo, Hi: u.Hi}.QuoRem(v)
