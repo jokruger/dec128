@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalUint128Encoding(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8

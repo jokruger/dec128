@@ -9,6 +9,8 @@ import (
 )
 
 func TestDecimalParseStringHLE(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		h uint64
@@ -48,6 +50,8 @@ func TestDecimalParseStringHLE(t *testing.T) {
 }
 
 func TestDecimalConvString(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		s string
@@ -168,6 +172,8 @@ func TestDecimalConvString(t *testing.T) {
 }
 
 func TestDecimalToStringFixed(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i uint64
 		e uint8
@@ -204,6 +210,8 @@ func TestDecimalToStringFixed(t *testing.T) {
 }
 
 func TestDecimalToStringFixed2(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		s string

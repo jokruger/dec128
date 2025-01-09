@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalBasics(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	var d dec128.Dec128
 	var a dec128.Dec128
 	var b dec128.Dec128
@@ -122,6 +124,8 @@ func TestDecimalBasics(t *testing.T) {
 }
 
 func TestSign(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		a    string
 		want int

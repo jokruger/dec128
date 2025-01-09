@@ -141,3 +141,38 @@ func (self Dec128) Neg() Dec128 {
 	}
 	return Dec128{coef: self.coef, exp: self.exp, neg: !self.neg}
 }
+
+// Sqrt returns the square root of the Dec128.
+// If Dec128 is NaN, the result will be NaN.
+// If Dec128 is negative, the result will be NaN.
+// In case of overflow, the result will be NaN.
+func (self Dec128) Sqrt() Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+
+	if self.IsZero() {
+		return Zero
+	}
+
+	if self.neg {
+		return NaN(errors.SqrtNegative)
+	}
+
+	if self.Equal(One) {
+		return One
+	}
+
+	r, ok := self.trySqrt()
+	if ok {
+		return r
+	}
+
+	a := self.Canonical()
+	r, ok = a.trySqrt()
+	if ok {
+		return r
+	}
+
+	return NaN(errors.Overflow)
+}

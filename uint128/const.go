@@ -28,6 +28,9 @@ var (
 	// Zero is the zero Uint128 value.
 	Zero = Uint128{}
 
+	// One is the Uint128 value of 1.
+	One = Uint128{Lo: 1}
+
 	// Max is the maximum Uint128 value.
 	Max = Uint128{math.MaxUint64, math.MaxUint64}
 

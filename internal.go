@@ -231,3 +231,52 @@ func trimTrailingZeros(sb []byte) []byte {
 
 	return sb[:i]
 }
+
+func (self Dec128) trySqrt() (Dec128, bool) {
+	prec := defaultPrecision
+	prec2 := prec * 2
+	d := self
+
+	if d.exp > prec2 {
+		// scale down to prec2
+		coef, err := d.coef.Div(Pow10Uint128[d.exp-prec2])
+		if err != errors.None {
+			return NaN(err), false
+		}
+		d = Dec128{coef: coef, exp: prec2, neg: d.neg}
+	}
+
+	coef, carry := d.coef.MulCarry(Pow10Uint128[prec2-d.exp])
+	if carry.Hi != 0 {
+		return NaN(errors.Overflow), false
+	}
+
+	// 0 <= coef.bitLen() < 256, so it's safe to convert to uint
+	bitLen := uint(coef.BitLen() + carry.BitLen())
+
+	// initial guess = 2^((bitLen + 1) / 2) ≥ √coef
+	x := uint128.One.Lsh((bitLen + 1) / 2)
+
+	// Newton-Raphson method
+	for {
+		// calculate x1 = (x + coef/x) / 2
+		y, _, err := uint128.QuoRem256By128(coef, carry, x)
+		if err != errors.None {
+			return NaN(err), false
+		}
+
+		x1, err := x.Add(y)
+		if err != errors.None {
+			return NaN(err), false
+		}
+
+		x1 = x1.Rsh(1)
+		if x1.Compare(x) == 0 {
+			break
+		}
+
+		x = x1
+	}
+
+	return Dec128{coef: x, exp: prec}, true
+}

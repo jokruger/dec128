@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalToInt(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		s string
 		i int
@@ -36,6 +38,8 @@ func TestDecimalToInt(t *testing.T) {
 }
 
 func TestDecimalToInt64(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		s string
 		i int64

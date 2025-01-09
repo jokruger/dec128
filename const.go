@@ -14,10 +14,12 @@ const MaxPrecision = uint8(uint128.MaxSafeStrLen64)
 const MaxStrLen = uint128.MaxStrLen + 2
 
 var (
-	Zero = Dec128{}
+	Zero        = Dec128{}
+	One         = FromInt(1)
+	NegativeOne = FromInt(-1)
 
-	Decimal0    = FromInt(0)
-	Decimal1    = FromInt(1)
+	Decimal0    = Zero
+	Decimal1    = One
 	Decimal2    = FromInt(2)
 	Decimal3    = FromInt(3)
 	Decimal4    = FromInt(4)

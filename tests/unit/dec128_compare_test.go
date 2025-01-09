@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalCompare(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	var a, b dec128.Dec128
 
 	a = dec128.FromString("NaN")

@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalJson(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testStruct struct {
 		D dec128.Dec128 `json:"d"`
 	}

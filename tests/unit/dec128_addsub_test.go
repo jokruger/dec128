@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalAdd(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		a string
 		b string
@@ -53,6 +55,8 @@ func TestDecimalAdd(t *testing.T) {
 }
 
 func TestDecimalSub(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		a string
 		b string

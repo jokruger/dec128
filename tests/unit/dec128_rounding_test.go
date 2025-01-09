@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalRoundDown(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8
@@ -61,6 +63,8 @@ func TestDecimalRoundDown(t *testing.T) {
 }
 
 func TestDecimalRoundUp(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8
@@ -113,6 +117,8 @@ func TestDecimalRoundUp(t *testing.T) {
 }
 
 func TestRoundTowardZero(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8
@@ -147,6 +153,8 @@ func TestRoundTowardZero(t *testing.T) {
 }
 
 func TestDecimalRoundAwayFromZero(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8
@@ -193,6 +201,8 @@ func TestDecimalRoundAwayFromZero(t *testing.T) {
 }
 
 func TestDecimalRoundHalfTowardZero(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8
@@ -298,6 +308,8 @@ func TestDecimalRoundHalfTowardZero(t *testing.T) {
 }
 
 func TestDecimalRoundHalfAwayFromZero(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8
@@ -403,6 +415,8 @@ func TestDecimalRoundHalfAwayFromZero(t *testing.T) {
 }
 
 func TestDecimalRoundBank(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8
@@ -513,6 +527,8 @@ func TestDecimalRoundBank(t *testing.T) {
 }
 
 func TestDecimalTrunc(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8

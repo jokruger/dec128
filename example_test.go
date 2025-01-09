@@ -47,3 +47,10 @@ func ExampleDec128_Div() {
 	// Output:
 	// 0.3333333333333333333
 }
+
+func ExampleDec128_Sqrt() {
+	a := FromString("4")
+	fmt.Println(a.Sqrt())
+	// Output:
+	// 2
+}

@@ -8,6 +8,8 @@ import (
 )
 
 func TestDecimalCanonical(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i  string
 		s  string

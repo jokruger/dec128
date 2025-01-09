@@ -9,6 +9,8 @@ import (
 )
 
 func TestDecimalFromUint64Encoding(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i uint64
 		p uint8
@@ -44,6 +46,8 @@ func TestDecimalFromUint64Encoding(t *testing.T) {
 }
 
 func TestDecimalUint64Encoding(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		u uint64
@@ -89,6 +93,8 @@ func TestDecimalUint64Encoding(t *testing.T) {
 }
 
 func TestDecimalUint64Encoding2(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
 	type testCase struct {
 		i string
 		p uint8

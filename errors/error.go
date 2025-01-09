@@ -16,6 +16,7 @@ const (
 	InvalidFormat
 	PrecisionOutOfRange
 	RescaleToLessPrecision
+	SqrtNegative
 )
 
 var code2err = [...]error{
@@ -29,6 +30,7 @@ var code2err = [...]error{
 	InvalidFormat:          errors.New("invalid format"),
 	PrecisionOutOfRange:    errors.New("precision out of range"),
 	RescaleToLessPrecision: errors.New("rescale to less precision"),
+	SqrtNegative:           errors.New("square root of negative number"),
 }
 
 func (e Error) Value() error {
