@@ -1,4 +1,8 @@
 # dec128
+
+[![GoDoc](https://godoc.org/github.com/jokruger/dec128?status.svg)](https://godoc.org/github.com/jokruger/dec128) 
+[![Go Report Card](https://goreportcard.com/badge/github.com/jokruger/dec128)](https://goreportcard.com/report/github.com/jokruger/dec128)
+
 128-bit fixed-point decimal numbers in go.
 
 ## Key Objectives
