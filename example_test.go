@@ -54,3 +54,31 @@ func ExampleDec128_Sqrt() {
 	// Output:
 	// 2
 }
+
+func ExampleMax() {
+	a := FromString("1.1")
+	b := FromString("1.2")
+	c := FromString("1.3")
+	d := FromString("-1")
+	fmt.Println(Max(a, b))
+	fmt.Println(Max(a, b, c))
+	fmt.Println(Max(a, b, c, d))
+	// Output:
+	// 1.2
+	// 1.3
+	// 1.3
+}
+
+func ExampleMin() {
+	a := FromString("1.1")
+	b := FromString("1.2")
+	c := FromString("1.3")
+	d := FromString("-1")
+	fmt.Println(Min(a, b))
+	fmt.Println(Min(a, b, c))
+	fmt.Println(Min(a, b, c, d))
+	// Output:
+	// 1.1
+	// 1.1
+	// -1
+}
