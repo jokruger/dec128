@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	// precalculated StringFixed values for 0 Dec128 in all possible prec
 	zeroStrs = [...]string{
 		"0",                     // 10^0
 		"0.0",                   // 10^1
@@ -28,6 +29,9 @@ var (
 		"0.000000000000000000",  // 10^18
 		"0.0000000000000000000", // 10^19
 	}
+
+	// precalculated array of zero characters
+	zeros = [...]byte{'0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'}
 )
 
 func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
@@ -170,33 +174,20 @@ func (self Dec128) appendString(sb []byte) ([]byte, bool) {
 	}
 
 	if prec == 0 {
-		for j := 0; j < sz; j++ {
-			sb = append(sb, coef[j])
-		}
-		return sb, false
+		return append(sb, coef...), false
 	}
 
 	if prec > sz {
 		sb = append(sb, '0', '.')
-		for j := 0; j < prec-sz; j++ {
-			sb = append(sb, '0')
-		}
-		for j := 0; j < sz; j++ {
-			sb = append(sb, coef[j])
-		}
+		sb = append(sb, zeros[:prec-sz]...)
+		sb = append(sb, coef...)
 	} else if prec == sz {
 		sb = append(sb, '0', '.')
-		for j := 0; j < sz; j++ {
-			sb = append(sb, coef[j])
-		}
+		sb = append(sb, coef...)
 	} else {
-		for j := 0; j < sz-prec; j++ {
-			sb = append(sb, coef[j])
-		}
+		sb = append(sb, coef[:sz-prec]...)
 		sb = append(sb, '.')
-		for j := sz - prec; j < sz; j++ {
-			sb = append(sb, coef[j])
-		}
+		sb = append(sb, coef[sz-prec:]...)
 	}
 
 	return sb, true
