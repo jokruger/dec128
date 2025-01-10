@@ -15,20 +15,17 @@ import (
 func FromString[S string | []byte](s S) Dec128 {
 	sz := len(s)
 
-	if sz == 0 {
+	switch sz {
+	case 0:
 		return Zero
-	}
-
-	if sz == 1 {
+	case 1:
 		switch s[0] {
 		case '0':
 			return Zero
 		case '+', '-', '.':
 			return NaN(errors.InvalidFormat)
 		}
-	}
-
-	if sz == 2 {
+	case 2:
 		if (s[0] == '+' || s[0] == '-') && s[1] == '.' {
 			return NaN(errors.InvalidFormat)
 		}
