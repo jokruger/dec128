@@ -115,6 +115,7 @@ func (self Dec128) Rescale(prec uint8) Dec128 {
 	if err != errors.None {
 		return NaN(err)
 	}
+
 	return Dec128{coef: coef, exp: prec, neg: self.neg}
 }
 
