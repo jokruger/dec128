@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/jokruger/dec128"
@@ -39,5 +40,27 @@ func BenchmarkDec128ToString(b *testing.B) {
 		_ = s4.String()
 		_ = s5.String()
 		_ = s6.String()
+	}
+}
+
+type testJsonStruct struct {
+	A dec128.Dec128
+	B dec128.Dec128
+	C dec128.Dec128
+}
+
+func BenchmarkJsonMarshal(b *testing.B) {
+	x := testJsonStruct{
+		A: dec128.FromString("123.456789"),
+		B: dec128.FromString("1234567890.1234"),
+		C: dec128.FromString("123456789012345678901234567890.12"),
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := json.Marshal(x)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }

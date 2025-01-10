@@ -19,7 +19,7 @@ func (self Dec128) MarshalText() ([]byte, error) {
 	}
 
 	buf := [MaxStrLen]byte{}
-	sb, trim := self.stringToBuf(buf[:])
+	sb, trim := self.appendString(buf[:0])
 	if trim {
 		return trimTrailingZeros(sb), nil
 	}

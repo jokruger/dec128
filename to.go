@@ -58,7 +58,7 @@ func (self Dec128) String() string {
 	}
 
 	buf := [MaxStrLen]byte{}
-	sb, trim := self.stringToBuf(buf[:])
+	sb, trim := self.appendString(buf[:0])
 	if trim {
 		return string(trimTrailingZeros(sb))
 	}
@@ -78,7 +78,7 @@ func (self Dec128) StringFixed() string {
 	}
 
 	buf := [MaxStrLen]byte{}
-	sb, _ := self.stringToBuf(buf[:])
+	sb, _ := self.appendString(buf[:0])
 
 	return string(sb)
 }
