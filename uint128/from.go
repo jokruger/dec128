@@ -36,7 +36,7 @@ func FromBigInt(i *big.Int) (Uint128, errors.Error) {
 }
 
 // FromString creates a new Uint128 from a string
-func FromString(s string) (Uint128, errors.Error) {
+func FromString[S string | []byte](s S) (Uint128, errors.Error) {
 	sz := len(s)
 
 	if sz == 0 {

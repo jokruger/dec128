@@ -34,7 +34,7 @@ func (self *Dec128) UnmarshalText(data []byte) error {
 		return nil
 	}
 
-	t := FromString(string(data[:]))
+	t := FromString(data[:])
 	if t.IsNaN() {
 		return t.ErrorDetails()
 	}
@@ -75,7 +75,7 @@ func (self *Dec128) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	t := FromString(string(data[:]))
+	t := FromString(data[:])
 	if t.IsNaN() {
 		return t.ErrorDetails()
 	}
