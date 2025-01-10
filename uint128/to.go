@@ -43,13 +43,13 @@ func (self Uint128) String() string {
 	}
 
 	buf := [MaxStrLen]byte{}
-	n := self.StringToBuf(buf[:])
+	sb := self.StringToBuf(buf[:])
 
-	return string(buf[n:])
+	return string(sb)
 }
 
-// StringToBuf writes the value as a string to the given buffer (from end to start) and returns the index of the first byte.
-func (self Uint128) StringToBuf(buf []byte) int {
+// StringToBuf writes the value as a string to the given buffer (from end to start) and returns a slice containing the string.
+func (self Uint128) StringToBuf(buf []byte) []byte {
 	q := self
 	i := len(buf)
 	var r uint64
@@ -63,7 +63,7 @@ func (self Uint128) StringToBuf(buf []byte) int {
 				buf[i] = '0' + byte(r%10)
 				r /= 10
 			}
-			return i
+			return buf[i:]
 		}
 
 		q, r, _ = q.QuoRem64(1e19)
@@ -76,7 +76,7 @@ func (self Uint128) StringToBuf(buf []byte) int {
 		}
 
 		if q.IsZero() {
-			return i
+			return buf[i:]
 		}
 
 		for n > 0 {

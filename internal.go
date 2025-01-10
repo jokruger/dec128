@@ -160,8 +160,7 @@ func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
 // appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal contains a decimal point.
 func (self Dec128) appendString(sb []byte) ([]byte, bool) {
 	buf := [uint128.MaxStrLen]byte{}
-	n := self.coef.StringToBuf(buf[:])
-	coef := buf[n:]
+	coef := self.coef.StringToBuf(buf[:])
 
 	prec := int(self.exp)
 	sz := len(coef)
