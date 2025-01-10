@@ -166,17 +166,16 @@ func (self Dec128) appendString(sb []byte) ([]byte, bool) {
 	buf := [uint128.MaxStrLen]byte{}
 	coef := self.coef.StringToBuf(buf[:])
 
-	prec := int(self.exp)
-	sz := len(coef)
-
 	if self.neg {
 		sb = append(sb, '-')
 	}
 
+	prec := int(self.exp)
 	if prec == 0 {
 		return append(sb, coef...), false
 	}
 
+	sz := len(coef)
 	if prec > sz {
 		sb = append(sb, '0', '.')
 		sb = append(sb, zeros[:prec-sz]...)
