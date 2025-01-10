@@ -45,7 +45,21 @@ func (self *Dec128) UnmarshalText(data []byte) error {
 
 // MarshalJSON implements the json.Marshaler interface.
 func (self Dec128) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + self.String() + `"`), nil
+	if self.err != errors.None {
+		return NaNJsonStrBytes, nil
+	}
+
+	if self.IsZero() {
+		return ZeroJsonStrBytes, nil
+	}
+
+	buf := [MaxStrLen + 2]byte{}
+	buf[0] = '"'
+	sb, trim := self.appendString(buf[:1])
+	if trim {
+		sb = trimTrailingZeros(sb)
+	}
+	return append(sb, '"'), nil
 }
 
 var nullValue = []byte("null")

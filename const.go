@@ -34,11 +34,13 @@ var (
 	Decimal366  = FromInt(366)
 	Decimal1000 = FromInt(1000)
 
-	ZeroStr      = "0"
-	ZeroStrBytes = []byte(ZeroStr)
+	ZeroStr          = "0"
+	ZeroStrBytes     = []byte(ZeroStr)
+	ZeroJsonStrBytes = []byte(`"0"`)
 
-	NaNStr      = "NaN"
-	NaNStrBytes = []byte(NaNStr)
+	NaNStr          = "NaN"
+	NaNStrBytes     = []byte(NaNStr)
+	NaNJsonStrBytes = []byte(`"NaN"`)
 
 	Pow10Uint64  = uint128.Pow10Uint64
 	Pow10Uint128 = uint128.Pow10Uint128
