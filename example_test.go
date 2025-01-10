@@ -82,3 +82,10 @@ func ExampleMin() {
 	// 1.1
 	// -1
 }
+
+func ExampleDec128_PowInt() {
+	a := FromString("2")
+	fmt.Println(a.PowInt(-3))
+	// Output:
+	// 0.125
+}

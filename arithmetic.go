@@ -176,3 +176,28 @@ func (self Dec128) Sqrt() Dec128 {
 
 	return NaN(errors.Overflow)
 }
+
+// PowInt returns Dec128 raised to the power of n.
+func (self Dec128) PowInt(n int) Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+
+	if n < 0 {
+		return One.Div(self.PowInt(-n))
+	}
+
+	if n == 0 {
+		return One
+	}
+
+	if n == 1 {
+		return self
+	}
+
+	if (n & 1) == 0 {
+		return self.Mul(self).PowInt(n / 2)
+	}
+
+	return self.Mul(self).PowInt((n - 1) / 2).Mul(self)
+}
