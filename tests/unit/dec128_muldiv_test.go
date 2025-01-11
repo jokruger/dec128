@@ -259,3 +259,53 @@ func TestDecimalMod1(t *testing.T) {
 		})
 	}
 }
+
+func TestDecimalQuoRem(t *testing.T) {
+	type testCase struct {
+		a string
+		b string
+		q string
+		r string
+		e string
+	}
+
+	testCases := [...]testCase{
+		{"0", "0", "NaN", "NaN", "division by zero"},
+		{"0", "1", "0", "0", ""},
+		{"1", "0", "NaN", "NaN", "division by zero"},
+		{"1", "1", "1", "0", ""},
+		{"-1", "1", "-1", "0", ""},
+		{"10", "1", "10", "0", ""},
+		{"1", "10", "0", "1", ""},
+		{"1", "4", "0", "1", ""},
+		{"1", "8", "0", "1", ""},
+		{"10", "3", "3", "1", ""},
+		{"100", "3", "33", "1", ""},
+		{"1000", "3", "333", "1", ""},
+		{"1000", "10", "100", "0", ""},
+		{"-4", "3", "-1", "-1", ""},
+		{"-4", "-3", "1", "-1", ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalQuoRem(%s / %s)", tc.a, tc.b), func(t *testing.T) {
+			a := dec128.FromString(tc.a)
+			b := dec128.FromString(tc.b)
+			q, r := a.QuoRem(b)
+			s := q.String()
+			if s != tc.q {
+				t.Errorf("Expected '%s', got: %s", tc.q, s)
+			}
+			s = r.String()
+			if s != tc.r {
+				t.Errorf("Expected '%s', got: %s", tc.r, s)
+			}
+			if tc.e != "" && !q.IsNaN() {
+				t.Errorf("Expected error '%s', got nil", tc.e)
+			}
+			if tc.e == "" && q.IsNaN() {
+				t.Errorf("Expected no error, got: %v", q.ErrorDetails())
+			}
+		})
+	}
+}

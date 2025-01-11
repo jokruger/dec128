@@ -161,6 +161,38 @@ func (self Dec128) Mod(other Dec128) Dec128 {
 
 // QuoRem returns the quotient and remainder of the division of Dec128 by other Dec128.
 // If any of the Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (self Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
+	if self.err != errors.None {
+		return self, self
+	}
+
+	if other.err != errors.None {
+		return other, other
+	}
+
+	if other.IsZero() {
+		return NaN(errors.DivisionByZero), NaN(errors.DivisionByZero)
+	}
+
+	if self.IsZero() {
+		return Zero, Zero
+	}
+
+	q, r, ok := self.tryQuoRem(other)
+	if ok {
+		return q, r
+	}
+
+	a := self.Canonical()
+	b := other.Canonical()
+	q, r, ok = a.tryQuoRem(b)
+	if ok {
+		return q, r
+	}
+
+	return NaN(errors.Overflow), NaN(errors.Overflow)
+}
 
 // Abs returns |d|
 // If Dec128 is NaN, the result will be NaN.
