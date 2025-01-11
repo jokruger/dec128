@@ -89,3 +89,11 @@ func ExampleDec128_PowInt() {
 	// Output:
 	// 0.125
 }
+
+func ExampleDec128_Mod() {
+	a := FromString("7")
+	b := FromString("3")
+	fmt.Println(a.Mod(b))
+	// Output:
+	// 1
+}

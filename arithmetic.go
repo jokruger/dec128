@@ -159,6 +159,9 @@ func (self Dec128) Mod(other Dec128) Dec128 {
 	return NaN(errors.Overflow)
 }
 
+// QuoRem returns the quotient and remainder of the division of Dec128 by other Dec128.
+// If any of the Dec128 is NaN, the result will be NaN.
+
 // Abs returns |d|
 // If Dec128 is NaN, the result will be NaN.
 func (self Dec128) Abs() Dec128 {
