@@ -161,6 +161,34 @@ func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
 	return Dec128{coef: q, exp: prec, neg: neg}, true
 }
 
+func (self Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
+	var factor uint8
+	var u uint128.Uint128
+	var c uint128.Uint128
+	var d uint128.Uint128
+	var err errors.Error
+
+	if self.exp == other.exp {
+		factor = self.exp
+		u = self.coef
+		d = other.coef
+	} else {
+		factor = max(self.exp, other.exp)
+		u, c = self.coef.MulCarry(Pow10Uint128[factor-self.exp])
+		d, err = other.coef.Mul(Pow10Uint128[factor-other.exp])
+		if err != errors.None {
+			return NaN(err), NaN(err), false
+		}
+	}
+
+	q1, r1, err := uint128.QuoRem256By128(u, c, d)
+	if err != errors.None {
+		return NaN(err), NaN(err), false
+	}
+
+	return Dec128{coef: q1, exp: 0, neg: self.neg != other.neg}, Dec128{coef: r1, exp: factor, neg: self.neg}, true
+}
+
 // appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal contains a decimal point.
 func (self Dec128) appendString(sb []byte) ([]byte, bool) {
 	buf := [uint128.MaxStrLen]byte{}

@@ -201,3 +201,47 @@ func TestDecimalDiv3(t *testing.T) {
 		})
 	}
 }
+
+func TestDecimalMod1(t *testing.T) {
+	dec128.SetDefaultPrecision(19)
+
+	type testCase struct {
+		a string
+		b string
+		r string
+		e string
+	}
+
+	testCases := [...]testCase{
+		{"0", "0", "NaN", "division by zero"},
+		{"123", "10", "3", ""},
+		{"12345678901234567890123456.123456789", "123456789012345678900", "123456.123456789", ""},
+		{"12345678901234567890123", "1.1234567890123456789", "0.4794672386555312197", ""},
+		{"12345678901234567890.123456789", "1.1234567890123456789", "0.592997984048161704", ""},
+		{"123456789.1234567890123456789", "123.123456789", "37.1369289660123456789", ""},
+		{"1234567890123456789", "1", "0", ""},
+		{"11.234", "1.12", "0.034", ""},
+		{"-11.234", "1.12", "-0.034", ""},
+		{"11.234", "-1.12", "0.034", ""},
+		{"-11.234", "-1.12", "-0.034", ""},
+		{"123.456", "1.123", "1.049", ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestDecimalDiv(%s / %s)", tc.a, tc.b), func(t *testing.T) {
+			a := dec128.FromString(tc.a)
+			b := dec128.FromString(tc.b)
+			c := a.Mod(b)
+			s := c.String()
+			if s != tc.r {
+				t.Errorf("Expected '%s', got: %s", tc.r, s)
+			}
+			if tc.e != "" && !c.IsNaN() {
+				t.Errorf("Expected error '%s', got nil", tc.e)
+			}
+			if tc.e == "" && c.IsNaN() {
+				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+			}
+		})
+	}
+}

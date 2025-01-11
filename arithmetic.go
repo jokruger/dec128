@@ -124,6 +124,41 @@ func (self Dec128) Div(other Dec128) Dec128 {
 	return NaN(errors.Overflow)
 }
 
+// Mod returns self % other.
+// If any of the Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (self Dec128) Mod(other Dec128) Dec128 {
+	if self.err != errors.None {
+		return self
+	}
+
+	if other.err != errors.None {
+		return other
+	}
+
+	if other.IsZero() {
+		return NaN(errors.DivisionByZero)
+	}
+
+	if self.IsZero() {
+		return Zero
+	}
+
+	_, r, ok := self.tryQuoRem(other)
+	if ok {
+		return r
+	}
+
+	a := self.Canonical()
+	b := other.Canonical()
+	_, r, ok = a.tryQuoRem(b)
+	if ok {
+		return r
+	}
+
+	return NaN(errors.Overflow)
+}
+
 // Abs returns |d|
 // If Dec128 is NaN, the result will be NaN.
 func (self Dec128) Abs() Dec128 {
