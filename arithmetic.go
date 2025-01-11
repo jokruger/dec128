@@ -31,6 +31,13 @@ func (self Dec128) Add(other Dec128) Dec128 {
 	return NaN(errors.Overflow)
 }
 
+// AddInt returns the sum of the Dec128 and the int.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, the result will be NaN.
+func (self Dec128) AddInt(other int) Dec128 {
+	return self.Add(FromInt(other))
+}
+
 // Sub returns the difference of the Dec128 and the other Dec128.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow/underflow, the result will be NaN.
@@ -56,6 +63,13 @@ func (self Dec128) Sub(other Dec128) Dec128 {
 	}
 
 	return NaN(errors.Overflow)
+}
+
+// SubInt returns the difference of the Dec128 and the int.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow/underflow, the result will be NaN.
+func (self Dec128) SubInt(other int) Dec128 {
+	return self.Sub(FromInt(other))
 }
 
 // Mul returns self * other.
@@ -87,6 +101,13 @@ func (self Dec128) Mul(other Dec128) Dec128 {
 	}
 
 	return NaN(errors.Overflow)
+}
+
+// MulInt returns self * other.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, the result will be NaN.
+func (self Dec128) MulInt(other int) Dec128 {
+	return self.Mul(FromInt(other))
 }
 
 // Div returns self / other.
@@ -124,6 +145,13 @@ func (self Dec128) Div(other Dec128) Dec128 {
 	return NaN(errors.Overflow)
 }
 
+// DivInt returns self / other.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (self Dec128) DivInt(other int) Dec128 {
+	return self.Div(FromInt(other))
+}
+
 // Mod returns self % other.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
@@ -159,6 +187,13 @@ func (self Dec128) Mod(other Dec128) Dec128 {
 	return NaN(errors.Overflow)
 }
 
+// ModInt returns self % other.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (self Dec128) ModInt(other int) Dec128 {
+	return self.Mod(FromInt(other))
+}
+
 // QuoRem returns the quotient and remainder of the division of Dec128 by other Dec128.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
@@ -192,6 +227,13 @@ func (self Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
 	}
 
 	return NaN(errors.Overflow), NaN(errors.Overflow)
+}
+
+// QuoRemInt returns the quotient and remainder of the division of Dec128 by int.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (self Dec128) QuoRemInt(other int) (Dec128, Dec128) {
+	return self.QuoRem(FromInt(other))
 }
 
 // Abs returns |d|
