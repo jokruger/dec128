@@ -19,3 +19,11 @@ func Min(a Dec128, b ...Dec128) Dec128 {
 	}
 	return a
 }
+
+// Sum returns the sum of the Dec128 values in the input list.
+func Sum(a Dec128, b ...Dec128) Dec128 {
+	for _, d := range b {
+		a = a.Add(d)
+	}
+	return a
+}

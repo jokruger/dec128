@@ -97,3 +97,14 @@ func ExampleDec128_Mod() {
 	// Output:
 	// 1
 }
+
+func ExampleSum() {
+	a := FromString("1")
+	b := FromString("2")
+	c := FromString("3.1")
+	fmt.Println(Sum(a, b))
+	fmt.Println(Sum(a, b, c))
+	// Output:
+	// 3
+	// 6.1
+}
