@@ -108,3 +108,17 @@ func ExampleSum() {
 	// 3
 	// 6.1
 }
+
+func ExampleAvg() {
+	a := FromString("1")
+	b := FromString("2")
+	c := FromString("3")
+	d := FromString("1.1")
+	fmt.Println(Avg(a, b))
+	fmt.Println(Avg(a, b, c))
+	fmt.Println(Avg(a, b, c, d))
+	// Output:
+	// 1.5
+	// 2
+	// 1.775
+}

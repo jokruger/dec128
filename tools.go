@@ -27,3 +27,8 @@ func Sum(a Dec128, b ...Dec128) Dec128 {
 	}
 	return a
 }
+
+// Avg returns the average of the Dec128 values in the input list.
+func Avg(a Dec128, b ...Dec128) Dec128 {
+	return Sum(a, b...).DivInt(len(b) + 1)
+}
