@@ -11,6 +11,7 @@
 - [x] Precision up to 19 decimal places
 - [x] Fixed size memory layout (128 bits)
 - [x] No panic or error arithmetics (use NaN instead)
+- [x] Immutability (methods return new instances)
 - [x] Basic arithmetic operations required for financial calculations (specifically for banking and accounting)
 - [ ] Additional arithmetic operations for scientific calculations
 - [x] Easy to use
