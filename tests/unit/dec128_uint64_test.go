@@ -39,7 +39,7 @@ func TestDecimalFromUint64Encoding(t *testing.T) {
 			d := dec128.New(uint128.FromUint64(tc.i), tc.p, false)
 			s := d.String()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}
@@ -80,13 +80,13 @@ func TestDecimalUint64Encoding(t *testing.T) {
 			d := dec128.FromString(tc.i)
 			u, err := d.EncodeToUint64(tc.p)
 			if tc.e != "" && err == nil {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && err != nil {
-				t.Errorf("Expected no error, got: %v", err)
+				t.Errorf("expected no error, got: %v", err)
 			}
 			if u != tc.u {
-				t.Errorf("Expected %d, got: %d", tc.u, u)
+				t.Errorf("expected %d, got: %d", tc.u, u)
 			}
 		})
 	}
@@ -113,11 +113,11 @@ func TestDecimalUint64Encoding2(t *testing.T) {
 			d := dec128.FromString(tc.i)
 			u, err := d.EncodeToUint64(tc.p)
 			if err != nil {
-				t.Errorf("Expected no error, got: %v", err)
+				t.Errorf("expected no error, got: %v", err)
 			}
 			s := dec128.New(uint128.FromUint64(u), tc.p, false).String()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}

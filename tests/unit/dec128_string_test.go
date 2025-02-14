@@ -34,16 +34,16 @@ func TestDecimalParseStringHLE(t *testing.T) {
 		t.Run(fmt.Sprintf("TestDecimalParseStringHLE(%s)", tc.i), func(t *testing.T) {
 			d := dec128.FromString(tc.i)
 			if d.IsNaN() {
-				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
+				t.Errorf("expected no error, got: %v", d.ErrorDetails())
 			}
 			u := d.Coefficient()
 			e := d.Exponent()
 			err := d.ErrorDetails()
 			if err != nil {
-				t.Errorf("Expected no error, got: %v", err)
+				t.Errorf("expected no error, got: %v", err)
 			}
 			if u.Hi != tc.h || u.Lo != tc.l || e != tc.e {
-				t.Errorf("Expected %d %d %d, got: %d %d %d", tc.h, tc.l, tc.e, u.Hi, u.Lo, e)
+				t.Errorf("expected %d %d %d, got: %d %d %d", tc.h, tc.l, tc.e, u.Hi, u.Lo, e)
 			}
 		})
 	}
@@ -158,14 +158,14 @@ func TestDecimalConvString(t *testing.T) {
 		t.Run(fmt.Sprintf("TestDecimalConvString(%s)", tc.i), func(t *testing.T) {
 			d := dec128.FromString(tc.i)
 			if tc.e != "" && !d.IsNaN() {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && d.IsNaN() {
-				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
+				t.Errorf("expected no error, got: %v", d.ErrorDetails())
 			}
 			s := d.String()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}
@@ -203,7 +203,7 @@ func TestDecimalToStringFixed(t *testing.T) {
 			d := dec128.New(uint128.FromUint64(tc.i), tc.e, false)
 			s := d.StringFixed()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}
@@ -242,7 +242,7 @@ func TestDecimalToStringFixed2(t *testing.T) {
 			d := dec128.FromString(tc.i)
 			s := d.StringFixed()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}

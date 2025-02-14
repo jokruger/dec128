@@ -38,13 +38,13 @@ func TestDecimalSqrt(t *testing.T) {
 		t.Run(fmt.Sprintf("TestDecimalSqrt(%s)", tc.a), func(t *testing.T) {
 			d := dec128.FromString(tc.a).Sqrt()
 			if d.String() != tc.r {
-				t.Errorf("Expected %s, got %s", tc.r, d.String())
+				t.Errorf("expected %s, got %s", tc.r, d.String())
 			}
 			if tc.e == "" && d.IsNaN() {
-				t.Errorf("Expected no error, got %s", d.ErrorDetails().Error())
+				t.Errorf("expected no error, got %s", d.ErrorDetails().Error())
 			}
 			if tc.e != "" && (!d.IsNaN() || d.ErrorDetails().Error() != tc.e) {
-				t.Errorf("Expected %s, got %s", tc.e, d.ErrorDetails().Error())
+				t.Errorf("expected %s, got %s", tc.e, d.ErrorDetails().Error())
 			}
 		})
 	}
@@ -79,13 +79,13 @@ func TestDecimalSqrt2(t *testing.T) {
 		t.Run(fmt.Sprintf("TestDecimalSqrt(%s)", tc.a), func(t *testing.T) {
 			d := dec128.FromString(tc.a).Sqrt()
 			if d.String() != tc.r {
-				t.Errorf("Expected %s, got %s", tc.r, d.String())
+				t.Errorf("expected %s, got %s", tc.r, d.String())
 			}
 			if tc.e == "" && d.IsNaN() {
-				t.Errorf("Expected no error, got %s", d.ErrorDetails().Error())
+				t.Errorf("expected no error, got %s", d.ErrorDetails().Error())
 			}
 			if tc.e != "" && (!d.IsNaN() || d.ErrorDetails().Error() != tc.e) {
-				t.Errorf("Expected %s, got %s", tc.e, d.ErrorDetails().Error())
+				t.Errorf("expected %s, got %s", tc.e, d.ErrorDetails().Error())
 			}
 		})
 	}

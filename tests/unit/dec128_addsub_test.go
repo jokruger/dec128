@@ -48,7 +48,7 @@ func TestDecimalAdd(t *testing.T) {
 			c := a.Add(b)
 			s := c.String()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}
@@ -95,7 +95,7 @@ func TestDecimalSub(t *testing.T) {
 			c := a.Sub(b)
 			s := c.String()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 		})
 	}

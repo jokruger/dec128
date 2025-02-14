@@ -56,13 +56,13 @@ func TestDecimalPowInt(t *testing.T) {
 		t.Run(fmt.Sprintf("TestDecimalPowInt(%s^%d)", tc.a, tc.p), func(t *testing.T) {
 			r := dec128.FromString(tc.a).PowInt(tc.p)
 			if r.String() != tc.s {
-				t.Errorf("Expected %s, got %s", tc.s, r.String())
+				t.Errorf("expected %s, got %s", tc.s, r.String())
 			}
 			if tc.e == "" && r.IsNaN() {
-				t.Errorf("Expected a valid result, got %s", r.ErrorDetails().Error())
+				t.Errorf("expected a valid result, got %s", r.ErrorDetails().Error())
 			}
 			if tc.e != "" && (!r.IsNaN() || r.ErrorDetails().Error() != tc.e) {
-				t.Errorf("Expected %s, got %v", tc.e, r.ErrorDetails())
+				t.Errorf("expected %s, got %v", tc.e, r.ErrorDetails())
 			}
 		})
 	}

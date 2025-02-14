@@ -30,11 +30,11 @@ func TestDecimalUint128Encoding(t *testing.T) {
 			d := dec128.FromString(tc.i)
 			u, err := d.EncodeToUint128(tc.p)
 			if err != nil {
-				t.Errorf("Error: %v", err)
+				t.Errorf("error: %v", err)
 			}
 			s := dec128.New(u, tc.p, false).String()
 			if s != tc.s {
-				t.Errorf("Expected: %v, got: %v", tc.s, s)
+				t.Errorf("expected: %v, got: %v", tc.s, s)
 			}
 		})
 	}

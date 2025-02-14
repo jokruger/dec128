@@ -51,13 +51,13 @@ func TestDecimalMul(t *testing.T) {
 			c := a.Mul(b)
 			s := c.String()
 			if s != tc.r {
-				t.Errorf("Expected '%s', got: %s", tc.r, s)
+				t.Errorf("expected '%s', got: %s", tc.r, s)
 			}
 			if tc.e != "" && !c.IsNaN() {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && c.IsNaN() {
-				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+				t.Errorf("expected no error, got: %v", c.ErrorDetails())
 			}
 		})
 	}
@@ -114,13 +114,13 @@ func TestDecimalDiv(t *testing.T) {
 			c := a.Div(b)
 			s := c.String()
 			if s != tc.r {
-				t.Errorf("Expected '%s', got: %s", tc.r, s)
+				t.Errorf("expected '%s', got: %s", tc.r, s)
 			}
 			if tc.e != "" && !c.IsNaN() {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && c.IsNaN() {
-				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+				t.Errorf("expected no error, got: %v", c.ErrorDetails())
 			}
 		})
 	}
@@ -152,13 +152,13 @@ func TestDecimalDiv2(t *testing.T) {
 			c := a.Div(b)
 			s := c.String()
 			if s != tc.r {
-				t.Errorf("Expected '%s', got: %s", tc.r, s)
+				t.Errorf("expected '%s', got: %s", tc.r, s)
 			}
 			if tc.e != "" && !c.IsNaN() {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && c.IsNaN() {
-				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+				t.Errorf("expected no error, got: %v", c.ErrorDetails())
 			}
 		})
 	}
@@ -190,13 +190,13 @@ func TestDecimalDiv3(t *testing.T) {
 			c := a.Div(b)
 			s := c.String()
 			if s != tc.r {
-				t.Errorf("Expected '%s', got: %s", tc.r, s)
+				t.Errorf("expected '%s', got: %s", tc.r, s)
 			}
 			if tc.e != "" && !c.IsNaN() {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && c.IsNaN() {
-				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+				t.Errorf("expected no error, got: %v", c.ErrorDetails())
 			}
 		})
 	}
@@ -248,13 +248,13 @@ func TestDecimalMod1(t *testing.T) {
 			c := a.Mod(b)
 			s := c.String()
 			if s != tc.r {
-				t.Errorf("Expected '%s', got: %s", tc.r, s)
+				t.Errorf("expected '%s', got: %s", tc.r, s)
 			}
 			if tc.e != "" && !c.IsNaN() {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && c.IsNaN() {
-				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+				t.Errorf("expected no error, got: %v", c.ErrorDetails())
 			}
 		})
 	}
@@ -294,17 +294,17 @@ func TestDecimalQuoRem(t *testing.T) {
 			q, r := a.QuoRem(b)
 			s := q.String()
 			if s != tc.q {
-				t.Errorf("Expected '%s', got: %s", tc.q, s)
+				t.Errorf("expected '%s', got: %s", tc.q, s)
 			}
 			s = r.String()
 			if s != tc.r {
-				t.Errorf("Expected '%s', got: %s", tc.r, s)
+				t.Errorf("expected '%s', got: %s", tc.r, s)
 			}
 			if tc.e != "" && !q.IsNaN() {
-				t.Errorf("Expected error '%s', got nil", tc.e)
+				t.Errorf("expected error '%s', got nil", tc.e)
 			}
 			if tc.e == "" && q.IsNaN() {
-				t.Errorf("Expected no error, got: %v", q.ErrorDetails())
+				t.Errorf("expected no error, got: %v", q.ErrorDetails())
 			}
 		})
 	}

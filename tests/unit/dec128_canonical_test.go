@@ -36,21 +36,21 @@ func TestDecimalCanonical(t *testing.T) {
 		t.Run(fmt.Sprintf("TestDecimalCanonical(%s)", tc.i), func(t *testing.T) {
 			d := dec128.FromString(tc.i)
 			if d.IsNaN() {
-				t.Errorf("Expected no error, got: %v", d.ErrorDetails())
+				t.Errorf("expected no error, got: %v", d.ErrorDetails())
 			}
 			c := d.Canonical()
 			if c.IsNaN() {
-				t.Errorf("Expected no error, got: %v", c.ErrorDetails())
+				t.Errorf("expected no error, got: %v", c.ErrorDetails())
 			}
 			s := c.String()
 			if s != tc.s {
-				t.Errorf("Expected '%s', got: %s", tc.s, s)
+				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
 			if d.Precision() != tc.e1 {
-				t.Errorf("Expected %d, got: %d", tc.e1, d.Precision())
+				t.Errorf("expected %d, got: %d", tc.e1, d.Precision())
 			}
 			if c.Precision() != tc.e2 {
-				t.Errorf("Expected %d, got: %d", tc.e2, c.Precision())
+				t.Errorf("expected %d, got: %d", tc.e2, c.Precision())
 			}
 		})
 	}
