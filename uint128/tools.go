@@ -4,31 +4,31 @@ import (
 	"encoding/binary"
 	"math/bits"
 
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 )
 
 // PutBytes writes the Uint128 to the byte slice bs in little-endian order.
-func (self Uint128) PutBytes(bs []byte) errors.Error {
+func (self Uint128) PutBytes(bs []byte) state.State {
 	if len(bs) < 16 {
-		return errors.NotEnoughBytes
+		return state.NotEnoughBytes
 	}
 
 	binary.LittleEndian.PutUint64(bs[:8], self.Lo)
 	binary.LittleEndian.PutUint64(bs[8:], self.Hi)
 
-	return errors.None
+	return state.OK
 }
 
 // PutBytesBigEndian writes the Uint128 to the byte slice bs in big-endian order.
-func (self Uint128) PutBytesBigEndian(bs []byte) errors.Error {
+func (self Uint128) PutBytesBigEndian(bs []byte) state.State {
 	if len(bs) < 16 {
-		return errors.NotEnoughBytes
+		return state.NotEnoughBytes
 	}
 
 	binary.BigEndian.PutUint64(bs[:8], self.Hi)
 	binary.BigEndian.PutUint64(bs[8:], self.Lo)
 
-	return errors.None
+	return state.OK
 }
 
 // AppendBytes appends the Uint128 to the byte slice bs in little-endian order.
@@ -51,20 +51,20 @@ func (self Uint128) ReverseBytes() Uint128 {
 }
 
 // QuoRem256By128 returns quotient, remainder and error.
-func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, errors.Error) {
+func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, state.State) {
 	if carry.IsZero() {
 		return Uint128{Lo: u.Lo, Hi: u.Hi}.QuoRem(v)
 	}
 
 	if v.Hi == 0 && carry.Hi == 0 {
-		q, r, err := QuoRem192By64(u, carry.Lo, v.Lo)
-		return q, Uint128{Lo: r}, err
+		q, r, e := QuoRem192By64(u, carry.Lo, v.Lo)
+		return q, Uint128{Lo: r}, e
 	}
 
 	// now we have u192 / u128 or u256 / u128
 	if carry.Compare(v) >= 0 {
 		// obviously the result won't fit into u128
-		return Zero, Zero, errors.Overflow
+		return Zero, Zero, state.Overflow
 	}
 
 	// perform u256 / u128, where carry < u128
@@ -144,16 +144,16 @@ func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, erro
 	// 0 <= n <= 63, so it's safe to convert to uint
 	r := Uint128{Lo: a[0], Hi: a[1]}.Rsh(uint(n))
 
-	return Uint128{Lo: q[0], Hi: q[1]}, r, errors.None
+	return Uint128{Lo: q[0], Hi: q[1]}, r, state.OK
 }
 
 // QuoRem192By64 return q, r which:
 // q must be a u128
 // u = q*v + r
 // Returns error if u.carry >= v, because the result can't fit into u128
-func QuoRem192By64(u Uint128, carry uint64, v uint64) (Uint128, uint64, errors.Error) {
+func QuoRem192By64(u Uint128, carry uint64, v uint64) (Uint128, uint64, state.State) {
 	if carry >= v {
-		return Zero, 0, errors.Overflow
+		return Zero, 0, state.Overflow
 	}
 
 	// can't panic because we already check u.carry < v (u.carry.hi == 0 && u.carry.lo < v)
@@ -162,7 +162,7 @@ func QuoRem192By64(u Uint128, carry uint64, v uint64) (Uint128, uint64, errors.E
 	// can't panic because rem < v
 	lo, r := bits.Div64(rem, u.Lo, v)
 
-	return Uint128{Lo: lo, Hi: hi}, r, errors.None
+	return Uint128{Lo: lo, Hi: hi}, r, state.OK
 }
 
 // SubUnsafe returns u - v with u >= v

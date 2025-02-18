@@ -1,7 +1,7 @@
 package dec128
 
 import (
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
 )
 
@@ -34,6 +34,7 @@ var (
 	zeros = [...]byte{'0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'}
 )
 
+// called only when both are not NaN
 func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
 	prec := max(self.exp, other.exp)
 
@@ -47,32 +48,33 @@ func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
 		return b, false
 	}
 
-	if a.neg == b.neg {
-		coef, err := a.coef.Add(b.coef)
-		if err != errors.None {
-			return NaN(err), false
+	if a.state == b.state {
+		coef, s := a.coef.Add(b.coef)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: prec, neg: a.neg}, true
+		return Dec128{coef: coef, exp: prec, state: a.state}, true
 	}
 
 	switch a.coef.Compare(b.coef) {
 	case 1:
-		coef, err := a.coef.Sub(b.coef)
-		if err != errors.None {
-			return NaN(err), false
+		coef, s := a.coef.Sub(b.coef)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: prec, neg: a.neg}, true
+		return Dec128{coef: coef, exp: prec, state: a.state}, true
 	case 0:
 		return Zero, true
 	default:
-		coef, err := b.coef.Sub(a.coef)
-		if err != errors.None {
-			return NaN(err), false
+		coef, s := b.coef.Sub(a.coef)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: prec, neg: b.neg}, true
+		return Dec128{coef: coef, exp: prec, state: b.state}, true
 	}
 }
 
+// called only when both are not NaN
 func (self Dec128) trySub(other Dec128) (Dec128, bool) {
 	prec := max(self.exp, other.exp)
 
@@ -86,39 +88,47 @@ func (self Dec128) trySub(other Dec128) (Dec128, bool) {
 		return b, false
 	}
 
-	if a.neg != b.neg {
-		coef, err := a.coef.Add(b.coef)
-		if err != errors.None {
-			return NaN(err), false
+	if a.state != b.state {
+		coef, s := a.coef.Add(b.coef)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: prec, neg: a.neg}, true
+		return Dec128{coef: coef, exp: prec, state: a.state}, true
 	}
 
 	switch a.coef.Compare(b.coef) {
 	case 1:
-		coef, err := a.coef.Sub(b.coef)
-		if err != errors.None {
-			return NaN(err), false
+		coef, s := a.coef.Sub(b.coef)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: prec, neg: a.neg}, true
+		return Dec128{coef: coef, exp: prec, state: a.state}, true
 	case 0:
 		return Zero, true
 	default:
-		coef, err := b.coef.Sub(a.coef)
-		if err != errors.None {
-			return NaN(err), false
+		coef, s := b.coef.Sub(a.coef)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: prec, neg: !a.neg}, true
+		if a.state == state.Neg {
+			return Dec128{coef: coef, exp: prec}, true
+		}
+		return Dec128{coef: coef, exp: prec, state: state.Neg}, true
 	}
 }
 
+// called only when both are not NaN
 func (self Dec128) tryMul(other Dec128) (Dec128, bool) {
-	neg := self.neg != other.neg
+	var st state.State
+	if self.state != other.state {
+		st = state.Neg
+	}
+
 	prec := self.exp + other.exp
 	rcoef, rcarry := self.coef.MulCarry(other.coef)
 
 	if rcarry.IsZero() {
-		r := Dec128{coef: rcoef, exp: prec, neg: neg}
+		r := Dec128{coef: rcoef, exp: prec, state: st}
 		if prec <= MaxPrecision {
 			return r, true
 		}
@@ -129,24 +139,24 @@ func (self Dec128) tryMul(other Dec128) (Dec128, bool) {
 	i := prec
 	for {
 		if i == 0 {
-			return NaN(errors.Overflow), false
+			return Dec128{state: state.Overflow}, false
 		}
-		q, r, err := uint128.QuoRem256By128(rcoef, rcarry, Pow10Uint128[i])
-		if err == errors.None && r.IsZero() {
-			return Dec128{coef: q, exp: prec - i, neg: neg}, true
+		q, r, s := uint128.QuoRem256By128(rcoef, rcarry, Pow10Uint128[i])
+		if s < state.Error && r.IsZero() {
+			return Dec128{coef: q, exp: prec - i, state: st}, true
 		}
-		if err == errors.Overflow {
-			return NaN(errors.Overflow), false
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
 		i--
 		if prec-i > MaxPrecision {
-			return NaN(errors.Overflow), false
+			return Dec128{state: state.Overflow}, false
 		}
 	}
 }
 
+// called only when both are not NaN
 func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
-	neg := self.neg != other.neg
 	factor := other.exp
 	prec := self.exp
 	if prec < defaultPrecision {
@@ -154,19 +164,25 @@ func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
 		prec = defaultPrecision
 	}
 	u, c := self.coef.MulCarry(Pow10Uint128[factor])
-	q, _, err := uint128.QuoRem256By128(u, c, other.coef)
-	if err != errors.None {
-		return NaN(err), false
+	q, _, s := uint128.QuoRem256By128(u, c, other.coef)
+	if s >= state.Error {
+		return Dec128{state: s}, false
 	}
-	return Dec128{coef: q, exp: prec, neg: neg}, true
+
+	if self.state == other.state {
+		return Dec128{coef: q, exp: prec}, true
+	}
+
+	return Dec128{coef: q, exp: prec, state: state.Neg}, true
 }
 
+// called only when both are not NaN
 func (self Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 	var factor uint8
 	var u uint128.Uint128
 	var c uint128.Uint128
 	var d uint128.Uint128
-	var err errors.Error
+	var s state.State
 
 	if self.exp == other.exp {
 		factor = self.exp
@@ -175,26 +191,31 @@ func (self Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 	} else {
 		factor = max(self.exp, other.exp)
 		u, c = self.coef.MulCarry(Pow10Uint128[factor-self.exp])
-		d, err = other.coef.Mul(Pow10Uint128[factor-other.exp])
-		if err != errors.None {
-			return NaN(err), NaN(err), false
+		d, s = other.coef.Mul(Pow10Uint128[factor-other.exp])
+		if s >= state.Error {
+			return Dec128{state: s}, Dec128{state: s}, false
 		}
 	}
 
-	q1, r1, err := uint128.QuoRem256By128(u, c, d)
-	if err != errors.None {
-		return NaN(err), NaN(err), false
+	q1, r1, s := uint128.QuoRem256By128(u, c, d)
+	if s >= state.Error {
+		return Dec128{state: s}, Dec128{state: s}, false
 	}
 
-	return Dec128{coef: q1, exp: 0, neg: self.neg != other.neg}, Dec128{coef: r1, exp: factor, neg: self.neg}, true
+	if self.state == other.state {
+		return Dec128{coef: q1, exp: 0}, Dec128{coef: r1, exp: factor, state: self.state}, true
+	}
+
+	return Dec128{coef: q1, exp: 0, state: state.Neg}, Dec128{coef: r1, exp: factor, state: self.state}, true
 }
 
 // appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal contains a decimal point.
+// called only when self is not NaN
 func (self Dec128) appendString(sb []byte) ([]byte, bool) {
 	buf := [uint128.MaxStrLen]byte{}
 	coef := self.coef.StringToBuf(buf[:])
 
-	if self.neg {
+	if self.state == state.Neg {
 		sb = append(sb, '-')
 	}
 
@@ -234,6 +255,7 @@ func trimTrailingZeros(sb []byte) []byte {
 	return sb[:i]
 }
 
+// called only when self is not NaN
 func (self Dec128) trySqrt() (Dec128, bool) {
 	prec := defaultPrecision
 	prec2 := prec * 2
@@ -241,16 +263,16 @@ func (self Dec128) trySqrt() (Dec128, bool) {
 
 	if d.exp > prec2 {
 		// scale down to prec2
-		coef, err := d.coef.Div(Pow10Uint128[d.exp-prec2])
-		if err != errors.None {
-			return NaN(err), false
+		coef, s := d.coef.Div(Pow10Uint128[d.exp-prec2])
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
-		d = Dec128{coef: coef, exp: prec2, neg: d.neg}
+		d = Dec128{coef: coef, exp: prec2, state: d.state}
 	}
 
 	coef, carry := d.coef.MulCarry(Pow10Uint128[prec2-d.exp])
 	if carry.Hi != 0 {
-		return NaN(errors.Overflow), false
+		return Dec128{state: state.Overflow}, false
 	}
 
 	// 0 <= coef.bitLen() < 256, so it's safe to convert to uint
@@ -262,14 +284,14 @@ func (self Dec128) trySqrt() (Dec128, bool) {
 	// Newton-Raphson method
 	for {
 		// calculate x1 = (x + coef/x) / 2
-		y, _, err := uint128.QuoRem256By128(coef, carry, x)
-		if err != errors.None {
-			return NaN(err), false
+		y, _, s := uint128.QuoRem256By128(coef, carry, x)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
 
-		x1, err := x.Add(y)
-		if err != errors.None {
-			return NaN(err), false
+		x1, s := x.Add(y)
+		if s >= state.Error {
+			return Dec128{state: s}, false
 		}
 
 		x1 = x1.Rsh(1)

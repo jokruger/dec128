@@ -4,7 +4,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
 )
 
@@ -23,22 +23,22 @@ func FromString[S string | []byte](s S) Dec128 {
 		case '0':
 			return Zero
 		case '+', '-', '.':
-			return NaN(errors.InvalidFormat)
+			return Dec128{state: state.InvalidFormat}
 		}
 	case 2:
 		if (s[0] == '+' || s[0] == '-') && s[1] == '.' {
-			return NaN(errors.InvalidFormat)
+			return Dec128{state: state.InvalidFormat}
 		}
 	}
 
 	var i, prec int
-	var neg bool
+	var st state.State
 
 	switch s[0] {
 	case '+':
 		i++
 	case '-':
-		neg = true
+		st = state.Neg
 		i++
 	}
 
@@ -48,20 +48,20 @@ func FromString[S string | []byte](s S) Dec128 {
 		for ; i < sz; i++ {
 			if s[i] == '.' {
 				if prec != 0 {
-					return NaN(errors.InvalidFormat)
+					return Dec128{state: state.InvalidFormat}
 				}
 				prec = sz - i - 1
 				continue
 			}
 			if s[i] < '0' || s[i] > '9' {
-				return NaN(errors.InvalidFormat)
+				return Dec128{state: state.InvalidFormat}
 			}
 			u = u*10 + uint64(s[i]-'0')
 		}
 		if u == 0 && prec == 0 {
 			return Zero
 		}
-		return Dec128{coef: uint128.FromUint64(u), exp: uint8(prec), neg: neg}
+		return Dec128{coef: uint128.FromUint64(u), exp: uint8(prec), state: st}
 	}
 
 	j := 0
@@ -72,90 +72,82 @@ func FromString[S string | []byte](s S) Dec128 {
 	}
 
 	if j == sz {
-		coef, err := uint128.FromString(s[i:])
-		if err != errors.None {
-			return NaN(err)
+		coef, e := uint128.FromString(s[i:])
+		if e >= state.Error {
+			return Dec128{state: e}
 		}
-		return Dec128{coef: coef, exp: 0, neg: neg}
+		return Dec128{coef: coef, exp: 0, state: st}
 	}
 
 	if j == sz-1 {
-		return NaN(errors.InvalidFormat)
+		return Dec128{state: state.InvalidFormat}
 	}
 
 	prec = sz - j - 1
 	if prec > uint128.MaxSafeStrLen64 {
-		return NaN(errors.PrecisionOutOfRange)
+		return Dec128{state: state.PrecisionOutOfRange}
 	}
 
-	ipart, err := uint128.FromString(s[i:j])
-	if err != errors.None {
-		return NaN(err)
+	ipart, ei := uint128.FromString(s[i:j])
+	if ei >= state.Error {
+		return Dec128{state: ei}
 	}
 
-	fpart, err := uint128.FromString(s[j+1:])
-	if err != errors.None {
-		return NaN(err)
+	fpart, ef := uint128.FromString(s[j+1:])
+	if ef >= state.Error {
+		return Dec128{state: ef}
 	}
 
 	// max prec is 19, so the fpart.Hi is always 0 and prec is always <= len(pow10)
-	coef, err := ipart.Mul64(Pow10Uint64[prec])
-	if err != errors.None {
-		return NaN(err)
+	coef, e := ipart.Mul64(Pow10Uint64[prec])
+	if e >= state.Error {
+		return Dec128{state: e}
 	}
 
-	coef, err = coef.Add64(fpart.Lo)
-	if err != errors.None {
-		return NaN(err)
+	coef, e = coef.Add64(fpart.Lo)
+	if e >= state.Error {
+		return Dec128{state: e}
 	}
 
 	if coef.IsZero() && prec == 0 {
 		return Zero
 	}
 
-	return Dec128{coef: coef, exp: uint8(prec), neg: neg}
-}
-
-// FromInt creates a new Dec128 from an int.
-func FromInt(i int) Dec128 {
-	if i == 0 {
-		return Zero
-	}
-
-	if i > 0 {
-		return Dec128{coef: uint128.FromUint64(uint64(i))}
-	}
-
-	return Dec128{coef: uint128.FromUint64(uint64(-i)), neg: true}
-}
-
-// FromInt64 creates a new Dec128 from an int64.
-func FromInt64(i int64) Dec128 {
-	if i == 0 {
-		return Zero
-	}
-
-	if i > 0 {
-		return Dec128{coef: uint128.FromUint64(uint64(i))}
-	}
-
-	return Dec128{coef: uint128.FromUint64(uint64(-i)), neg: true}
+	return Dec128{coef: coef, exp: uint8(prec), state: st}
 }
 
 // DecodeFromUint128 decodes a Dec128 from a Uint128 and an exponent.
 func DecodeFromUint128(coef uint128.Uint128, exp uint8) Dec128 {
-	return New(coef, exp, false)
+	return Dec128{coef: coef, exp: exp}
 }
 
 // DecodeFromUint64 decodes a Dec128 from a uint64 and an exponent.
 func DecodeFromUint64(coef uint64, exp uint8) Dec128 {
-	return New(uint128.FromUint64(coef), exp, false)
+	return Dec128{coef: uint128.FromUint64(coef), exp: exp}
+}
+
+// DecodeFromInt64 decodes a Dec128 from a int64 and an exponent.
+func DecodeFromInt64(coef int64, exp uint8) Dec128 {
+	if coef == -9223372036854775808 {
+		return Dec128{coef: uint128.FromUint64(9223372036854775808), exp: exp, state: state.Neg}
+	}
+
+	if coef < 0 {
+		return Dec128{coef: uint128.FromUint64(uint64(-coef)), exp: exp, state: state.Neg}
+	}
+
+	return Dec128{coef: uint128.FromUint64(uint64(coef)), exp: exp}
+}
+
+// FromInt64 creates a new Dec128 from an int64.
+func FromInt64(i int64) Dec128 {
+	return DecodeFromInt64(i, 0)
 }
 
 // FromFloat64 returns a decimal from float64.
 func FromFloat64(f float64) Dec128 {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return NaN(errors.NotANumber)
+		return Dec128{state: state.NaN}
 	}
 	return FromString(strconv.FormatFloat(f, 'f', -1, 64))
 }

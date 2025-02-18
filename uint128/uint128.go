@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 )
 
 // Uint128 is a 128-bit unsigned integer type.
@@ -47,15 +47,15 @@ func (self *Uint128) Scan(s fmt.ScanState, ch rune) error {
 	i := new(big.Int)
 
 	if err := i.Scan(s, ch); err != nil {
-		return errors.InvalidFormat.Value()
+		return state.InvalidFormat.Error()
 	}
 
 	if i.Sign() < 0 {
-		return errors.Negative.Value()
+		return state.NegativeInUnsignedOp.Error()
 	}
 
 	if i.BitLen() > 128 {
-		return errors.Overflow.Value()
+		return state.Overflow.Error()
 	}
 
 	self.Lo = i.Uint64()

@@ -1,7 +1,7 @@
 package dec128
 
 import (
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
 )
 
@@ -15,24 +15,24 @@ const MaxStrLen = uint128.MaxStrLen + 2
 
 var (
 	Zero        = Dec128{}
-	One         = FromInt(1)
-	NegativeOne = FromInt(-1)
+	One         = FromInt64(1)
+	NegativeOne = FromInt64(-1)
 
 	Decimal0    = Zero
 	Decimal1    = One
-	Decimal2    = FromInt(2)
-	Decimal3    = FromInt(3)
-	Decimal4    = FromInt(4)
-	Decimal5    = FromInt(5)
-	Decimal6    = FromInt(6)
-	Decimal7    = FromInt(7)
-	Decimal8    = FromInt(8)
-	Decimal9    = FromInt(9)
-	Decimal10   = FromInt(10)
-	Decimal100  = FromInt(100)
-	Decimal365  = FromInt(365)
-	Decimal366  = FromInt(366)
-	Decimal1000 = FromInt(1000)
+	Decimal2    = FromInt64(2)
+	Decimal3    = FromInt64(3)
+	Decimal4    = FromInt64(4)
+	Decimal5    = FromInt64(5)
+	Decimal6    = FromInt64(6)
+	Decimal7    = FromInt64(7)
+	Decimal8    = FromInt64(8)
+	Decimal9    = FromInt64(9)
+	Decimal10   = FromInt64(10)
+	Decimal100  = FromInt64(100)
+	Decimal365  = FromInt64(365)
+	Decimal366  = FromInt64(366)
+	Decimal1000 = FromInt64(1000)
 
 	ZeroStr          = "0"
 	ZeroStrBytes     = []byte(ZeroStr)
@@ -51,7 +51,7 @@ var (
 // SetDefaultPrecision sets the default precision for all Dec128 instances, where precision is the number of digits after the decimal point.
 func SetDefaultPrecision(prec uint8) {
 	if prec > MaxPrecision {
-		panic(errors.PrecisionOutOfRange.Value())
+		panic(state.PrecisionOutOfRange.String())
 	}
 	defaultPrecision = prec
 }

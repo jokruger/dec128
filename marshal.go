@@ -5,12 +5,12 @@ import (
 	"database/sql/driver"
 	"fmt"
 
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 )
 
 // MarshalText implements the encoding.TextMarshaler interface.
 func (self Dec128) MarshalText() ([]byte, error) {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return NaNStrBytes, nil
 	}
 
@@ -45,7 +45,7 @@ func (self *Dec128) UnmarshalText(data []byte) error {
 
 // MarshalJSON implements the json.Marshaler interface.
 func (self Dec128) MarshalJSON() ([]byte, error) {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return NaNJsonStrBytes, nil
 	}
 
@@ -94,7 +94,7 @@ func (self *Dec128) Scan(src any) error {
 			err = self.ErrorDetails()
 		}
 	case int:
-		*self = FromInt(v)
+		*self = FromInt64(int64(v))
 	case int64:
 		*self = FromInt64(v)
 	case nil:

@@ -1,18 +1,16 @@
 package dec128
 
-import (
-	"github.com/jokruger/dec128/errors"
-)
+import "github.com/jokruger/dec128/state"
 
 // Add returns the sum of the Dec128 and the other Dec128.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (self Dec128) Add(other Dec128) Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 
-	if other.err != errors.None {
+	if other.state >= state.Error {
 		return other
 	}
 
@@ -28,25 +26,25 @@ func (self Dec128) Add(other Dec128) Dec128 {
 		return r
 	}
 
-	return NaN(errors.Overflow)
+	return Dec128{state: state.Overflow}
 }
 
-// AddInt returns the sum of the Dec128 and the int.
+// AddInt64 returns the sum of the Dec128 and the int.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
-func (self Dec128) AddInt(other int) Dec128 {
-	return self.Add(FromInt(other))
+func (self Dec128) AddInt64(other int64) Dec128 {
+	return self.Add(FromInt64(other))
 }
 
 // Sub returns the difference of the Dec128 and the other Dec128.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow/underflow, the result will be NaN.
 func (self Dec128) Sub(other Dec128) Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 
-	if other.err != errors.None {
+	if other.state >= state.Error {
 		return other
 	}
 
@@ -62,29 +60,29 @@ func (self Dec128) Sub(other Dec128) Dec128 {
 		return r
 	}
 
-	return NaN(errors.Overflow)
+	return Dec128{state: state.Overflow}
 }
 
-// SubInt returns the difference of the Dec128 and the int.
+// SubInt64 returns the difference of the Dec128 and the int.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow/underflow, the result will be NaN.
-func (self Dec128) SubInt(other int) Dec128 {
-	return self.Sub(FromInt(other))
+func (self Dec128) SubInt64(other int64) Dec128 {
+	return self.Sub(FromInt64(other))
 }
 
 // Mul returns self * other.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (self Dec128) Mul(other Dec128) Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 
-	if other.err != errors.None {
+	if other.state >= state.Error {
 		return other
 	}
 
-	if self.IsZero() || other.IsZero() {
+	if self.coef.IsZero() || other.coef.IsZero() {
 		return Zero
 	}
 
@@ -100,33 +98,33 @@ func (self Dec128) Mul(other Dec128) Dec128 {
 		return r
 	}
 
-	return NaN(errors.Overflow)
+	return Dec128{state: state.Overflow}
 }
 
-// MulInt returns self * other.
+// MulInt64 returns self * other.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
-func (self Dec128) MulInt(other int) Dec128 {
-	return self.Mul(FromInt(other))
+func (self Dec128) MulInt64(other int64) Dec128 {
+	return self.Mul(FromInt64(other))
 }
 
 // Div returns self / other.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (self Dec128) Div(other Dec128) Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 
-	if other.err != errors.None {
+	if other.state >= state.Error {
 		return other
 	}
 
-	if other.IsZero() {
-		return NaN(errors.DivisionByZero)
+	if other.coef.IsZero() {
+		return Dec128{state: state.DivisionByZero}
 	}
 
-	if self.IsZero() {
+	if self.coef.IsZero() {
 		return Zero
 	}
 
@@ -142,33 +140,33 @@ func (self Dec128) Div(other Dec128) Dec128 {
 		return r
 	}
 
-	return NaN(errors.Overflow)
+	return Dec128{state: state.Overflow}
 }
 
-// DivInt returns self / other.
+// DivInt64 returns self / other.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
-func (self Dec128) DivInt(other int) Dec128 {
-	return self.Div(FromInt(other))
+func (self Dec128) DivInt64(other int64) Dec128 {
+	return self.Div(FromInt64(other))
 }
 
 // Mod returns self % other.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (self Dec128) Mod(other Dec128) Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 
-	if other.err != errors.None {
+	if other.state >= state.Error {
 		return other
 	}
 
-	if other.IsZero() {
-		return NaN(errors.DivisionByZero)
+	if other.coef.IsZero() {
+		return Dec128{state: state.DivisionByZero}
 	}
 
-	if self.IsZero() {
+	if self.coef.IsZero() {
 		return Zero
 	}
 
@@ -184,33 +182,33 @@ func (self Dec128) Mod(other Dec128) Dec128 {
 		return r
 	}
 
-	return NaN(errors.Overflow)
+	return Dec128{state: state.Overflow}
 }
 
-// ModInt returns self % other.
+// ModInt64 returns self % other.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
-func (self Dec128) ModInt(other int) Dec128 {
-	return self.Mod(FromInt(other))
+func (self Dec128) ModInt64(other int64) Dec128 {
+	return self.Mod(FromInt64(other))
 }
 
 // QuoRem returns the quotient and remainder of the division of Dec128 by other Dec128.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (self Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self, self
 	}
 
-	if other.err != errors.None {
+	if other.state >= state.Error {
 		return other, other
 	}
 
-	if other.IsZero() {
-		return NaN(errors.DivisionByZero), NaN(errors.DivisionByZero)
+	if other.coef.IsZero() {
+		return Dec128{state: state.DivisionByZero}, Dec128{state: state.DivisionByZero}
 	}
 
-	if self.IsZero() {
+	if self.coef.IsZero() {
 		return Zero, Zero
 	}
 
@@ -226,20 +224,20 @@ func (self Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
 		return q, r
 	}
 
-	return NaN(errors.Overflow), NaN(errors.Overflow)
+	return Dec128{state: state.Overflow}, Dec128{state: state.Overflow}
 }
 
-// QuoRemInt returns the quotient and remainder of the division of Dec128 by int.
+// QuoRemInt64 returns the quotient and remainder of the division of Dec128 by int.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
-func (self Dec128) QuoRemInt(other int) (Dec128, Dec128) {
-	return self.QuoRem(FromInt(other))
+func (self Dec128) QuoRemInt64(other int64) (Dec128, Dec128) {
+	return self.QuoRem(FromInt64(other))
 }
 
 // Abs returns |d|
 // If Dec128 is NaN, the result will be NaN.
 func (self Dec128) Abs() Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 	return Dec128{coef: self.coef, exp: self.exp}
@@ -248,10 +246,15 @@ func (self Dec128) Abs() Dec128 {
 // Neg returns -d
 // If Dec128 is NaN, the result will be NaN.
 func (self Dec128) Neg() Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
-	return Dec128{coef: self.coef, exp: self.exp, neg: !self.neg}
+
+	if self.state == state.Neg {
+		return Dec128{coef: self.coef, exp: self.exp}
+	}
+
+	return Dec128{coef: self.coef, exp: self.exp, state: state.Neg}
 }
 
 // Sqrt returns the square root of the Dec128.
@@ -259,16 +262,16 @@ func (self Dec128) Neg() Dec128 {
 // If Dec128 is negative, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (self Dec128) Sqrt() Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 
-	if self.IsZero() {
+	if self.coef.IsZero() {
 		return Zero
 	}
 
-	if self.neg {
-		return NaN(errors.SqrtNegative)
+	if self.state == state.Neg {
+		return Dec128{state: state.SqrtNegative}
 	}
 
 	if self.Equal(One) {
@@ -286,12 +289,12 @@ func (self Dec128) Sqrt() Dec128 {
 		return r
 	}
 
-	return NaN(errors.Overflow)
+	return Dec128{state: state.Overflow}
 }
 
 // PowInt returns Dec128 raised to the power of n.
 func (self Dec128) PowInt(n int) Dec128 {
-	if self.err != errors.None {
+	if self.state >= state.Error {
 		return self
 	}
 

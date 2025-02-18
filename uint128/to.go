@@ -3,15 +3,15 @@ package uint128
 import (
 	"math/big"
 
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 )
 
 // Uint64 returns the value as uint64 if it fits, otherwise it returns an error.
-func (self Uint128) Uint64() (uint64, errors.Error) {
+func (self Uint128) Uint64() (uint64, state.State) {
 	if self.Hi != 0 {
-		return 0, errors.Overflow
+		return 0, state.Overflow
 	}
-	return self.Lo, errors.None
+	return self.Lo, state.OK
 }
 
 // Bytes returns the value as a [16]byte array.

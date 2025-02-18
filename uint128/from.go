@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	"github.com/jokruger/dec128/errors"
+	"github.com/jokruger/dec128/state"
 )
 
 // FromUint64 creates a new Uint128 from a uint64
@@ -23,24 +23,24 @@ func FromBytesBigEndian(b [16]byte) Uint128 {
 }
 
 // FromBigInt creates a new Uint128 from a *big.Int
-func FromBigInt(i *big.Int) (Uint128, errors.Error) {
+func FromBigInt(i *big.Int) (Uint128, state.State) {
 	if i.Sign() < 0 {
-		return Zero, errors.Negative
+		return Zero, state.NegativeInUnsignedOp
 	}
 
 	if i.BitLen() > 128 {
-		return Zero, errors.Overflow
+		return Zero, state.Overflow
 	}
 
-	return Uint128{i.Uint64(), i.Rsh(i, 64).Uint64()}, errors.None
+	return Uint128{i.Uint64(), i.Rsh(i, 64).Uint64()}, state.OK
 }
 
 // FromString creates a new Uint128 from a string
-func FromString[S string | []byte](s S) (Uint128, errors.Error) {
+func FromString[S string | []byte](s S) (Uint128, state.State) {
 	sz := len(s)
 
 	if sz == 0 {
-		return Zero, errors.None
+		return Zero, state.OK
 	}
 
 	if sz <= MaxSafeStrLen64 {
@@ -48,30 +48,30 @@ func FromString[S string | []byte](s S) (Uint128, errors.Error) {
 		var u uint64
 		for i := range sz {
 			if s[i] < '0' || s[i] > '9' {
-				return Zero, errors.InvalidFormat
+				return Zero, state.InvalidFormat
 			}
 			u = u*10 + uint64(s[i]-'0')
 		}
-		return FromUint64(u), errors.None
+		return FromUint64(u), state.OK
 	}
 
 	var u Uint128
-	var err errors.Error
+	var e state.State
 	for i := range sz {
 		if s[i] < '0' || s[i] > '9' {
-			return Zero, errors.InvalidFormat
+			return Zero, state.InvalidFormat
 		}
 
-		u, err = u.Mul64(10)
-		if err != errors.None {
-			return Zero, err
+		u, e = u.Mul64(10)
+		if e >= state.Error {
+			return Zero, e
 		}
 
-		u, err = u.Add64(uint64(s[i] - '0'))
-		if err != errors.None {
-			return Zero, err
+		u, e = u.Add64(uint64(s[i] - '0'))
+		if e >= state.Error {
+			return Zero, e
 		}
 	}
 
-	return u, errors.None
+	return u, state.OK
 }
