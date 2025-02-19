@@ -85,7 +85,7 @@ func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, stat
 
 	// q = a / v
 	aLen := 3
-	if a[3] != 0 || (a[3] == 0 && a[2] > v.Hi) {
+	if a[3] > 0 || (a[3] == 0 && a[2] > v.Hi) {
 		aLen = 4
 	}
 

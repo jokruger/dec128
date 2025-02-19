@@ -22,7 +22,7 @@ func (self Dec128) RoundDown(prec uint8) Dec128 {
 		return Dec128{state: s}
 	}
 
-	if self.state == state.Neg && r != 0 {
+	if self.state == state.Neg && r > 0 {
 		q, s = q.Add64(1)
 		if s >= state.Error {
 			return Dec128{state: s}
@@ -52,7 +52,7 @@ func (self Dec128) RoundUp(prec uint8) Dec128 {
 		return Dec128{state: s}
 	}
 
-	if self.state != state.Neg && r != 0 {
+	if self.state != state.Neg && r > 0 {
 		q, s = q.Add64(1)
 		if s >= state.Error {
 			return Dec128{state: s}
@@ -96,7 +96,7 @@ func (self Dec128) RoundAwayFromZero(prec uint8) Dec128 {
 		return Dec128{state: s}
 	}
 
-	if r != 0 {
+	if r > 0 {
 		q, s = q.Add64(1)
 		if s >= state.Error {
 			return Dec128{state: s}

@@ -114,3 +114,12 @@ func BenchmarkDec128BinUnmarshal(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkDec128Add(b *testing.B) {
+	x := dec128.FromString("1234567890.123456789")
+	y := dec128.FromString("1234567890.123456789")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = x.Add(y)
+	}
+}

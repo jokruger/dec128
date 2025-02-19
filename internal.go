@@ -271,7 +271,7 @@ func (self Dec128) trySqrt() (Dec128, bool) {
 	}
 
 	coef, carry := d.coef.MulCarry(Pow10Uint128[prec2-d.exp])
-	if carry.Hi != 0 {
+	if carry.Hi > 0 {
 		return Dec128{state: state.Overflow}, false
 	}
 

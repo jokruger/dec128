@@ -23,19 +23,19 @@ func (self Dec128) WriteBinary(w io.Writer) error {
 	flags := byte(self.state)
 	pos := 1
 
-	if self.coef.Hi != 0 {
+	if self.coef.Hi > 0 {
 		flags |= 0b10000000
 		binary.LittleEndian.PutUint64(buf[pos:], self.coef.Hi)
 		pos += 8
 	}
 
-	if self.coef.Lo != 0 {
+	if self.coef.Lo > 0 {
 		flags |= 0b01000000
 		binary.LittleEndian.PutUint64(buf[pos:], self.coef.Lo)
 		pos += 8
 	}
 
-	if self.exp != 0 {
+	if self.exp > 0 {
 		flags |= 0b00100000
 		buf[pos] = self.exp
 		pos++

@@ -6,26 +6,49 @@ import "github.com/jokruger/dec128/state"
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (self Dec128) Add(other Dec128) Dec128 {
+	/*
+		if self.state >= state.Error {
+			return self
+		}
+
+		if other.state >= state.Error {
+			return other
+		}
+
+		r, ok := self.tryAdd(other)
+		if ok {
+			return r
+		}
+
+		a := self.Canonical()
+		b := other.Canonical()
+		r, ok = a.tryAdd(b)
+		if ok {
+			return r
+		}
+
+		return Dec128{state: state.Overflow}
+	*/
+
+	// Return immediately if either value is in an error state.
 	if self.state >= state.Error {
 		return self
 	}
-
 	if other.state >= state.Error {
 		return other
 	}
 
-	r, ok := self.tryAdd(other)
-	if ok {
+	// Try a fast-path add on the non‑canonical forms.
+	if r, ok := self.tryAdd(other); ok {
 		return r
 	}
 
-	a := self.Canonical()
-	b := other.Canonical()
-	r, ok = a.tryAdd(b)
-	if ok {
+	// Canonicalize both values and try again.
+	if r, ok := self.Canonical().tryAdd(other.Canonical()); ok {
 		return r
 	}
 
+	// If addition could not be performed without overflow, return an overflow Dec128.
 	return Dec128{state: state.Overflow}
 }
 

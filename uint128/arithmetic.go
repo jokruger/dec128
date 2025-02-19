@@ -11,7 +11,7 @@ func (self Uint128) Add(other Uint128) (Uint128, state.State) {
 	lo, carry := bits.Add64(self.Lo, other.Lo, 0)
 	hi, carry := bits.Add64(self.Hi, other.Hi, carry)
 
-	if carry != 0 {
+	if carry > 0 {
 		return Zero, state.Overflow
 	}
 
@@ -23,7 +23,7 @@ func (self Uint128) Add64(other uint64) (Uint128, state.State) {
 	lo, carry := bits.Add64(self.Lo, other, 0)
 	hi, carry := bits.Add64(self.Hi, 0, carry)
 
-	if carry != 0 {
+	if carry > 0 {
 		return Zero, state.Overflow
 	}
 
@@ -35,7 +35,7 @@ func (self Uint128) Sub(other Uint128) (Uint128, state.State) {
 	lo, borrow := bits.Sub64(self.Lo, other.Lo, 0)
 	hi, borrow := bits.Sub64(self.Hi, other.Hi, borrow)
 
-	if borrow != 0 {
+	if borrow > 0 {
 		return Zero, state.Underflow
 	}
 
@@ -47,7 +47,7 @@ func (self Uint128) Sub64(other uint64) (Uint128, state.State) {
 	lo, borrow := bits.Sub64(self.Lo, other, 0)
 	hi, borrow := bits.Sub64(self.Hi, 0, borrow)
 
-	if borrow != 0 {
+	if borrow > 0 {
 		return Zero, state.Underflow
 	}
 
@@ -62,7 +62,7 @@ func (self Uint128) Mul(other Uint128) (Uint128, state.State) {
 	hi, c0 := bits.Add64(hi, p1, 0)
 	hi, c1 := bits.Add64(hi, p3, c0)
 
-	if (self.Hi != 0 && other.Hi != 0) || p0 != 0 || p2 != 0 || c1 != 0 {
+	if (self.Hi > 0 && other.Hi > 0) || p0 > 0 || p2 > 0 || c1 > 0 {
 		return Zero, state.Overflow
 	}
 
@@ -101,7 +101,7 @@ func (self Uint128) Mul64(other uint64) (Uint128, state.State) {
 	p0, p1 := bits.Mul64(self.Hi, other)
 	hi, c0 := bits.Add64(hi, p1, 0)
 
-	if p0 != 0 || c0 != 0 {
+	if p0 > 0 || c0 > 0 {
 		return Zero, state.Overflow
 	}
 
@@ -155,7 +155,7 @@ func (self Uint128) QuoRem(other Uint128) (Uint128, Uint128, state.State) {
 		u1 := self.Rsh(1)
 		tq, _ := bits.Div64(u1.Hi, u1.Lo, v1.Hi)
 		tq >>= 63 - n
-		if tq != 0 {
+		if tq > 0 {
 			tq--
 		}
 		q = FromUint64(tq)

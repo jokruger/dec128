@@ -8,7 +8,7 @@ import (
 
 // Uint64 returns the value as uint64 if it fits, otherwise it returns an error.
 func (self Uint128) Uint64() (uint64, state.State) {
-	if self.Hi != 0 {
+	if self.Hi > 0 {
 		return 0, state.Overflow
 	}
 	return self.Lo, state.OK
@@ -58,7 +58,7 @@ func (self Uint128) StringToBuf(buf []byte) []byte {
 	for {
 		if q.Hi == 0 {
 			r = q.Lo
-			for r != 0 {
+			for r > 0 {
 				i--
 				buf[i] = '0' + byte(r%10)
 				r /= 10
@@ -68,7 +68,7 @@ func (self Uint128) StringToBuf(buf []byte) []byte {
 
 		q, r, _ = q.QuoRem64(1e19)
 		n = 19
-		for r != 0 {
+		for r > 0 {
 			i--
 			buf[i] = '0' + byte(r%10)
 			r /= 10

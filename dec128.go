@@ -220,7 +220,7 @@ func (self Dec128) Canonical() Dec128 {
 	exp := self.exp
 	for {
 		t, r, s := coef.QuoRem64(10)
-		if s >= state.Error || r != 0 {
+		if s >= state.Error || r > 0 {
 			break
 		}
 		coef = t
