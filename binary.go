@@ -51,50 +51,47 @@ func (self Dec128) WriteBinary(w io.Writer) error {
 
 // ReadBinary reads the binary representation of Dec128 from r.
 func (self *Dec128) ReadBinary(r io.Reader) error {
-	// Read the flag byte.
-	var s [1]byte
-	if _, err := io.ReadFull(r, s[:]); err != nil {
+	// Use one fixed buffer of 18 bytes.
+	var buf [18]byte
+
+	// First, read the flag byte.
+	if _, err := io.ReadFull(r, buf[:1]); err != nil {
 		return err
 	}
+	flags := buf[0]
 
-	// Determine how many extra bytes to read based on flag bits.
-	extraLen := 0
-	if s[0]&0b10000000 != 0 {
-		extraLen += 8
-	}
-	if s[0]&0b01000000 != 0 {
-		extraLen += 8
-	}
-	if s[0]&0b00100000 != 0 {
-		extraLen += 1
-	}
+	// Determine how many extra bytes to read.
+	hiPresent := int((flags >> 7) & 1)  // 1 if coef.Hi is present, else 0
+	loPresent := int((flags >> 6) & 1)  // 1 if coef.Lo is present, else 0
+	expPresent := int((flags >> 5) & 1) // 1 if exponent is present, else 0
+	extraLen := hiPresent*8 + loPresent*8 + expPresent
 
-	// Pre-allocate a fixed-size extra buffer (maximum 8+8+1=17 bytes).
-	var extra [17]byte
+	// Read the extra bytes directly into the remaining portion of buf.
 	if extraLen > 0 {
-		if _, err := io.ReadFull(r, extra[:extraLen]); err != nil {
+		if _, err := io.ReadFull(r, buf[1:1+extraLen]); err != nil {
 			return err
 		}
 	}
 
 	// Parse the extra bytes.
-	idx := 0
+	idx := 1
 	var h, l uint64
 	var e uint8
-	if s[0]&0b10000000 != 0 {
-		h = binary.LittleEndian.Uint64(extra[idx : idx+8])
+
+	if hiPresent > 0 {
+		h = binary.LittleEndian.Uint64(buf[idx : idx+8])
 		idx += 8
 	}
-	if s[0]&0b01000000 != 0 {
-		l = binary.LittleEndian.Uint64(extra[idx : idx+8])
+	if loPresent > 0 {
+		l = binary.LittleEndian.Uint64(buf[idx : idx+8])
 		idx += 8
 	}
-	if s[0]&0b00100000 != 0 {
-		e = extra[idx]
-		// idx++ // (not needed since there's no further use)
+	if expPresent > 0 {
+		e = buf[idx]
+		// idx++ is not needed since no further byte is used.
 	}
 
-	self.state = state.State(s[0] & 0b00011111)
+	self.state = state.State(flags & 0b00011111)
 	self.coef.Hi = h
 	self.coef.Lo = l
 	self.exp = e
