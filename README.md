@@ -76,10 +76,10 @@ The following benchmarks were run on a MacBook Pro (2019) with a 2.6 GHz 6-Core 
 ```
                                  parse (ns/op)  string (ns/op)     add (ns/op)     mul (ns/op)     div (ns/op)
 
-dec128.Dec128                           13.986          36.404          10.518           7.637          34.129
-udecimal.Decimal                        22.383          44.740          11.998          11.141          40.701
-alpacadecimal.Decimal                   90.959          83.291         222.275          70.552         481.113
-shopspring.Decimal                     160.160         183.984         241.129          74.726         451.901
+dec128.Dec128                           14.024          33.683           9.975           6.569          35.116
+udecimal.Decimal                        23.302          41.854          12.226          11.346          40.877
+alpacadecimal.Decimal                   89.528          78.884         206.393          60.364         451.828
+shopspring.Decimal                     152.263         169.300         218.909          65.241         428.002
 ```
 
 ## Notes on Terminology
