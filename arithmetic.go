@@ -6,30 +6,6 @@ import "github.com/jokruger/dec128/state"
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (self Dec128) Add(other Dec128) Dec128 {
-	/*
-		if self.state >= state.Error {
-			return self
-		}
-
-		if other.state >= state.Error {
-			return other
-		}
-
-		r, ok := self.tryAdd(other)
-		if ok {
-			return r
-		}
-
-		a := self.Canonical()
-		b := other.Canonical()
-		r, ok = a.tryAdd(b)
-		if ok {
-			return r
-		}
-
-		return Dec128{state: state.Overflow}
-	*/
-
 	// Return immediately if either value is in an error state.
 	if self.state >= state.Error {
 		return self
@@ -63,26 +39,25 @@ func (self Dec128) AddInt64(other int64) Dec128 {
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow/underflow, the result will be NaN.
 func (self Dec128) Sub(other Dec128) Dec128 {
+	// Return immediately if either value is in an error state.
 	if self.state >= state.Error {
 		return self
 	}
-
 	if other.state >= state.Error {
 		return other
 	}
 
-	r, ok := self.trySub(other)
-	if ok {
+	// Try a fast-path sub on the non‑canonical forms.
+	if r, ok := self.trySub(other); ok {
 		return r
 	}
 
-	a := self.Canonical()
-	b := other.Canonical()
-	r, ok = a.trySub(b)
-	if ok {
+	// Canonicalize both values and try again.
+	if r, ok := self.Canonical().trySub(other.Canonical()); ok {
 		return r
 	}
 
+	// If substraction could not be performed without overflow, return an overflow Dec128.
 	return Dec128{state: state.Overflow}
 }
 
