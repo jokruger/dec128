@@ -2,6 +2,9 @@
 package dec128
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
 )
@@ -263,4 +266,31 @@ func (self Dec128) GreaterThanOrEqual(other Dec128) bool {
 // Copy returns a copy of the Dec128.
 func (self Dec128) Copy() Dec128 {
 	return Dec128{coef: self.coef, exp: self.exp, state: self.state}
+}
+
+// Scan implements the sql.Scanner interface.
+func (self *Dec128) Scan(src any) error {
+	var err error
+	switch v := src.(type) {
+	case string:
+		*self = FromString(v)
+		if self.IsNaN() {
+			err = self.ErrorDetails()
+		}
+	case int:
+		*self = FromInt64(int64(v))
+	case int64:
+		*self = FromInt64(v)
+	case nil:
+		*self = Zero
+	default:
+		err = fmt.Errorf("can't scan %T to Dec128: %T is not supported", src, src)
+	}
+
+	return err
+}
+
+// Value implements the driver.Valuer interface.
+func (self Dec128) Value() (driver.Value, error) {
+	return self.String(), nil
 }

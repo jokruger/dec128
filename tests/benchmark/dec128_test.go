@@ -86,3 +86,31 @@ func BenchmarkDec128JsonMarshal(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkDec128BinMarshal(b *testing.B) {
+	x := dec128.FromString("123.456789")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := x.MarshalBinary()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkDec128BinUnmarshal(b *testing.B) {
+	x := dec128.FromString("123.456789")
+	bs, err := x.MarshalBinary()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var y dec128.Dec128
+		err := y.UnmarshalBinary(bs)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
