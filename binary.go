@@ -20,24 +20,24 @@ func (self Dec128) WriteBinary(w io.Writer) error {
 		return err
 	}
 
-	// Cache fields locally to reduce repeated lookups.
 	flags := byte(self.state)
 	pos := 1
-	h, l, e := self.coef.Hi, self.coef.Lo, self.exp
 
-	if h != 0 {
-		flags |= 0x80 // 0b10000000
-		binary.LittleEndian.PutUint64(buf[pos:], h)
+	if self.coef.Hi != 0 {
+		flags |= 0b10000000
+		binary.LittleEndian.PutUint64(buf[pos:], self.coef.Hi)
 		pos += 8
 	}
-	if l != 0 {
-		flags |= 0x40 // 0b01000000
-		binary.LittleEndian.PutUint64(buf[pos:], l)
+
+	if self.coef.Lo != 0 {
+		flags |= 0b01000000
+		binary.LittleEndian.PutUint64(buf[pos:], self.coef.Lo)
 		pos += 8
 	}
-	if e != 0 {
-		flags |= 0x20 // 0b00100000
-		buf[pos] = e
+
+	if self.exp != 0 {
+		flags |= 0b00100000
+		buf[pos] = self.exp
 		pos++
 	}
 
