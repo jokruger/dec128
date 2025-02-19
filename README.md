@@ -50,10 +50,10 @@ func main() {
     annualRate := dec128.FromString("5.0")
     days := 30
 
-    dailyRate := annualRate.Div(dec128.FromInt(365))
-    dailyRate = dailyRate.Div(dec128.FromInt(100))
+    dailyRate := annualRate.Div(dec128.FromInt64(365))
+    dailyRate = dailyRate.Div(dec128.FromInt64(100))
 
-    accruedInterest := principal.Mul(dailyRate).Mul(dec128.FromInt(days)).RoundBank(2)
+    accruedInterest := principal.Mul(dailyRate).Mul(dec128.FromInt64(days)).RoundBank(2)
 
     fmt.Printf("Principal: %v\n", principal.StringFixed())
     fmt.Printf("Annual Interest Rate: %v\n", annualRate.String())
