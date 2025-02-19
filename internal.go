@@ -39,12 +39,12 @@ func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
 	prec := max(self.exp, other.exp)
 
 	a := self.Rescale(prec)
-	if a.IsNaN() {
+	if a.state >= state.Error {
 		return a, false
 	}
 
 	b := other.Rescale(prec)
-	if b.IsNaN() {
+	if b.state >= state.Error {
 		return b, false
 	}
 
