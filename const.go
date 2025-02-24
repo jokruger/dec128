@@ -5,6 +5,10 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
+// MaxBytes is the maximum number of bytes that can be used to represent a Dec128 in binary form.
+// The actual number of bytes used can be less than this.
+const MaxBytes = 18
+
 // MaxPrecision is the maximum number of digits after the decimal point that can be represented.
 // MaxPrecision = 19
 const MaxPrecision = uint8(uint128.MaxSafeStrLen64)
