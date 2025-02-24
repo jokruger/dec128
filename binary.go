@@ -102,22 +102,22 @@ func (self *Dec128) ReadBinary(r io.Reader) error {
 // EncodeBinary encodes the binary representation of Dec128 into buf. It returns an error if buf is too small, otherwise the number of bytes written into buf.
 func (self Dec128) EncodeBinary(buf []byte) (int, error) {
 	b := gobu.NewStaticWriteBuffer(buf, 0)
-	err := self.WriteBinary(&b)
-	return b.Pos(), err
+	err := self.WriteBinary(b)
+	return b.Offset(), err
 }
 
 // DecodeBinary decodes binary representation of Dec128 from buf. It returns an error if buf is too small, otherwise the number of bytes consumed from buf.
 func (self *Dec128) DecodeBinary(buf []byte) (int, error) {
 	b := gobu.NewReadBuffer(buf, 0)
-	err := self.ReadBinary(&b)
-	return b.Pos(), err
+	err := self.ReadBinary(b)
+	return b.Offset(), err
 }
 
 // AppendBinary appends the binary representation of Dec128 to the end of b (allocating a larger slice if necessary) and returns the updated slice.
 func (self Dec128) AppendBinary(buf []byte) ([]byte, error) {
 	b := gobu.NewDynamicWriteBuffer(buf, len(buf))
-	err := self.WriteBinary(&b)
-	return b.Bytes(), err
+	err := self.WriteBinary(b)
+	return b.Buffer(), err
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface. It encodes Dec128 into a binary form and returns the result.
