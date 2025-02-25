@@ -15,6 +15,119 @@ type GobTestStruct struct {
 }
 
 func TestDecimalBinary(t *testing.T) {
+	t.Run("zero", func(t *testing.T) {
+		a := dec128.Zero
+		var b dec128.Dec128
+		var bs []byte
+
+		bs = make([]byte, a.BinarySize())
+		_, err := a.EncodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		_, err = b.DecodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !a.Equal(b) {
+			t.Errorf("expected %s, got %s", a.String(), b.String())
+		}
+	})
+
+	t.Run("nan", func(t *testing.T) {
+		a := dec128.FromString("NaN")
+		var b dec128.Dec128
+		var bs []byte
+
+		bs = make([]byte, a.BinarySize())
+		_, err := a.EncodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		_, err = b.DecodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !a.Equal(b) {
+			t.Errorf("expected %s, got %s", a.String(), b.String())
+		}
+	})
+
+	t.Run("small decimal", func(t *testing.T) {
+		a := dec128.FromString("123.456")
+		var b dec128.Dec128
+		var bs []byte
+
+		bs = make([]byte, a.BinarySize())
+		_, err := a.EncodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		_, err = b.DecodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !a.Equal(b) {
+			t.Errorf("expected %s, got %s", a.String(), b.String())
+		}
+	})
+
+	t.Run("big decimal", func(t *testing.T) {
+		a := dec128.FromString("123456789012345678901234567890.123456")
+		var b dec128.Dec128
+		var bs []byte
+
+		bs = make([]byte, a.BinarySize())
+		_, err := a.EncodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		_, err = b.DecodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !a.Equal(b) {
+			t.Errorf("expected %s, got %s", a.String(), b.String())
+		}
+	})
+
+	t.Run("small int", func(t *testing.T) {
+		a := dec128.FromString("123")
+		var b dec128.Dec128
+		var bs []byte
+
+		bs = make([]byte, a.BinarySize())
+		_, err := a.EncodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		_, err = b.DecodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !a.Equal(b) {
+			t.Errorf("expected %s, got %s", a.String(), b.String())
+		}
+	})
+
+	t.Run("big int", func(t *testing.T) {
+		a := dec128.FromString("123456789012345678901234567890")
+		var b dec128.Dec128
+		var bs []byte
+
+		bs = make([]byte, a.BinarySize())
+		_, err := a.EncodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		_, err = b.DecodeBinary(bs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !a.Equal(b) {
+			t.Errorf("expected %s, got %s", a.String(), b.String())
+		}
+	})
 	t.Run("single", func(t *testing.T) {
 		type test struct {
 			d string

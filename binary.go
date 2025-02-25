@@ -7,6 +7,25 @@ import (
 	"github.com/jokruger/dec128/state"
 )
 
+// BinarySize returns the number of bytes required to encode this instance of Dec128 in binary form.
+func (self Dec128) BinarySize() int {
+	sz := 1
+
+	if self.state <= state.Error {
+		if self.coef.Hi > 0 {
+			sz += 8
+		}
+		if self.coef.Lo > 0 {
+			sz += 8
+		}
+		if self.exp > 0 {
+			sz++
+		}
+	}
+
+	return sz
+}
+
 // EncodeBinary encodes the binary representation of Dec128 into buf. It returns an error if buf is too small, otherwise the number of bytes written into buf.
 func (self Dec128) EncodeBinary(buf []byte) (int, error) {
 	sz := len(buf)
