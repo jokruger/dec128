@@ -129,7 +129,7 @@ func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, stat
 			// rem = c2 - c1 + 2*v = v + v - (c1 - c2) with c1 > c2
 			// v = max(u128) - not(v)
 			// --> rem = v - not(v) + max(u128) - (c1 - c2)
-			//  v >= not(v) because v is normalized. Hence, we can safely caculate rem without checking overflow
+			//  v >= not(v) because v is normalized. Hence, we can safely calculate rem without checking overflow
 			c12 := SubUnsafe(c1, c2)
 			c12 = SubUnsafe(Max, c12)
 			rem = SubUnsafe(v, Uint128{Lo: ^v.Lo, Hi: ^v.Hi})

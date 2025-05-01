@@ -57,7 +57,7 @@ func (self Dec128) Sub(other Dec128) Dec128 {
 		return r
 	}
 
-	// If substraction could not be performed without overflow, return an overflow Dec128.
+	// If subtraction could not be performed without overflow, return an overflow Dec128.
 	return Dec128{state: state.Overflow}
 }
 

@@ -18,7 +18,7 @@ func (self Uint128) Add(other Uint128) (Uint128, state.State) {
 	return Uint128{lo, hi}, state.OK
 }
 
-// Add64 returns self + other and an error if the result overflows.
+// Add64 returns self + other and an error if the result overflow.
 func (self Uint128) Add64(other uint64) (Uint128, state.State) {
 	lo, carry := bits.Add64(self.Lo, other, 0)
 	hi, carry := bits.Add64(self.Hi, 0, carry)
@@ -30,7 +30,7 @@ func (self Uint128) Add64(other uint64) (Uint128, state.State) {
 	return Uint128{lo, hi}, state.OK
 }
 
-// Sub returns self - other and an error if the result underflows.
+// Sub returns self - other and an error if the result underflow.
 func (self Uint128) Sub(other Uint128) (Uint128, state.State) {
 	lo, borrow := bits.Sub64(self.Lo, other.Lo, 0)
 	hi, borrow := bits.Sub64(self.Hi, other.Hi, borrow)
@@ -42,7 +42,7 @@ func (self Uint128) Sub(other Uint128) (Uint128, state.State) {
 	return Uint128{lo, hi}, state.OK
 }
 
-// Sub64 returns self - other and an error if the result underflows.
+// Sub64 returns self - other and an error if the result underflow.
 func (self Uint128) Sub64(other uint64) (Uint128, state.State) {
 	lo, borrow := bits.Sub64(self.Lo, other, 0)
 	hi, borrow := bits.Sub64(self.Hi, 0, borrow)

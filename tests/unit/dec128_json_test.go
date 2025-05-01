@@ -41,7 +41,7 @@ func TestDecimalJson(t *testing.T) {
 		}
 		var q testStruct
 		if err := json.Unmarshal(s, &q); err != nil {
-			t.Errorf("error unmarshalling %v: %v", test, err)
+			t.Errorf("error unmarshaling %v: %v", test, err)
 		}
 		if !q.D.Equal(test.t.D) {
 			t.Errorf("expected '%v', got '%v'", test.t.D, q.D)
