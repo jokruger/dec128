@@ -26,4 +26,4 @@ go.work.sum
 
 # vscode
 .vscode
-.code-workspace
+*.code-workspace
