@@ -56,9 +56,22 @@ func FromString[S string | []byte](s S) (Uint128, state.State) {
 		return Uint128{u, 0}, state.OK
 	}
 
-	var u Uint128
+	// parse low part
+	var l uint64
+	i := 0
+	for i < MaxSafeStrLen64 {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return Zero, state.InvalidFormat
+		}
+		l = l*10 + uint64(c-'0')
+		i++
+	}
+
+	// parse rest
+	u := Uint128{l, 0}
 	var e state.State
-	for i := range sz {
+	for i < sz {
 		c := s[i]
 		if c < '0' || c > '9' {
 			return Zero, state.InvalidFormat
@@ -73,6 +86,8 @@ func FromString[S string | []byte](s S) (Uint128, state.State) {
 		if e >= state.Error {
 			return Zero, e
 		}
+
+		i++
 	}
 
 	return u, state.OK
