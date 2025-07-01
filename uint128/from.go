@@ -47,18 +47,20 @@ func FromString[S string | []byte](s S) (Uint128, state.State) {
 		// can be safely parsed as uint64
 		var u uint64
 		for i := range sz {
-			if s[i] < '0' || s[i] > '9' {
+			c := s[i]
+			if c < '0' || c > '9' {
 				return Zero, state.InvalidFormat
 			}
-			u = u*10 + uint64(s[i]-'0')
+			u = u*10 + uint64(c-'0')
 		}
-		return FromUint64(u), state.OK
+		return Uint128{u, 0}, state.OK
 	}
 
 	var u Uint128
 	var e state.State
 	for i := range sz {
-		if s[i] < '0' || s[i] > '9' {
+		c := s[i]
+		if c < '0' || c > '9' {
 			return Zero, state.InvalidFormat
 		}
 
@@ -67,7 +69,7 @@ func FromString[S string | []byte](s S) (Uint128, state.State) {
 			return Zero, e
 		}
 
-		u, e = u.Add64(uint64(s[i] - '0'))
+		u, e = u.Add64(uint64(c - '0'))
 		if e >= state.Error {
 			return Zero, e
 		}

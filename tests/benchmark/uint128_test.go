@@ -7,52 +7,53 @@ import (
 )
 
 func BenchmarkUint128FromString(b *testing.B) {
-	s1 := "1234567890"
-	s2 := "12345678901234567890"
-	s3 := "1234567890123456789012345678901234567890"
-	for i := 0; i < b.N; i++ {
-		_, _ = uint128.FromString(s1)
-		_, _ = uint128.FromString(s2)
-		_, _ = uint128.FromString(s3)
-	}
-}
-
-func BenchmarkUint128StringConv(b *testing.B) {
-	strs := []string{
+	ss := []string{
+		"0",
+		"1",
+		"123",
 		"1234567890",
 		"12345678901234567890",
 		"1234567890123456789012345678901234567890",
-	}
-	vals := make([]uint128.Uint128, len(strs))
-	for i, s := range strs {
-		vals[i], _ = uint128.FromString(s)
+		"9999999999",
+		"1111111111",
+		"987654321987654321",
+		"9182736451029384756",
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for _, v := range vals {
-			s := v.String()
+		for _, s := range ss {
 			_, _ = uint128.FromString(s)
 		}
 	}
 }
 
-func BenchmarkUint128BigIntConv(b *testing.B) {
-	strs := []string{
+func BenchmarkUint128ToString(b *testing.B) {
+	ss := []string{
+		"0",
+		"1",
+		"123",
 		"1234567890",
 		"12345678901234567890",
 		"1234567890123456789012345678901234567890",
+		"9999999999",
+		"1111111111",
+		"987654321987654321",
+		"9182736451029384756",
 	}
-	vals := make([]uint128.Uint128, len(strs))
-	for i, s := range strs {
-		vals[i], _ = uint128.FromString(s)
+
+	vs := make([]uint128.Uint128, len(ss))
+	for i, s := range ss {
+		j, _ := uint128.FromString(s)
+		vs[i] = j
 	}
+
+	buf := [uint128.MaxStrLen]byte{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for _, v := range vals {
-			b := v.BigInt()
-			_, _ = uint128.FromBigInt(b)
+		for _, v := range vs {
+			_ = v.StringToBuf(buf[:])
 		}
 	}
 }
