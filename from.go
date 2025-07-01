@@ -46,17 +46,18 @@ func FromString[S string | []byte](s S) Dec128 {
 		// safe to parse with uint64 as coef
 		var u uint64
 		for ; i < sz; i++ {
-			if s[i] == '.' {
+			c := s[i]
+			if c == '.' {
 				if prec != 0 {
 					return Dec128{state: state.InvalidFormat}
 				}
 				prec = sz - i - 1
 				continue
 			}
-			if s[i] < '0' || s[i] > '9' {
+			if c < '0' || c > '9' {
 				return Dec128{state: state.InvalidFormat}
 			}
-			u = u*10 + uint64(s[i]-'0')
+			u = u*10 + uint64(c-'0')
 		}
 		if u == 0 && prec == 0 {
 			return Zero
