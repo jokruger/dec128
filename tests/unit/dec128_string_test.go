@@ -45,6 +45,20 @@ func TestDecimalParseStringHLE(t *testing.T) {
 			if u.Hi != tc.h || u.Lo != tc.l || e != tc.e {
 				t.Errorf("expected %d %d %d, got: %d %d %d", tc.h, tc.l, tc.e, u.Hi, u.Lo, e)
 			}
+
+			d = dec128.FromSafeString(tc.i)
+			if d.IsNaN() {
+				t.Errorf("expected no error, got: %v", d.ErrorDetails())
+			}
+			u = d.Coefficient()
+			e = d.Exponent()
+			err = d.ErrorDetails()
+			if err != nil {
+				t.Errorf("expected no error, got: %v", err)
+			}
+			if u.Hi != tc.h || u.Lo != tc.l || e != tc.e {
+				t.Errorf("expected %d %d %d, got: %d %d %d", tc.h, tc.l, tc.e, u.Hi, u.Lo, e)
+			}
 		})
 	}
 }
@@ -166,6 +180,17 @@ func TestDecimalConvString(t *testing.T) {
 			s := d.String()
 			if s != tc.s {
 				t.Errorf("expected '%s', got: %s", tc.s, s)
+			}
+
+			if tc.e == "" {
+				d = dec128.FromSafeString(tc.i)
+				if d.IsNaN() {
+					t.Errorf("expected no error, got: %v", d.ErrorDetails())
+				}
+				s = d.String()
+				if s != tc.s {
+					t.Errorf("expected '%s', got: %s", tc.s, s)
+				}
 			}
 		})
 	}

@@ -30,7 +30,8 @@ func BenchmarkDec128FromString(b *testing.B) {
 	sz := len(ss)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = dec128.FromString(ss[i%sz])
+		//_ = dec128.FromString(ss[i%sz])
+		_ = dec128.FromSafeString(ss[i%sz])
 	}
 }
 
