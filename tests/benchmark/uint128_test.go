@@ -20,11 +20,11 @@ func BenchmarkUint128FromString(b *testing.B) {
 		"9182736451029384756",
 	}
 
+	sz := len(ss)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for _, s := range ss {
-			_, _ = uint128.FromString(s)
-		}
+		//_, _ = uint128.FromString(ss[i%sz])
+		_, _ = uint128.FromSafeString(ss[i%sz])
 	}
 }
 
@@ -41,8 +41,9 @@ func BenchmarkUint128ToString(b *testing.B) {
 		"987654321987654321",
 		"9182736451029384756",
 	}
+	sz := len(ss)
 
-	vs := make([]uint128.Uint128, len(ss))
+	vs := make([]uint128.Uint128, sz)
 	for i, s := range ss {
 		j, _ := uint128.FromString(s)
 		vs[i] = j
@@ -52,8 +53,6 @@ func BenchmarkUint128ToString(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for _, v := range vs {
-			_ = v.StringToBuf(buf[:])
-		}
+		_ = vs[i%sz].StringToBuf(buf[:])
 	}
 }

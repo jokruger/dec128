@@ -133,6 +133,10 @@ func TestUint128ConvString(t *testing.T) {
 		if e.IsError() {
 			t.Errorf("error converting string to uint128: %s", e.String())
 		}
+		u, e = uint128.FromSafeString(tc)
+		if e.IsError() {
+			t.Errorf("error converting safe string to uint128: %s", e.String())
+		}
 		s := u.String()
 		if tc != s {
 			t.Errorf("expected %v, got %v", tc, s)
@@ -402,6 +406,7 @@ func TestUint128Div(t *testing.T) {
 		{"8", "2", "4", ""},
 		{"9", "2", "4", ""},
 		{"10", "2", "5", ""},
+		{"340282366920938463463374607431768211455", "2", "170141183460469231731687303715884105727", ""},
 	}
 
 	for _, tc := range testCases {
@@ -411,6 +416,43 @@ func TestUint128Div(t *testing.T) {
 		s := c.String()
 		if tc.c != s {
 			t.Errorf("expected %v, got %v", tc.c, s)
+		}
+		if tc.e == "" && e.IsError() {
+			t.Errorf("expected no error, got: %s", e.String())
+		}
+		if tc.e != "" && (e.IsOK() || e.String() != tc.e) {
+			t.Errorf("expected error '%s', got '%s'", tc.e, e.String())
+		}
+	}
+}
+
+func TestUint128MulAdd64(t *testing.T) {
+	type testCase struct {
+		u string
+		a uint64
+		b uint64
+		r string
+		e string
+	}
+
+	testCases := [...]testCase{
+		{"0", 0, 0, "0", ""},
+		{"1", 1, 1, "2", ""},
+		{"1", 2, 3, "5", ""},
+		{"123", 456, 789, "56877", ""},
+		{"18446744073709551615", 18446744073709551615, 0, "340282366920938463426481119284349108225", ""},
+		{"18446744073709551615", 18446744073709551615, 1, "340282366920938463426481119284349108226", ""},
+		{"170141183460469231731687303715884105727", 2, 0, "340282366920938463463374607431768211454", ""},
+		{"170141183460469231731687303715884105727", 2, 1, "340282366920938463463374607431768211455", ""},
+		{"170141183460469231731687303715884105727", 2, 2, "0", "overflow"},
+	}
+
+	for _, tc := range testCases {
+		u, _ := uint128.FromString(tc.u)
+		x, e := u.MulAdd64(tc.a, tc.b)
+		s := x.String()
+		if tc.r != s {
+			t.Errorf("expected %v, got %v", tc.r, s)
 		}
 		if tc.e == "" && e.IsError() {
 			t.Errorf("expected no error, got: %s", e.String())

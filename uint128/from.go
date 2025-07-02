@@ -77,16 +77,50 @@ func FromString[S string | []byte](s S) (Uint128, state.State) {
 			return Zero, state.InvalidFormat
 		}
 
-		u, e = u.Mul64(10)
+		u, e = u.MulAdd64(10, uint64(c-'0'))
 		if e >= state.Error {
 			return Zero, e
 		}
 
-		u, e = u.Add64(uint64(c - '0'))
+		i++
+	}
+
+	return u, state.OK
+}
+
+// FromSafeString creates a new Uint128 from safe string (no format checks are applied)
+func FromSafeString[S string | []byte](s S) (Uint128, state.State) {
+	sz := len(s)
+
+	if sz == 0 {
+		return Zero, state.OK
+	}
+
+	if sz <= MaxSafeStrLen64 {
+		// can be safely parsed as uint64
+		var u uint64
+		for i := range sz {
+			u = u*10 + uint64(s[i]-'0')
+		}
+		return Uint128{u, 0}, state.OK
+	}
+
+	// parse low part
+	var l uint64
+	i := 0
+	for i < MaxSafeStrLen64 {
+		l = l*10 + uint64(s[i]-'0')
+		i++
+	}
+
+	// parse rest
+	u := Uint128{l, 0}
+	var e state.State
+	for i < sz {
+		u, e = u.MulAdd64(10, uint64(s[i]-'0'))
 		if e >= state.Error {
 			return Zero, e
 		}
-
 		i++
 	}
 

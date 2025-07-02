@@ -108,6 +108,26 @@ func (self Uint128) Mul64(other uint64) (Uint128, state.State) {
 	return Uint128{lo, hi}, state.OK
 }
 
+// MulAdd64 returns (self * other1 + other2) and an error if the result overflows.
+func (self Uint128) MulAdd64(other1 uint64, other2 uint64) (Uint128, state.State) {
+	hi, lo := bits.Mul64(self.Lo, other1)
+	p0, p1 := bits.Mul64(self.Hi, other1)
+	hi, c0 := bits.Add64(hi, p1, 0)
+
+	if p0 > 0 || c0 > 0 {
+		return Zero, state.Overflow
+	}
+
+	lo, c1 := bits.Add64(lo, other2, 0)
+	hi, c1 = bits.Add64(hi, 0, c1)
+
+	if c1 > 0 {
+		return Zero, state.Overflow
+	}
+
+	return Uint128{lo, hi}, state.OK
+}
+
 // Div returns self / other and an error if the divisor is zero.
 func (self Uint128) Div(other Uint128) (Uint128, state.State) {
 	q, _, s := self.QuoRem(other)
