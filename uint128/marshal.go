@@ -1,7 +1,5 @@
 package uint128
 
-import "fmt"
-
 // MarshalText implements the encoding.TextMarshaler interface.
 func (self Uint128) MarshalText() ([]byte, error) {
 	return []byte(self.String()), nil
@@ -14,6 +12,11 @@ func (self *Uint128) UnmarshalText(b []byte) error {
 		return nil
 	}
 
-	_, err := fmt.Sscan(string(b), self)
-	return err
+	r, st := FromString(string(b))
+	if st.IsError() {
+		return st.Error()
+	}
+
+	*self = r
+	return nil
 }

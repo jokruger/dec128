@@ -460,3 +460,581 @@ func TestUint128MulAdd64(t *testing.T) {
 		}
 	}
 }
+
+func TestUint128SubUnsafe(t *testing.T) {
+	a, _ := FromString("170141183460469231731687303715884105727")
+	b, _ := FromString("170141183460469231731687303715884105726")
+	c := SubUnsafe(a, b)
+	if c.String() != "1" {
+		t.Errorf("expected 1, got %s", c.String())
+	}
+}
+
+func TestUint128Sub64(t *testing.T) {
+	type tc struct {
+		a string
+		b uint64
+		r string
+		e string // expected error string ("" means OK)
+	}
+	tests := [...]tc{
+		{"0", 0, "0", ""},
+		{"1", 0, "1", ""},
+		{"1", 1, "0", ""},
+		{"0", 1, "0", "underflow"},
+		{"2", 1, "1", ""},
+		{"18446744073709551615", 1, "18446744073709551614", ""},
+		{"18446744073709551616", 1, "18446744073709551615", ""},
+		{"340282366920938463463374607431768211455", 1, "340282366920938463463374607431768211454", ""},
+		{"340282366920938463463374607431768211455", 18446744073709551615, "340282366920938463444927863358058659840", ""},
+		{"5", 7, "0", "underflow"},
+	}
+
+	for i, tt := range tests {
+		a, _ := FromString(tt.a)
+		got, st := a.Sub64(tt.b)
+		gs := got.String()
+		if gs != tt.r {
+			t.Fatalf("case %d: %s - %d => got %s want %s", i, tt.a, tt.b, gs, tt.r)
+		}
+		if tt.e == "" {
+			if st.IsError() {
+				t.Fatalf("case %d: unexpected error %s", i, st.String())
+			}
+		} else {
+			if st.IsOK() || st.String() != tt.e {
+				t.Fatalf("case %d: expected error %q got %q", i, tt.e, st.String())
+			}
+		}
+	}
+}
+
+func TestUint128MulCarry(t *testing.T) {
+	type tc struct {
+		i string
+		o string
+		r string
+		c string
+	}
+
+	tcs := [...]tc{
+		{"0", "0", "0", "0"},
+		{"1", "1", "1", "0"},
+		{"10", "10", "100", "0"},
+		{"18446744073709551616", "18446744073709551616", "0", "1"},
+		{"340282366920938463463374607431768211455", "18446744073709551616", "340282366920938463444927863358058659840", "18446744073709551615"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		o, _ := FromString(e.o)
+		r, c := i.MulCarry(o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+		if c.String() != e.c {
+			t.Errorf("expected %s, got %s", e.c, c.String())
+		}
+	}
+}
+
+func TestUint128Div64(t *testing.T) {
+	type tc struct {
+		i string
+		o uint64
+		r string
+		c string
+	}
+
+	tcs := [...]tc{
+		{"0", 0, "0", "division by zero"},
+		{"1", 1, "1", "default"},
+		{"1", 10, "0", "default"},
+		{"18446744073709551616", 123, "149973529054549200", "default"},
+		{"340282366920938463463374607431768211455", 1844674407370955161, "184467440737095516220", "default"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r, c := i.Div64(e.o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+		if c.String() != e.c {
+			t.Errorf("expected %s, got %s", e.c, c.String())
+		}
+	}
+}
+
+func TestUint128Mod(t *testing.T) {
+	type tc struct {
+		i string
+		o string
+		r string
+		c string
+	}
+
+	tcs := [...]tc{
+		{"0", "0", "0", "division by zero"},
+		{"1", "1", "0", "default"},
+		{"1", "10", "1", "default"},
+		{"18446744073709551616", "3", "1", "default"},
+		{"340282366920938463463374607431768211455", "18446744073709551616", "18446744073709551615", "default"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		o, _ := FromString(e.o)
+		r, c := i.Mod(o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+		if c.String() != e.c {
+			t.Errorf("expected %s, got %s", e.c, c.String())
+		}
+	}
+}
+
+func TestUint128Mod64(t *testing.T) {
+	type tc struct {
+		i string
+		o uint64
+		r uint64
+		c string
+	}
+
+	tcs := [...]tc{
+		{"0", 0, 0, "division by zero"},
+		{"1", 1, 0, "default"},
+		{"1", 10, 1, "default"},
+		{"18446744073709551616", 3, 1, "default"},
+		{"340282366920938463463374607431768211455", 123, 9, "default"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r, c := i.Mod64(e.o)
+		if r != e.r {
+			t.Errorf("expected %d, got %d", e.r, r)
+		}
+		if c.String() != e.c {
+			t.Errorf("expected %s, got %s", e.c, c.String())
+		}
+	}
+}
+
+func TestUint128And(t *testing.T) {
+	type tc struct {
+		i string
+		o string
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", "0", "0"},
+		{"1", "1", "1"},
+		{"1", "0", "0"},
+		{"0", "1", "0"},
+		{"123456789012345678901234567890", "987654321098765432109876543210", "1943960184490269435062782658"},
+		{"18446744073709551615", "18446744073709551615", "18446744073709551615"},
+		{"340282366920938463463374607431768211455", "340282366920938463463374607431768211455", "340282366920938463463374607431768211455"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		o, _ := FromString(e.o)
+		r := i.And(o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint128And64(t *testing.T) {
+	type tc struct {
+		i string
+		o uint64
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", 0, "0"},
+		{"1", 1, "1"},
+		{"1", 0, "0"},
+		{"0", 1, "0"},
+		{"123456789", 987654321, "39471121"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.And64(e.o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint128Or(t *testing.T) {
+	type tc struct {
+		i string
+		o string
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", "0", "0"},
+		{"1", "1", "1"},
+		{"1", "0", "1"},
+		{"0", "1", "1"},
+		{"123456789012345678901234567890", "987654321098765432109876543210", "1109167149926620841576048328442"},
+		{"18446744073709551615", "18446744073709551615", "18446744073709551615"},
+		{"340282366920938463463374607431768211455", "340282366920938463463374607431768211455", "340282366920938463463374607431768211455"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		o, _ := FromString(e.o)
+		r := i.Or(o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint128Or64(t *testing.T) {
+	type tc struct {
+		i string
+		o uint64
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", 0, "0"},
+		{"1", 1, "1"},
+		{"1", 0, "1"},
+		{"0", 1, "1"},
+		{"123456789", 987654321, "1071639989"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.Or64(e.o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint128Xor(t *testing.T) {
+	type tc struct {
+		i string
+		o string
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", "0", "0"},
+		{"1", "1", "0"},
+		{"1", "0", "1"},
+		{"0", "1", "1"},
+		{"123456789012345678901234567890", "987654321098765432109876543210", "1107223189742130572140985545784"},
+		{"18446744073709551615", "18446744073709551615", "0"},
+		{"340282366920938463463374607431768211455", "340282366920938463463374607431768211455", "0"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		o, _ := FromString(e.o)
+		r := i.Xor(o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint128Xor64(t *testing.T) {
+	type tc struct {
+		i string
+		o uint64
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", 0, "0"},
+		{"1", 1, "0"},
+		{"1", 0, "1"},
+		{"0", 1, "1"},
+		{"123456789", 987654321, "1032168868"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.Xor64(e.o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint128TZBC(t *testing.T) {
+	type tc struct {
+		i string
+		r int
+	}
+
+	tcs := [...]tc{
+		{"0", 128},
+		{"1", 0},
+		{"10", 1},
+		{"100", 2},
+		{"12345678901234567890", 1},
+		{"34028236692093846346337460743176821145", 0},
+		{"340282366920938463463374607431768211455", 0},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.TrailingZeroBitsCount()
+		if r != e.r {
+			t.Errorf("expected %d, got %d", e.r, r)
+		}
+	}
+}
+
+func TestUint128NZBC(t *testing.T) {
+	type tc struct {
+		i string
+		r int
+	}
+
+	tcs := [...]tc{
+		{"0", 0},
+		{"1", 1},
+		{"10", 2},
+		{"100", 3},
+		{"12345678901234567890", 32},
+		{"34028236692093846346337460743176821145", 63},
+		{"340282366920938463463374607431768211455", 128},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.NonZeroBitsCount()
+		if r != e.r {
+			t.Errorf("expected %d, got %d", e.r, r)
+		}
+	}
+}
+
+func TestUint12RBL(t *testing.T) {
+	type tc struct {
+		i string
+		o int
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", 0, "0"},
+		{"0", 1, "0"},
+		{"1", 5, "32"},
+		{"1", 100, "1267650600228229401496703205376"},
+		{"1234567890", 10, "1264197519360"},
+		{"12345678901234567890", 10, "12641975194864197519360"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.RotateBitsLeft(e.o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint12RBR(t *testing.T) {
+	type tc struct {
+		i string
+		o int
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", 0, "0"},
+		{"0", 1, "0"},
+		{"1", 5, "10633823966279326983230456482242756608"},
+		{"1", 100, "268435456"},
+		{"1234567890", 10, "239925653239177315059137174380603401600"},
+		{"12345678901234567890", 10, "239925653239177315059149230707654182850"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.RotateBitsRight(e.o)
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint12RBits(t *testing.T) {
+	type tc struct {
+		i string
+		r string
+	}
+
+	tcs := [...]tc{
+		{"0", "0"},
+		{"1", "170141183460469231731687303715884105728"},
+		{"1234567890", "100026547903135029943999284404897710080"},
+		{"12345678901234567890", "100112530519533220556082947097410666496"},
+		{"123456789012345678901234567890", "100112603668620278587303334147801481216"},
+	}
+
+	for _, e := range tcs {
+		i, _ := FromString(e.i)
+		r := i.ReverseBits()
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+	}
+}
+
+func TestUint128MarshalText1(t *testing.T) {
+	a, _ := FromString("1234567890")
+	bs, err := a.MarshalText()
+	if err != nil {
+		t.Errorf("error marshaling uint128: %s", err)
+	}
+	if string(bs) != "1234567890" {
+		t.Errorf("expected 1234567890, got %s", string(bs))
+	}
+
+	var b Uint128
+	if err := b.UnmarshalText(bs); err != nil {
+		t.Errorf("error unmarshaling uint128: %s", err)
+	}
+	if b.String() != "1234567890" {
+		t.Errorf("expected %s, got %s", "1234567890", b.String())
+	}
+}
+
+func TestUint128MarshalText2(t *testing.T) {
+	a, _ := FromString("12345678901234567890")
+	bs, err := a.MarshalText()
+	if err != nil {
+		t.Errorf("error marshaling uint128: %s", err)
+	}
+	if string(bs) != "12345678901234567890" {
+		t.Errorf("expected 12345678901234567890, got %s", string(bs))
+	}
+
+	var b Uint128
+	if err := b.UnmarshalText(bs); err != nil {
+		t.Errorf("error unmarshaling uint128: %s", err)
+	}
+	if b.String() != "12345678901234567890" {
+		t.Errorf("expected %s, got %s", "12345678901234567890", b.String())
+	}
+}
+
+func TestUint128MarshalText3(t *testing.T) {
+	a, _ := FromString("123456789012345678901234567890")
+	bs, err := a.MarshalText()
+	if err != nil {
+		t.Errorf("error marshaling uint128: %s", err)
+	}
+	if string(bs) != "123456789012345678901234567890" {
+		t.Errorf("expected 123456789012345678901234567890, got %s", string(bs))
+	}
+
+	var b Uint128
+	if err := b.UnmarshalText(bs); err != nil {
+		t.Errorf("error unmarshaling uint128: %s", err)
+	}
+	if b.String() != "123456789012345678901234567890" {
+		t.Errorf("expected %s, got %s", "123456789012345678901234567890", b.String())
+	}
+}
+
+func TestUint128MarshalText4(t *testing.T) {
+	var b Uint128
+	if err := b.UnmarshalText(nil); err != nil {
+		t.Errorf("error unmarshaling uint128: %s", err)
+	}
+	if b.String() != "0" {
+		t.Errorf("expected %s, got %s", "0", b.String())
+	}
+
+	if err := b.UnmarshalText([]byte("NaN")); err == nil {
+		t.Errorf("expected error unmarshaling uint128 from NaN, got nil")
+	}
+}
+
+func TestUint128QR256b128(t *testing.T) {
+	type tc struct {
+		u string
+		c string
+		v string
+		q string
+		r string
+		s string
+	}
+
+	tcs := [...]tc{
+		{"0", "0", "0", "0", "0", "division by zero"},
+		{"0", "1", "1", "0", "0", "overflow"},
+		{"1234567890", "0", "123", "10037137", "39", "default"},
+		{"1234567890", "12345", "123", "0", "0", "overflow"},
+		{"123456789012345678901234567890", "0", "123", "1003713731807688446351500551", "117", "default"},
+		{"1", "2", "3", "226854911280625642308916404954512140971", "0", "default"},
+		{"1", "2", "3", "226854911280625642308916404954512140971", "0", "default"},
+		{"12345678901234567890", "0", "987654321", "12499999887", "339506163", "default"},
+		{"42", "1", "170141183460469231731687303715884105728", "2", "42", "default"},
+		{"34028236692093846346337460743176821", "17", "340282366920938463463374607431768211455", "17", "34028236692093846346337460743176838", "default"},
+		{"98765432109876543210", "281474976710656", "1329227995784915872903807060280344576", "72057594037927936", "98765432109876543210", "default"},
+		{"34028236692093846346337460743176821", "0", "4294967296", "7922816251426433759354395", "144310901", "default"},
+		{"340282366920938463463374607431768211455", "18446744073709551616", "340282366920938463463374607431768211455", "18446744073709551617", "18446744073709551616", "default"},
+		{"555", "1000", "100", "0", "0", "overflow"},
+		{"1", "18446744073709551616", "4294967295", "0", "0", "overflow"},
+	}
+
+	for _, e := range tcs {
+		u, _ := FromString(e.u)
+		c, _ := FromString(e.c)
+		v, _ := FromString(e.v)
+		q, r, s := QuoRem256By128(u, c, v)
+		if q.String() != e.q {
+			t.Errorf("expected %s, got %s", e.q, q.String())
+		}
+		if r.String() != e.r {
+			t.Errorf("expected %s, got %s", e.r, r.String())
+		}
+		if s.String() != e.s {
+			t.Errorf("expected %s, got %s", e.s, s.String())
+		}
+	}
+}
+
+func TestUint128AppendBytes(t *testing.T) {
+	a, _ := FromString("123456789012345678901234567890")
+	bs := a.AppendBytes([]byte("xxx"))
+	if len(bs) != 19 {
+		t.Errorf("expected 19 byte, got %d", len(bs))
+	}
+	bs = a.AppendBytesBigEndian(bs)
+	if len(bs) != 35 {
+		t.Errorf("expected 35 byte, got %d", len(bs))
+	}
+}
+
+func TestUint128ReverseBytes(t *testing.T) {
+	a, _ := FromString("123456789012345678901234567890")
+	a = a.ReverseBytes()
+	if a.String() == "123456789012345678901234567890" {
+		t.Errorf("expected reversed bytes, got %s", a.String())
+	}
+	a = a.ReverseBytes()
+	if a.String() != "123456789012345678901234567890" {
+		t.Errorf("expected original bytes, got %s", a.String())
+	}
+}
