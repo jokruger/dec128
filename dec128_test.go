@@ -56,7 +56,7 @@ func assertDecimalAbsNeg(s string, abs string, neg string) error {
 		return fmt.Errorf("expected %s, got: %s", abs, d.String())
 	}
 	if d.Neg().String() != neg {
-		fmt.Errorf("expected %s, got: %s", neg, d.String())
+		return fmt.Errorf("expected %s, got: %s", neg, d.String())
 	}
 	return nil
 }
