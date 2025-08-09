@@ -61,7 +61,7 @@ func assertDecimalAbsNeg(s string, abs string, neg string) error {
 	return nil
 }
 
-func TestDecimalBasics(t *testing.T) {
+func TestDecimalBasics1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type dt struct {
@@ -99,6 +99,10 @@ func TestDecimalBasics(t *testing.T) {
 			t.Errorf("assertDecimalAbsNeg failed for %s: %s", e.s, err.Error())
 		}
 	}
+}
+
+func TestDecimalBasics2(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	a := FromString("123.456")
 	b := FromString("123.5")
@@ -134,6 +138,23 @@ func TestDecimalBasics(t *testing.T) {
 	}
 	if !a.GreaterThanOrEqual(a) {
 		t.Errorf("expected true, got: %t", a.GreaterThanOrEqual(a))
+	}
+}
+
+func TestDecimalBasics3(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromString("4").ModInt64(3)
+	if a.String() != "1" {
+		t.Errorf("expected '1', got: %s", a.String())
+	}
+
+	q, r := FromString("4").QuoRemInt64(3)
+	if q.String() != "1" {
+		t.Errorf("expected '1', got: %s", q.String())
+	}
+	if r.String() != "1" {
+		t.Errorf("expected '1', got: %s", r.String())
 	}
 }
 
@@ -225,6 +246,16 @@ func TestDecimalAdd(t *testing.T) {
 			}
 		})
 	}
+
+	a := FromString("340282366920938463463374607431768211454")
+	a = a.AddInt64(1)
+	if a.IsNaN() {
+		t.Errorf("expected no error, got: %v", a.ErrorDetails())
+	}
+	a = a.AddInt64(1)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
 }
 
 func TestDecimalSub(t *testing.T) {
@@ -272,6 +303,17 @@ func TestDecimalSub(t *testing.T) {
 			}
 		})
 	}
+
+	a := FromString("-340282366920938463463374607431768211454")
+	a = a.SubInt64(1)
+	if a.IsNaN() {
+		t.Errorf("expected no error, got: %v", a.ErrorDetails())
+	}
+	a = a.SubInt64(1)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+
 }
 
 func TestDecimalCompare(t *testing.T) {
@@ -441,6 +483,11 @@ func TestDecimalMul(t *testing.T) {
 				t.Errorf("expected no error, got: %v", c.ErrorDetails())
 			}
 		})
+	}
+
+	a := FromString("1.2").MulInt64(2)
+	if a.String() != "2.4" {
+		t.Errorf("expected '2.4', got: %s", a.String())
 	}
 }
 
