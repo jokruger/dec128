@@ -1,9 +1,7 @@
-package benchmark
+package uint128
 
 import (
 	"testing"
-
-	"github.com/jokruger/dec128/uint128"
 )
 
 func BenchmarkUint128FromString(b *testing.B) {
@@ -23,8 +21,8 @@ func BenchmarkUint128FromString(b *testing.B) {
 	sz := len(ss)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		//_, _ = uint128.FromString(ss[i%sz])
-		_, _ = uint128.FromSafeString(ss[i%sz])
+		//_, _ = FromString(ss[i%sz])
+		_, _ = FromSafeString(ss[i%sz])
 	}
 }
 
@@ -43,13 +41,13 @@ func BenchmarkUint128ToString(b *testing.B) {
 	}
 	sz := len(ss)
 
-	vs := make([]uint128.Uint128, sz)
+	vs := make([]Uint128, sz)
 	for i, s := range ss {
-		j, _ := uint128.FromString(s)
+		j, _ := FromString(s)
 		vs[i] = j
 	}
 
-	buf := [uint128.MaxStrLen]byte{}
+	buf := [MaxStrLen]byte{}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

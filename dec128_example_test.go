@@ -41,6 +41,7 @@ func ExampleDec128_Mul() {
 }
 
 func ExampleDec128_Div() {
+	SetDefaultPrecision(19)
 	a := FromString("1")
 	b := FromString("3")
 	fmt.Println(a.Div(b))

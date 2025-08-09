@@ -1,26 +1,24 @@
-package unit
+package uint128
 
 import (
 	"math/big"
 	"testing"
-
-	"github.com/jokruger/dec128/uint128"
 )
 
 func TestUint128Pow10(t *testing.T) {
-	u := uint128.FromUint64(1)
-	for i := range len(uint128.Pow10Uint128) {
-		if !u.Equal(uint128.Pow10Uint128[i]) {
-			t.Errorf("expected %v, got %v", uint128.Pow10Uint128[i], u)
+	u := FromUint64(1)
+	for i := range len(Pow10Uint128) {
+		if !u.Equal(Pow10Uint128[i]) {
+			t.Errorf("expected %v, got %v", Pow10Uint128[i], u)
 		}
-		u, _ = u.Mul(uint128.FromUint64(10))
+		u, _ = u.Mul(FromUint64(10))
 	}
 }
 
 func TestUint128ConvUint64(t *testing.T) {
 	testCases := [...]uint64{0, 1, 1234567890, 18446744073709551615}
 	for _, i := range testCases {
-		u := uint128.FromUint64(i)
+		u := FromUint64(i)
 		j, e := u.Uint64()
 		if e.IsError() {
 			t.Errorf("error converting uint128 to uint64: %s", e.String())
@@ -30,8 +28,8 @@ func TestUint128ConvUint64(t *testing.T) {
 		}
 	}
 
-	u := uint128.FromUint64(18446744073709551615)
-	u, _ = u.Add(uint128.FromUint64(1))
+	u := FromUint64(18446744073709551615)
+	u, _ = u.Add(FromUint64(1))
 	_, e := u.Uint64()
 	if e.IsOK() {
 		t.Errorf("expected overflow error")
@@ -129,11 +127,11 @@ func TestUint128ConvString(t *testing.T) {
 		"340282366920938463463374607431768211455",
 	}
 	for _, tc := range testCases {
-		u, e := uint128.FromString(tc)
+		u, e := FromString(tc)
 		if e.IsError() {
 			t.Errorf("error converting string to uint128: %s", e.String())
 		}
-		u, e = uint128.FromSafeString(tc)
+		u, e = FromSafeString(tc)
 		if e.IsError() {
 			t.Errorf("error converting safe string to uint128: %s", e.String())
 		}
@@ -163,11 +161,11 @@ func TestUint128ConvBytes(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		u, _ := uint128.FromString(tc.s)
+		u, _ := FromString(tc.s)
 		be := u.BytesBigEndian()
 		le := u.Bytes()
-		u2 := uint128.FromBytesBigEndian(be)
-		u3 := uint128.FromBytes(le)
+		u2 := FromBytesBigEndian(be)
+		u3 := FromBytes(le)
 		if !u2.Equal(u) {
 			t.Errorf("[big endian] Expected %v, got %v", u, u2)
 		}
@@ -194,17 +192,17 @@ func TestUint128ConvBytes(t *testing.T) {
 func TestUint128ConvBigInt(t *testing.T) {
 	testCases := [...]string{"0", "1", "1234567890", "18446744073709551615", "18446744073709551616", "340282366920938463463374607431768211455", "123456789012345678901234567890"}
 	for _, tc := range testCases {
-		u, _ := uint128.FromString(tc)
+		u, _ := FromString(tc)
 		i := u.BigInt()
-		u2, _ := uint128.FromBigInt(i)
+		u2, _ := FromBigInt(i)
 		if !u2.Equal(u) {
 			t.Errorf("expected %v, got %v", u, u2)
 		}
 	}
 	for _, tc := range testCases {
-		u, _ := uint128.FromString(tc)
+		u, _ := FromString(tc)
 		i, _ := big.NewInt(0).SetString(tc, 10)
-		u2, _ := uint128.FromBigInt(i)
+		u2, _ := FromBigInt(i)
 		if !u2.Equal(u) {
 			t.Errorf("expected %v, got %v", u, u2)
 		}
@@ -216,7 +214,7 @@ func TestUint128ConvBigInt(t *testing.T) {
 }
 
 func TestUint128(t *testing.T) {
-	i1, e := uint128.FromString("0")
+	i1, e := FromString("0")
 	if e.IsError() {
 		t.Errorf("error creating uint128: %s", e.String())
 	}
@@ -227,7 +225,7 @@ func TestUint128(t *testing.T) {
 		t.Errorf("expected 0, got %v", i1.BitLen())
 	}
 
-	i2, e := uint128.FromString("1")
+	i2, e := FromString("1")
 	if e.IsError() {
 		t.Errorf("error creating uint128: %s", e.String())
 	}
@@ -242,7 +240,7 @@ func TestUint128(t *testing.T) {
 		t.Errorf("expected false, got true")
 	}
 
-	i3, e := uint128.FromString("123456789012345678901234567890")
+	i3, e := FromString("123456789012345678901234567890")
 	if e.IsError() {
 		t.Errorf("error creating uint128: %s", e.String())
 	}
@@ -275,8 +273,8 @@ func TestUint128Add(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		a, _ := uint128.FromString(tc.a)
-		b, _ := uint128.FromString(tc.b)
+		a, _ := FromString(tc.a)
+		b, _ := FromString(tc.b)
 		c, e := a.Add(b)
 		s := c.String()
 		if tc.c != s {
@@ -315,8 +313,8 @@ func TestUint128Sub(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		a, _ := uint128.FromString(tc.a)
-		b, _ := uint128.FromString(tc.b)
+		a, _ := FromString(tc.a)
+		b, _ := FromString(tc.b)
 		c, e := a.Sub(b)
 		s := c.String()
 		if tc.c != s {
@@ -359,8 +357,8 @@ func TestUint128Mul(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		a, _ := uint128.FromString(tc.a)
-		b, _ := uint128.FromString(tc.b)
+		a, _ := FromString(tc.a)
+		b, _ := FromString(tc.b)
 		c, e := a.Mul(b)
 		s := c.String()
 		if tc.c != s {
@@ -410,8 +408,8 @@ func TestUint128Div(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		a, _ := uint128.FromString(tc.a)
-		b, _ := uint128.FromString(tc.b)
+		a, _ := FromString(tc.a)
+		b, _ := FromString(tc.b)
 		c, e := a.Div(b)
 		s := c.String()
 		if tc.c != s {
@@ -448,7 +446,7 @@ func TestUint128MulAdd64(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		u, _ := uint128.FromString(tc.u)
+		u, _ := FromString(tc.u)
 		x, e := u.MulAdd64(tc.a, tc.b)
 		s := x.String()
 		if tc.r != s {
