@@ -8,6 +8,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
 )
 
@@ -185,6 +186,62 @@ func TestDecimalBasics3(t *testing.T) {
 	}
 	if r.String() != "1" {
 		t.Errorf("expected '1', got: %s", r.String())
+	}
+}
+
+func TestDecimalNew(t *testing.T) {
+	a := New(uint128.FromUint64(1), 19, false)
+	if a.IsNaN() {
+		t.Errorf("expected no error, got: %v", a.ErrorDetails())
+	}
+	if a.String() != "0.0000000000000000001" {
+		t.Errorf("expected '0.0000000000000000001', got: %s", a.String())
+	}
+
+	a = New(uint128.FromUint64(1), 19, true)
+	if a.IsNaN() {
+		t.Errorf("expected no error, got: %v", a.ErrorDetails())
+	}
+	if a.String() != "-0.0000000000000000001" {
+		t.Errorf("expected '-0.0000000000000000001', got: %s", a.String())
+	}
+
+	a = New(uint128.FromUint64(1), 20, false)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+}
+
+func TestDecimalNaN(t *testing.T) {
+	a := NaN(state.DivisionByZero)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+	if a.ErrorDetails().Error() != "division by zero" {
+		t.Errorf("expected 'division by zero', got: %s", a.ErrorDetails().Error())
+	}
+
+	a = NaN(state.Default)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+	if a.ErrorDetails().Error() != "logical error" {
+		t.Errorf("expected 'logical error', got: %s", a.ErrorDetails().Error())
+	}
+}
+
+func TestDecimalRescale(t *testing.T) {
+	a := Decimal1.Rescale(19)
+	if a.IsNaN() {
+		t.Errorf("expected no error, got: %v", a.ErrorDetails())
+	}
+	if a.String() != "1" {
+		t.Errorf("expected '1', got: %s", a.String())
+	}
+
+	a = Decimal1.Rescale(20)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
 	}
 }
 
@@ -475,6 +532,12 @@ func TestDecimalEqual(t *testing.T) {
 	if !a.Equal(b) {
 		t.Errorf("expected true, got false")
 	}
+
+	a = FromString("0")
+	b = FromString("0.00")
+	if !a.Equal(b) {
+		t.Errorf("expected true, got false")
+	}
 }
 
 func TestDecimalMul(t *testing.T) {
@@ -589,6 +652,7 @@ func TestDecimalDiv(t *testing.T) {
 		{"1", "7", "0.1428571428", ""},
 		{"1", "8", "0.125", ""},
 		{"1", "9", "0.1111111111", ""},
+		{"1", "1234567890123456789012345678901234567890", "NaN", "overflow"},
 	}
 
 	for _, tc := range testCases {
@@ -618,6 +682,16 @@ func TestDecimalDiv(t *testing.T) {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
 
+	a = Decimal1
+	b := FromString("0.0000001")
+	a = a.Div(b)
+	a = a.Div(b)
+	a = a.Div(b)
+	a = a.Div(b)
+	a = a.Div(b)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
 }
 
 func TestDecimalDiv2(t *testing.T) {
@@ -733,6 +807,10 @@ func TestDecimalMod1(t *testing.T) {
 		{"-7.5", "-2", "-1.5", ""},
 		{"41", "21", "20", ""},
 		{"400000000001", "200000000001", "200000000000", ""},
+		{"340282366920938463463374607431768211455", "3", "0", ""},
+		{"340282366920938463463374607431768211455", "100000000000000000000000000000000000001", "40282366920938463463374607431768211452", ""},
+		{"99999999999999999999999999999999999999", "100000000000000000000000000000000000001", "99999999999999999999999999999999999999", ""},
+		{"123456789012345678901234567890123456789", "100000000000000000000000000000000000001", "23456789012345678901234567890123456788", ""},
 	}
 
 	for _, tc := range testCases {
@@ -764,6 +842,8 @@ func TestDecimalQuoRem(t *testing.T) {
 	}
 
 	testCases := [...]testCase{
+		{"NaN", "1", "NaN", "NaN", "invalid format"},
+		{"1", "NaN", "NaN", "NaN", "invalid format"},
 		{"0", "0", "NaN", "NaN", "division by zero"},
 		{"0", "1", "0", "0", ""},
 		{"1", "0", "NaN", "NaN", "division by zero"},
@@ -779,6 +859,17 @@ func TestDecimalQuoRem(t *testing.T) {
 		{"1000", "10", "100", "0", ""},
 		{"-4", "3", "-1", "-1", ""},
 		{"-4", "-3", "1", "-1", ""},
+		{"3451204593", "2454495034", "1", "996709559", ""},
+		{"9999999999", "1275", "7843137", "324", ""},
+		{"9999999999.9999998", "1275.49", "7840124", "239.2399998", ""},
+		{"24544.95034", "0.3451204593", "71119", "0.3283950433", ""},
+		{"0.499999999999999999", "0.25", "1", "0.249999999999999999", ""},
+		{"0.989512958912895912", "0.000001", "989512", "0.000000958912895912", ""},
+		{"400000000001", "200000000001", "1", "200000000000", ""},
+		{"340282366920938463463374607431768211455", "3", "113427455640312821154458202477256070485", "0", ""},
+		{"340282366920938463463374607431768211455", "100000000000000000000000000000000000001", "3", "40282366920938463463374607431768211452", ""},
+		{"99999999999999999999999999999999999999", "100000000000000000000000000000000000001", "0", "99999999999999999999999999999999999999", ""},
+		{"123456789012345678901234567890123456789", "100000000000000000000000000000000000001", "1", "23456789012345678901234567890123456788", ""},
 	}
 
 	for _, tc := range testCases {
@@ -995,6 +1086,10 @@ func TestDecimalCanonical(t *testing.T) {
 				t.Errorf("expected %d, got: %d", tc.e2, c.Precision())
 			}
 		})
+	}
+
+	if !FromString("NaN").Canonical().IsNaN() {
+		t.Errorf("expected NaN, got: %s", FromString("NaN").Canonical().String())
 	}
 }
 
@@ -2152,6 +2247,22 @@ func TestDecimalJson(t *testing.T) {
 			t.Errorf("expected '%v', got '%v'", test.t.D, q.D)
 		}
 	}
+
+	a := FromString("NaN")
+	bs, err := a.MarshalJSON()
+	if err != nil {
+		t.Errorf("unexpected error marshalling NaN: %v", err)
+	}
+	if string(bs) != `"NaN"` {
+		t.Errorf(`expected "NaN", got %s`, string(bs))
+	}
+
+	if err := a.UnmarshalJSON(nil); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if a.String() != "0" {
+		t.Errorf("expected '0', got '%s'", a.String())
+	}
 }
 
 type GobTestStruct struct {
@@ -2161,6 +2272,24 @@ type GobTestStruct struct {
 }
 
 func TestDecimalBinary(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		a := Decimal1
+		_, err := a.EncodeBinary(nil)
+		if err == nil {
+			t.Errorf("expected error for nil slice, got nil")
+		}
+		_, err = a.DecodeBinary(nil)
+		if err == nil {
+			t.Errorf("expected error for nil slice, got nil")
+		}
+
+		a = FromString("NaN")
+		_, err = a.EncodeBinary(nil)
+		if err == nil {
+			t.Errorf("expected error for nil slice, got nil")
+		}
+	})
+
 	t.Run("zero", func(t *testing.T) {
 		a := Zero
 		var b Dec128
@@ -2399,6 +2528,13 @@ func TestDecimalBinary(t *testing.T) {
 			t.Errorf("expected '1.23', got '%s'", a.String())
 		}
 	})
+
+	t.Run("marshal", func(t *testing.T) {
+		var a Dec128
+		if err := a.UnmarshalBinary([]byte("aaaa")); err == nil {
+			t.Errorf("expected error unmarshaling binary, got nil")
+		}
+	})
 }
 
 func TestDecimalMarshalText(t *testing.T) {
@@ -2454,6 +2590,11 @@ func TestDecimalFloat(t *testing.T) {
 	if math.Abs(b-1.2) > 0.0000000001 {
 		t.Errorf("expected 1.2, got %f", b)
 	}
+
+	a = FromString("NaN")
+	if _, err := a.InexactFloat64(); err == nil {
+		t.Errorf("expected error for NaN, got nil")
+	}
 }
 
 func TestDecimalSetDefaultPrecision(t *testing.T) {
@@ -2473,4 +2614,134 @@ func TestDecimalSetDefaultPrecision(t *testing.T) {
 			t.Errorf("expected panic, got none")
 		}
 	})
+}
+
+func TestDecimalCopy(t *testing.T) {
+	a := FromString("1")
+	b := a.Copy()
+	if !a.Equal(b) {
+		t.Errorf("expected %s, got %s", a.String(), b.String())
+	}
+	if &a == &b {
+		t.Errorf("expected different pointers, got same: %p", &b)
+	}
+}
+
+func TestDecimalScan(t *testing.T) {
+	var a Dec128
+
+	if err := a.Scan("NaN"); err == nil {
+		t.Errorf("expected error for NaN, got nil")
+	}
+
+	if err := a.Scan("123.456"); err != nil {
+		t.Errorf("unexpected error scanning '123.456': %v", err)
+	}
+	if a.String() != "123.456" {
+		t.Errorf("expected '123.456', got '%s'", a.String())
+	}
+
+	if err := a.Scan(int(123)); err != nil {
+		t.Errorf("unexpected error scanning '123': %v", err)
+	}
+	if a.String() != "123" {
+		t.Errorf("expected '123', got '%s'", a.String())
+	}
+
+	if err := a.Scan(int64(123)); err != nil {
+		t.Errorf("unexpected error scanning '123': %v", err)
+	}
+	if a.String() != "123" {
+		t.Errorf("expected '123', got '%s'", a.String())
+	}
+
+	if err := a.Scan(nil); err != nil {
+		t.Errorf("unexpected error scanning '123': %v", err)
+	}
+	if a.String() != "0" {
+		t.Errorf("expected '0', got '%s'", a.String())
+	}
+
+	if err := a.Scan(true); err == nil {
+		t.Errorf("expected error for boolean, got nil")
+	}
+}
+
+func TestDecimalValue(t *testing.T) {
+	v, err := Decimal1.Value()
+	if err != nil {
+		t.Errorf("unexpected error getting value: %v", err)
+	}
+	if v.(string) != "1" {
+		t.Errorf("expected '1', got '%s'", v.(string))
+	}
+}
+
+func TestDecimalDecode(t *testing.T) {
+	u := uint128.FromUint64(123)
+	a := DecodeFromUint128(u, 2)
+	if a.String() != "1.23" {
+		t.Errorf("expected '1.23', got '%s'", a.String())
+	}
+
+	a = DecodeFromInt64(123, 2)
+	if a.String() != "1.23" {
+		t.Errorf("expected '1.23', got '%s'", a.String())
+	}
+
+	a = DecodeFromUint64(123, 2)
+	if a.String() != "1.23" {
+		t.Errorf("expected '1.23', got '%s'", a.String())
+	}
+}
+
+func TestDecimalTo(t *testing.T) {
+	a := FromString("NaN")
+	if _, err := a.EncodeToInt64(1); err == nil {
+		t.Errorf("expected error for NaN, got nil")
+	}
+	if _, err := a.EncodeToUint64(1); err == nil {
+		t.Errorf("expected error for NaN, got nil")
+	}
+	if _, err := a.EncodeToUint128(1); err == nil {
+		t.Errorf("expected error for NaN, got nil")
+	}
+
+	a = FromString("123456789012345678901234567890")
+	if a.String() != "123456789012345678901234567890" {
+		t.Errorf("expected '123456789012345678901234567890', got '%s'", a.String())
+	}
+	if _, err := a.EncodeToInt64(1); err == nil {
+		t.Errorf("expected error for overflow, got nil")
+	}
+	if _, err := a.EncodeToUint64(1); err == nil {
+		t.Errorf("expected error for overflow, got nil")
+	}
+
+	a = FromString("-123456789012345678901234567890")
+	if a.String() != "-123456789012345678901234567890" {
+		t.Errorf("expected '-123456789012345678901234567890', got '%s'", a.String())
+	}
+	if _, err := a.EncodeToInt64(1); err == nil {
+		t.Errorf("expected error for overflow, got nil")
+	}
+	if _, err := a.EncodeToUint64(1); err == nil {
+		t.Errorf("expected error for overflow, got nil")
+	}
+	if _, err := a.EncodeToUint128(1); err == nil {
+		t.Errorf("expected error for negative, got nil")
+	}
+
+	a = FromString("-9223372036854775809")
+	if _, err := a.EncodeToInt64(0); err == nil {
+		t.Errorf("expected error, got nil")
+	}
+
+	a = FromString("9223372036854775808")
+	if _, err := a.EncodeToUint64(0); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if _, err := a.EncodeToInt64(0); err == nil {
+		t.Errorf("expected error, got nil")
+	}
 }
