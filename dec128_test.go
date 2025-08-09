@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/jokruger/dec128/uint128"
@@ -2367,6 +2368,109 @@ func TestDecimalBinary(t *testing.T) {
 		}
 		if !tc.C[3].Equal(tc2.C[3]) {
 			t.Errorf("expected %s, got %s", tc.C[3].String(), tc2.C[3].String())
+		}
+	})
+
+	t.Run("append", func(t *testing.T) {
+		a := FromString("1.23")
+		bs, err := a.AppendBinary(make([]byte, 0))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		var b Dec128
+		if err := b.UnmarshalBinary(bs); err != nil {
+			t.Errorf("unexpected error unmarshaling binary: %v", err)
+		}
+		if b.String() != "1.23" {
+			t.Errorf("expected '1.23', got '%s'", b.String())
+		}
+	})
+
+	t.Run("rw", func(t *testing.T) {
+		var b bytes.Buffer
+		if err := FromString("1.23").WriteBinary(&b); err != nil {
+			t.Errorf("unexpected error writing binary: %v", err)
+		}
+		var a Dec128
+		if err := a.ReadBinary(&b); err != nil {
+			t.Errorf("unexpected error reading binary: %v", err)
+		}
+		if a.String() != "1.23" {
+			t.Errorf("expected '1.23', got '%s'", a.String())
+		}
+	})
+}
+
+func TestDecimalMarshalText(t *testing.T) {
+	a := FromString("NaN")
+	bs, err := a.MarshalText()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if string(bs) != "NaN" {
+		t.Errorf("expected 'NaN', got '%s'", string(bs))
+	}
+
+	a = Decimal0
+	bs, err = a.MarshalText()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if string(bs) != "0" {
+		t.Errorf("expected '0', got '%s'", string(bs))
+	}
+
+	a = Decimal1000
+	bs, err = a.MarshalText()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if string(bs) != "1000" {
+		t.Errorf("expected '1000', got '%s'", string(bs))
+	}
+
+	var b Dec128
+	if err := b.UnmarshalText(bs); err != nil {
+		t.Errorf("unexpected error unmarshaling text: %v", err)
+	}
+	if b.String() != "1000" {
+		t.Errorf("expected '1000', got '%s'", b.String())
+	}
+
+	if err := b.UnmarshalText(nil); err != nil {
+		t.Errorf("unexpected error unmarshaling text: %v", err)
+	}
+	if b.String() != "0" {
+		t.Errorf("expected '0', got '%s'", b.String())
+	}
+}
+
+func TestDecimalFloat(t *testing.T) {
+	a := FromFloat64(1.2)
+	b, err := a.InexactFloat64()
+	if err != nil {
+		t.Errorf("unexpected error converting to float64: %v", err)
+	}
+	if math.Abs(b-1.2) > 0.0000000001 {
+		t.Errorf("expected 1.2, got %f", b)
+	}
+}
+
+func TestDecimalSetDefaultPrecision(t *testing.T) {
+	t.Run("panic", func(t *testing.T) {
+		var f bool
+		defer func() {
+			if r := recover(); r != nil {
+				f = true
+			}
+		}()
+		SetDefaultPrecision(19)
+		if f {
+			t.Errorf("expected no panic, got one")
+		}
+		SetDefaultPrecision(20)
+		if !f {
+			t.Errorf("expected panic, got none")
 		}
 	})
 }
