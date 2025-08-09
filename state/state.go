@@ -43,6 +43,9 @@ var code2str = [...]string{
 }
 
 var code2err = [...]error{
+	Default:                nil,
+	Neg:                    nil,
+	Error:                  errors.New("logical error"),
 	NaN:                    errors.New("not a number"),
 	DivisionByZero:         errors.New("division by zero"),
 	Overflow:               errors.New("overflow"),

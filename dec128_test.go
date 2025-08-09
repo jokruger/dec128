@@ -51,7 +51,7 @@ func assertDecimal(s string, isNaN bool, isZero bool, isNegative bool, isPositiv
 }
 
 func assertDecimalAbsNeg(s string, abs string, neg string) error {
-	d := FromString("-123.456")
+	d := FromString(s)
 	if d.Abs().String() != abs {
 		return fmt.Errorf("expected %s, got: %s", abs, d.String())
 	}
