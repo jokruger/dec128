@@ -1,13 +1,6 @@
 // Package uint128 provides 128-bit unsigned integer type and basic operations.
 package uint128
 
-import (
-	"fmt"
-	"math/big"
-
-	"github.com/jokruger/dec128/state"
-)
-
 // Uint128 is a 128-bit unsigned integer type.
 type Uint128 struct {
 	Lo uint64
@@ -40,26 +33,4 @@ func (self Uint128) Compare(other Uint128) int {
 // BitLen returns the number of bits required to represent the value.
 func (self Uint128) BitLen() int {
 	return 128 - self.LeadingZeroBitsCount()
-}
-
-// Scan scans the value.
-func (self *Uint128) Scan(s fmt.ScanState, ch rune) error {
-	i := new(big.Int)
-
-	if err := i.Scan(s, ch); err != nil {
-		return state.InvalidFormat.Error()
-	}
-
-	if i.Sign() < 0 {
-		return state.NegativeInUnsignedOp.Error()
-	}
-
-	if i.BitLen() > 128 {
-		return state.Overflow.Error()
-	}
-
-	self.Lo = i.Uint64()
-	self.Hi = i.Rsh(i, 64).Uint64()
-
-	return nil
 }

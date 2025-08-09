@@ -99,6 +99,35 @@ func TestDecimalBasics1(t *testing.T) {
 			t.Errorf("assertDecimalAbsNeg failed for %s: %s", e.s, err.Error())
 		}
 	}
+
+	a := FromString("NaN").Abs()
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+
+	a = FromString("NaN").Neg()
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+
+	a = FromString("NaN").Sqrt()
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+
+	a = FromString("NaN").PowInt(2)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+
+	a = FromString("NaN").Mod(FromInt64(1))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+	a = FromInt64(1).Mod(FromString("NaN"))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
 }
 
 func TestDecimalBasics2(t *testing.T) {
@@ -256,6 +285,15 @@ func TestDecimalAdd(t *testing.T) {
 	if !a.IsNaN() {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
+
+	a = FromString("NaN").Add(FromInt64(1))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+	a = FromInt64(1).Add(FromString("NaN"))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
 }
 
 func TestDecimalSub(t *testing.T) {
@@ -314,6 +352,14 @@ func TestDecimalSub(t *testing.T) {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
 
+	a = FromString("NaN").Sub(FromInt64(1))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+	a = FromInt64(1).Sub(FromString("NaN"))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
 }
 
 func TestDecimalCompare(t *testing.T) {
@@ -489,6 +535,15 @@ func TestDecimalMul(t *testing.T) {
 	if a.String() != "2.4" {
 		t.Errorf("expected '2.4', got: %s", a.String())
 	}
+
+	a = FromString("NaN").Mul(FromInt64(1))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+	a = FromInt64(1).Mul(FromString("NaN"))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
 }
 
 func TestDecimalDiv(t *testing.T) {
@@ -552,6 +607,16 @@ func TestDecimalDiv(t *testing.T) {
 			}
 		})
 	}
+
+	a := FromString("NaN").Div(FromInt64(1))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+	a = FromInt64(1).Div(FromString("NaN"))
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
+
 }
 
 func TestDecimalDiv2(t *testing.T) {
