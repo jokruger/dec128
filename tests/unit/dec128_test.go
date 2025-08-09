@@ -7,87 +7,98 @@ import (
 	"github.com/jokruger/dec128"
 )
 
+func assertDecimal(s string, isNaN bool, isZero bool, isNegative bool, isPositive bool) error {
+	d := dec128.FromString(s)
+
+	if isNaN {
+		if !d.IsNaN() {
+			return fmt.Errorf("expected NaN, got: %s", d.String())
+		}
+	} else {
+		if d.IsNaN() {
+			return fmt.Errorf("expected not NaN")
+		}
+		if d.String() != s {
+			return fmt.Errorf("expected %s, got: %s", s, d.String())
+		}
+	}
+
+	if isZero && !d.IsZero() {
+		return fmt.Errorf("expected zero")
+	}
+	if !isZero && d.IsZero() {
+		return fmt.Errorf("expected not zero")
+	}
+
+	if isNegative && !d.IsNegative() {
+		return fmt.Errorf("expected negative")
+	}
+	if !isNegative && d.IsNegative() {
+		return fmt.Errorf("expected not negative")
+	}
+
+	if isPositive && !d.IsPositive() {
+		return fmt.Errorf("expected positive")
+	}
+	if !isPositive && d.IsPositive() {
+		return fmt.Errorf("expected not positive")
+	}
+
+	return nil
+}
+
+func assertDecimalAbsNeg(s string, abs string, neg string) error {
+	d := dec128.FromString("-123.456")
+	if d.Abs().String() != abs {
+		return fmt.Errorf("expected %s, got: %s", abs, d.String())
+	}
+	if d.Neg().String() != neg {
+		fmt.Errorf("expected %s, got: %s", neg, d.String())
+	}
+	return nil
+}
+
 func TestDecimalBasics(t *testing.T) {
 	dec128.SetDefaultPrecision(19)
 
-	var d dec128.Dec128
-	var a dec128.Dec128
-	var b dec128.Dec128
-
-	d = dec128.FromString("NaN")
-	if !d.IsNaN() {
-		t.Errorf("expected NaN, got: %s", d.String())
+	type dt struct {
+		s      string
+		isNaN  bool
+		isZero bool
+		isNeg  bool
+		isPos  bool
 	}
-	if d.IsZero() {
-		t.Errorf("expected false, got: %s", d.String())
+	dts := []dt{
+		{"NaN", true, false, false, false},
+		{"0", false, true, false, false},
+		{"0.1", false, false, false, true},
+		{"1", false, false, false, true},
+		{"-0.1", false, false, true, false},
+		{"-1", false, false, true, false},
 	}
-	if d.IsNegative() {
-		t.Errorf("expected false, got: %s", d.String())
-	}
-	if d.IsPositive() {
-		t.Errorf("expected false, got: %s", d.String())
-	}
-
-	d = dec128.FromString("0")
-	if !d.IsZero() {
-		t.Errorf("expected zero, got: %s", d.String())
-	}
-	if d.IsNegative() {
-		t.Errorf("expected false, got: %s", d.String())
-	}
-	if d.IsPositive() {
-		t.Errorf("expected false, got: %s", d.String())
-	}
-	if d.IsNaN() {
-		t.Errorf("expected false, got: %s", d.String())
+	for _, e := range dts {
+		if err := assertDecimal(e.s, e.isNaN, e.isZero, e.isNeg, e.isPos); err != nil {
+			t.Errorf("assertDecimal failed for %s: %s", e.s, err.Error())
+		}
 	}
 
-	d = dec128.FromString("1")
-	if d.IsZero() {
-		t.Errorf("expected false, got: %s", d.String())
+	type dtan struct {
+		s   string
+		abs string
+		neg string
 	}
-	if d.IsNegative() {
-		t.Errorf("expected false, got: %s", d.String())
+	dtans := []dtan{
+		{"-123.456", "123.456", "123.456"},
+		{"123.456", "123.456", "-123.456"},
 	}
-	if !d.IsPositive() {
-		t.Errorf("expected true, got: %s", d.String())
-	}
-	if d.IsNaN() {
-		t.Errorf("expected false, got: %s", d.String())
-	}
-
-	d = dec128.FromString("-1")
-	if d.IsZero() {
-		t.Errorf("expected false, got: %s", d.String())
-	}
-	if !d.IsNegative() {
-		t.Errorf("expected true, got: %s", d.String())
-	}
-	if d.IsPositive() {
-		t.Errorf("expected false, got: %s", d.String())
-	}
-	if d.IsNaN() {
-		t.Errorf("expected false, got: %s", d.String())
+	for _, e := range dtans {
+		if err := assertDecimalAbsNeg(e.s, e.abs, e.neg); err != nil {
+			t.Errorf("assertDecimalAbsNeg failed for %s: %s", e.s, err.Error())
+		}
 	}
 
-	d = dec128.FromString("-123.456")
-	if d.Abs().String() != "123.456" {
-		t.Errorf("expected 123.456, got: %s", d.String())
-	}
-	if d.Neg().String() != "123.456" {
-		t.Errorf("expected 123.456, got: %s", d.String())
-	}
-
-	d = dec128.FromString("123.456")
-	if d.Abs().String() != "123.456" {
-		t.Errorf("expected 123.456, got: %s", d.String())
-	}
-	if d.Neg().String() != "-123.456" {
-		t.Errorf("expected -123.456, got: %s", d.String())
-	}
-
-	a = dec128.FromString("123.456")
-	b = dec128.FromString("123.5")
+	a := dec128.FromString("123.456")
+	b := dec128.FromString("123.5")
 	if a.Compare(b) != -1 {
 		t.Errorf("expected -1, got: %d", a.Compare(b))
 	}
