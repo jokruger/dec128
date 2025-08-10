@@ -1,5 +1,5 @@
 test:
-	go test -coverprofile=coverage.txt ./...
+	go test -coverprofile=coverage.out ./...
 
 view:
-	go tool cover -html=coverage.txt
+	go tool cover -html=coverage.out
