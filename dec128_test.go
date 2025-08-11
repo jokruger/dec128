@@ -230,12 +230,26 @@ func TestDecimalBasics3(t *testing.T) {
 	if c.String() != "1" {
 		t.Errorf("expected '1', got: %s", c.String())
 	}
+	q, r = a.QuoRem(b)
+	if q.String() != "0" {
+		t.Errorf("expected 0, got: %s", q.String())
+	}
+	if r.String() != "1" {
+		t.Errorf("expected 1, got: %s", r.String())
+	}
 
 	a = FromInt(1).Rescale(19)
 	b = FromString("35000000000000000000")
 	c = a.Mod(b)
 	if c.String() != "1" {
 		t.Errorf("expected '1', got: %s", c.String())
+	}
+	q, r = a.QuoRem(b)
+	if q.String() != "0" {
+		t.Errorf("expected 0, got: %s", q.String())
+	}
+	if r.String() != "1" {
+		t.Errorf("expected 1, got: %s", r.String())
 	}
 
 	a = FromString("4").Rescale(10)

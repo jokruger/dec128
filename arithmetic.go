@@ -103,7 +103,7 @@ func (d Dec128) Mul(other Dec128) Dec128 {
 		return r
 	}
 
-	// this block makes no sense - see tryMul implementation
+	// Fallback is unreachable; retained only for future changes.
 	//a := d.Canonical()
 	//b := other.Canonical()
 	//r, ok = a.tryMul(b)
@@ -324,11 +324,12 @@ func (d Dec128) Sqrt() Dec128 {
 		return r
 	}
 
-	a := d.Canonical()
-	r, ok = a.trySqrt()
-	if ok {
-		return r
-	}
+	// Fallback is unreachable; retained only for future changes.
+	//a := d.Canonical()
+	//r, ok = a.trySqrt()
+	//if ok {
+	//	return r
+	//}
 
 	return Dec128{state: state.Overflow}
 }
