@@ -195,6 +195,63 @@ func TestDecimalBasics3(t *testing.T) {
 	if r.String() != "1" {
 		t.Errorf("expected '1', got: %s", r.String())
 	}
+
+	a = FromString("4").Rescale(19)
+	b := FromString("3").Rescale(19)
+	c := a.Mod(b)
+	if c.String() != "1" {
+		t.Errorf("expected '1', got: %s", c.String())
+	}
+
+	a = FromString("4").Rescale(19)
+	b = FromString("3").Rescale(10)
+	c = a.Mod(b)
+	if c.String() != "1" {
+		t.Errorf("expected '1', got: %s", c.String())
+	}
+
+	a = FromString("4000000000000000000").Rescale(19)
+	b = FromString("3000000000000000000").Rescale(10)
+	c = a.Mod(b)
+	if c.String() != "1000000000000000000" {
+		t.Errorf("expected '1000000000000000000', got: %s", c.String())
+	}
+
+	a = FromString("4000000000000000000").Rescale(10)
+	b = FromString("3000000000000000000").Rescale(19)
+	c = a.Mod(b)
+	if c.String() != "1000000000000000000" {
+		t.Errorf("expected '1000000000000000000', got: %s", c.String())
+	}
+
+	a = FromInt(1).Rescale(19)
+	b = FromString("40000000000000000000")
+	c = a.Mod(b)
+	if c.String() != "1" {
+		t.Errorf("expected '1', got: %s", c.String())
+	}
+
+	a = FromInt(1).Rescale(19)
+	b = FromString("35000000000000000000")
+	c = a.Mod(b)
+	if c.String() != "1" {
+		t.Errorf("expected '1', got: %s", c.String())
+	}
+
+	a = FromString("4").Rescale(10)
+	b = FromString("3").Rescale(19)
+	c = a.Mod(b)
+	if c.String() != "1" {
+		t.Errorf("expected '1', got: %s", c.String())
+	}
+
+	q, r = a.QuoRem(b)
+	if q.String() != "1" {
+		t.Errorf("expected '1', got: %s", q.String())
+	}
+	if r.String() != "1" {
+		t.Errorf("expected '1', got: %s", r.String())
+	}
 }
 
 func TestDecimalNew(t *testing.T) {
@@ -551,6 +608,22 @@ func TestDecimalEqual(t *testing.T) {
 func TestDecimalMul(t *testing.T) {
 	SetDefaultPrecision(19)
 
+	a := FromInt(1).Rescale(19)
+	if a.IsNaN() {
+		t.Errorf("expected no error, got: %v", a.ErrorDetails())
+	}
+	b := FromInt(2).Rescale(19)
+	if b.IsNaN() {
+		t.Errorf("expected no error, got: %v", b.ErrorDetails())
+	}
+	c := a.Mul(b)
+	if c.IsNaN() {
+		t.Errorf("expected no error, got: %v", c.ErrorDetails())
+	}
+	if c.String() != "2" {
+		t.Errorf("expected '2', got: %s", c.String())
+	}
+
 	type testCase struct {
 		a string
 		b string
@@ -603,7 +676,7 @@ func TestDecimalMul(t *testing.T) {
 		})
 	}
 
-	a := FromString("1.2").MulInt64(2)
+	a = FromString("1.2").MulInt64(2)
 	if a.String() != "2.4" {
 		t.Errorf("expected '2.4', got: %s", a.String())
 	}
@@ -802,6 +875,7 @@ func TestDecimalMod1(t *testing.T) {
 		{"11.234", "-1.12", "0.034", ""},
 		{"-11.234", "-1.12", "-0.034", ""},
 		{"123.456", "1.123", "1.049", ""},
+		{"123.4560000000000", "1.1230000000000", "1.049", ""},
 		{"3", "2", "1", ""},
 		{"3451204593", "2454495034", "996709559", ""},
 		{"9999999999", "1275", "324", ""},
@@ -2828,5 +2902,10 @@ func TestDecimalSymmetry(t *testing.T) {
 				}
 			}
 		})
+
+		c = a.PowInt(2).Sqrt()
+		if c.String() != a.String() {
+			t.Errorf("expected %s, got %s", a.String(), c.String())
+		}
 	}
 }

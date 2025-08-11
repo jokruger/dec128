@@ -103,12 +103,13 @@ func (d Dec128) Mul(other Dec128) Dec128 {
 		return r
 	}
 
-	a := d.Canonical()
-	b := other.Canonical()
-	r, ok = a.tryMul(b)
-	if ok {
-		return r
-	}
+	// this block makes no sense - see tryMul implementation
+	//a := d.Canonical()
+	//b := other.Canonical()
+	//r, ok = a.tryMul(b)
+	//if ok {
+	//	return r
+	//}
 
 	return Dec128{state: state.Overflow}
 }
