@@ -4,10 +4,11 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/jokruger/dec128)](https://goreportcard.com/report/github.com/jokruger/dec128)
 [![codecov](https://codecov.io/gh/jokruger/dec128/graph/badge.svg?token=TQWE8PA4AN)](https://codecov.io/gh/jokruger/dec128)
 
-128-bit fixed-point decimal numbers in go.
+High performance 128-bit fixed-point decimal numbers in go.
 
 ## Key Objectives / Features
 - [x] High performance
+- [x] Zero dependencies
 - [x] Minimal or zero memory allocation
 - [x] Precision up to 19 decimal places
 - [x] Fixed size memory layout (128 bits)
