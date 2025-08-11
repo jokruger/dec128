@@ -322,6 +322,15 @@ func TestDecimalRescale(t *testing.T) {
 	if !a.IsNaN() {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
+
+	a = FromString("340282366920938463463374607431768211455")
+	if a.IsNaN() {
+		t.Errorf("expected no error, got: %v", a.ErrorDetails())
+	}
+	a = a.Rescale(1)
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got: %s", a.String())
+	}
 }
 
 func TestSign(t *testing.T) {
@@ -525,6 +534,18 @@ func TestDecimalCompare(t *testing.T) {
 		t.Errorf("expected 0, got %d", a.Compare(b))
 	}
 
+	a = FromString("-1")
+	b = FromString("-1")
+	if a.Compare(b) != 0 {
+		t.Errorf("expected 0, got %d", a.Compare(b))
+	}
+
+	a = FromString("-1.0")
+	b = FromString("-1")
+	if a.Compare(b) != 0 {
+		t.Errorf("expected 0, got %d", a.Compare(b))
+	}
+
 	a = FromString("1")
 	b = FromString("-1")
 	if a.Compare(b) != 1 {
@@ -616,6 +637,12 @@ func TestDecimalEqual(t *testing.T) {
 	b = FromString("0.00")
 	if !a.Equal(b) {
 		t.Errorf("expected true, got false")
+	}
+
+	a = FromString("123456789012345678901234567890")
+	b = FromString("0.0000000000000001")
+	if a.Equal(b) {
+		t.Errorf("expected false, got true")
 	}
 }
 
@@ -1077,6 +1104,7 @@ func TestDecimalSqrt(t *testing.T) {
 		{"10000000000", "100000", ""},
 		{"1000", "31.6227766016837933199", ""},
 		{"31.6227766016837933199", "5.6234132519034908039", ""},
+		{"4.000000000000000000", "2", ""},
 	}
 
 	for _, tc := range testCases {
@@ -1092,6 +1120,11 @@ func TestDecimalSqrt(t *testing.T) {
 				t.Errorf("expected %s, got %s", tc.e, d.ErrorDetails().Error())
 			}
 		})
+	}
+
+	a := FromInt(4).Rescale(19)
+	if a.Sqrt().String() != "2" {
+		t.Errorf("expected '2', got: %s", a.Sqrt().String())
 	}
 }
 
@@ -2611,7 +2644,7 @@ func TestDecimalBinary(t *testing.T) {
 		}
 	})
 
-	t.Run("rw", func(t *testing.T) {
+	t.Run("rw1", func(t *testing.T) {
 		var b bytes.Buffer
 		if err := FromString("1.23").WriteBinary(&b); err != nil {
 			t.Errorf("unexpected error writing binary: %v", err)
@@ -2622,6 +2655,20 @@ func TestDecimalBinary(t *testing.T) {
 		}
 		if a.String() != "1.23" {
 			t.Errorf("expected '1.23', got '%s'", a.String())
+		}
+	})
+
+	t.Run("rw2", func(t *testing.T) {
+		var b bytes.Buffer
+		if err := FromString("12345678901234567890.123456789").WriteBinary(&b); err != nil {
+			t.Errorf("unexpected error writing binary: %v", err)
+		}
+		var a Dec128
+		if err := a.ReadBinary(&b); err != nil {
+			t.Errorf("unexpected error reading binary: %v", err)
+		}
+		if a.String() != "12345678901234567890.123456789" {
+			t.Errorf("expected '12345678901234567890.123456789', got '%s'", a.String())
 		}
 	})
 
@@ -2690,6 +2737,11 @@ func TestDecimalFloat(t *testing.T) {
 	a = FromString("NaN")
 	if _, err := a.InexactFloat64(); err == nil {
 		t.Errorf("expected error for NaN, got nil")
+	}
+
+	a = FromFloat64(math.NaN())
+	if !a.IsNaN() {
+		t.Errorf("expected NaN, got %s", a.String())
 	}
 }
 

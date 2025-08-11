@@ -211,6 +211,19 @@ func TestUint128ConvBigInt(t *testing.T) {
 			t.Errorf("expected %v, got %v", tc, s)
 		}
 	}
+
+	_, s := FromBigInt(big.NewInt(-10))
+	if !s.IsError() {
+		t.Errorf("expected error converting negative big.Int to uint128, got no error")
+	}
+
+	b := big.NewInt(1234567890123456789)
+	b = b.Mul(b, b)
+	b = b.Mul(b, b)
+	_, s = FromBigInt(b)
+	if !s.IsError() {
+		t.Errorf("expected error converting big.Int greater than max uint128 to uint128, got no error")
+	}
 }
 
 func TestUint128(t *testing.T) {
@@ -250,6 +263,22 @@ func TestUint128(t *testing.T) {
 	if i3.BitLen() != 97 {
 		t.Errorf("expected 97, got %v", i3.BitLen())
 	}
+
+	i, s := FromString("")
+	if s.IsError() {
+		t.Errorf("expected no error, got: %s", s.String())
+	}
+	if i.String() != "0" {
+		t.Errorf("expected '0', got '%s'", i.String())
+	}
+
+	i, s = FromSafeString("")
+	if s.IsError() {
+		t.Errorf("expected no error, got: %s", s.String())
+	}
+	if i.String() != "0" {
+		t.Errorf("expected '0', got '%s'", i.String())
+	}
 }
 
 func TestUint128Add(t *testing.T) {
@@ -286,6 +315,11 @@ func TestUint128Add(t *testing.T) {
 		if tc.e != "" && (e.IsOK() || e.String() != tc.e) {
 			t.Errorf("expected error '%s', got '%s'", tc.e, e.String())
 		}
+	}
+
+	i, _ := FromString("340282366920938463463374607431768211455")
+	if _, s := i.Add64(1); !s.IsError() {
+		t.Errorf("expected overflow error when adding 1 to max uint128, got no error")
 	}
 }
 
@@ -370,6 +404,14 @@ func TestUint128Mul(t *testing.T) {
 		if tc.e != "" && (e.IsOK() || e.String() != tc.e) {
 			t.Errorf("expected error '%s', got '%s'", tc.e, e.String())
 		}
+	}
+
+	i, _ := FromString("340282366920938463463374607431768211455")
+	if _, s := i.Mul64(1234567890); !s.IsError() {
+		t.Errorf("expected overflow error when multiplying max uint128 by 1234567890, got no error")
+	}
+	if _, s := i.MulAdd64(1234567890, 2); !s.IsError() {
+		t.Errorf("expected overflow error when multiplying max uint128 by 1234567890, got no error")
 	}
 }
 
@@ -1036,5 +1078,17 @@ func TestUint128ReverseBytes(t *testing.T) {
 	a = a.ReverseBytes()
 	if a.String() != "123456789012345678901234567890" {
 		t.Errorf("expected original bytes, got %s", a.String())
+	}
+}
+
+func TestUint128PutBytes(t *testing.T) {
+	i := FromUint64(1234567890)
+
+	bs := make([]byte, 2)
+	if !i.PutBytes(bs).IsError() {
+		t.Errorf("expected error when putting bytes into too small slice")
+	}
+	if !i.PutBytesBigEndian(bs).IsError() {
+		t.Errorf("expected error when putting bytes into too small slice")
 	}
 }
