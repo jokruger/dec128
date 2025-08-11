@@ -7,50 +7,50 @@ import (
 )
 
 // Uint64 returns the value as uint64 if it fits, otherwise it returns an error.
-func (self Uint128) Uint64() (uint64, state.State) {
-	if self.Hi > 0 {
+func (ui Uint128) Uint64() (uint64, state.State) {
+	if ui.Hi > 0 {
 		return 0, state.Overflow
 	}
-	return self.Lo, state.OK
+	return ui.Lo, state.OK
 }
 
 // Bytes returns the value as a [16]byte array.
-func (self Uint128) Bytes() [16]byte {
+func (ui Uint128) Bytes() [16]byte {
 	bs := [16]byte{}
-	self.PutBytes(bs[:])
+	ui.PutBytes(bs[:])
 	return bs
 }
 
 // BytesBigEndian returns the value as a [16]byte array in big-endian order.
-func (self Uint128) BytesBigEndian() [16]byte {
+func (ui Uint128) BytesBigEndian() [16]byte {
 	bs := [16]byte{}
-	self.PutBytesBigEndian(bs[:])
+	ui.PutBytesBigEndian(bs[:])
 	return bs
 }
 
 // BigInt returns the value as a big.Int.
-func (self Uint128) BigInt() *big.Int {
-	i := new(big.Int).SetUint64(self.Hi)
+func (ui Uint128) BigInt() *big.Int {
+	i := new(big.Int).SetUint64(ui.Hi)
 	i = i.Lsh(i, 64)
-	i = i.Xor(i, new(big.Int).SetUint64(self.Lo))
+	i = i.Xor(i, new(big.Int).SetUint64(ui.Lo))
 	return i
 }
 
 // String returns the value as a string.
-func (self Uint128) String() string {
-	if self.IsZero() {
+func (ui Uint128) String() string {
+	if ui.IsZero() {
 		return ZeroStr
 	}
 
 	buf := [MaxStrLen]byte{}
-	sb := self.StringToBuf(buf[:])
+	sb := ui.StringToBuf(buf[:])
 
 	return string(sb)
 }
 
 // StringToBuf writes the value as a string to the given buffer (from end to start) and returns a slice containing the string.
-func (self Uint128) StringToBuf(buf []byte) []byte {
-	q := self
+func (ui Uint128) StringToBuf(buf []byte) []byte {
+	q := ui
 	i := len(buf)
 	var r uint64
 	var n int

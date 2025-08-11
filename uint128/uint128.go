@@ -8,22 +8,22 @@ type Uint128 struct {
 }
 
 // IsZero returns true if the value is zero.
-func (self Uint128) IsZero() bool {
-	return self.Lo == 0 && self.Hi == 0
+func (ui Uint128) IsZero() bool {
+	return ui.Lo == 0 && ui.Hi == 0
 }
 
 // Equal returns true if the value is equal to the other value.
-func (self Uint128) Equal(other Uint128) bool {
-	return self.Lo == other.Lo && self.Hi == other.Hi
+func (ui Uint128) Equal(other Uint128) bool {
+	return ui.Lo == other.Lo && ui.Hi == other.Hi
 }
 
 // Compare returns -1 if the value is less than the other value, 0 if the value is equal to the other value, and 1 if the value is greater than the other value.
-func (self Uint128) Compare(other Uint128) int {
-	if self == other {
+func (ui Uint128) Compare(other Uint128) int {
+	if ui == other {
 		return 0
 	}
 
-	if self.Hi < other.Hi || (self.Hi == other.Hi && self.Lo < other.Lo) {
+	if ui.Hi < other.Hi || (ui.Hi == other.Hi && ui.Lo < other.Lo) {
 		return -1
 	}
 
@@ -31,6 +31,6 @@ func (self Uint128) Compare(other Uint128) int {
 }
 
 // BitLen returns the number of bits required to represent the value.
-func (self Uint128) BitLen() int {
-	return 128 - self.LeadingZeroBitsCount()
+func (ui Uint128) BitLen() int {
+	return 128 - ui.LeadingZeroBitsCount()
 }

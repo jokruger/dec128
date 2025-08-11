@@ -8,46 +8,46 @@ import (
 )
 
 // PutBytes writes the Uint128 to the byte slice bs in little-endian order.
-func (self Uint128) PutBytes(bs []byte) state.State {
+func (ui Uint128) PutBytes(bs []byte) state.State {
 	if len(bs) < 16 {
 		return state.NotEnoughBytes
 	}
 
-	binary.LittleEndian.PutUint64(bs[:8], self.Lo)
-	binary.LittleEndian.PutUint64(bs[8:], self.Hi)
+	binary.LittleEndian.PutUint64(bs[:8], ui.Lo)
+	binary.LittleEndian.PutUint64(bs[8:], ui.Hi)
 
 	return state.OK
 }
 
 // PutBytesBigEndian writes the Uint128 to the byte slice bs in big-endian order.
-func (self Uint128) PutBytesBigEndian(bs []byte) state.State {
+func (ui Uint128) PutBytesBigEndian(bs []byte) state.State {
 	if len(bs) < 16 {
 		return state.NotEnoughBytes
 	}
 
-	binary.BigEndian.PutUint64(bs[:8], self.Hi)
-	binary.BigEndian.PutUint64(bs[8:], self.Lo)
+	binary.BigEndian.PutUint64(bs[:8], ui.Hi)
+	binary.BigEndian.PutUint64(bs[8:], ui.Lo)
 
 	return state.OK
 }
 
 // AppendBytes appends the Uint128 to the byte slice bs in little-endian order.
-func (self Uint128) AppendBytes(bs []byte) []byte {
-	bs = binary.LittleEndian.AppendUint64(bs, self.Lo)
-	bs = binary.LittleEndian.AppendUint64(bs, self.Hi)
+func (ui Uint128) AppendBytes(bs []byte) []byte {
+	bs = binary.LittleEndian.AppendUint64(bs, ui.Lo)
+	bs = binary.LittleEndian.AppendUint64(bs, ui.Hi)
 	return bs
 }
 
 // AppendBytesBigEndian appends the Uint128 to the byte slice bs in big-endian order.
-func (self Uint128) AppendBytesBigEndian(bs []byte) []byte {
-	bs = binary.BigEndian.AppendUint64(bs, self.Hi)
-	bs = binary.BigEndian.AppendUint64(bs, self.Lo)
+func (ui Uint128) AppendBytesBigEndian(bs []byte) []byte {
+	bs = binary.BigEndian.AppendUint64(bs, ui.Hi)
+	bs = binary.BigEndian.AppendUint64(bs, ui.Lo)
 	return bs
 }
 
 // ReverseBytes returns the Uint128 with the byte order reversed.
-func (self Uint128) ReverseBytes() Uint128 {
-	return Uint128{bits.ReverseBytes64(self.Hi), bits.ReverseBytes64(self.Lo)}
+func (ui Uint128) ReverseBytes() Uint128 {
+	return Uint128{bits.ReverseBytes64(ui.Hi), bits.ReverseBytes64(ui.Lo)}
 }
 
 // QuoRem256By128 returns quotient, remainder and error.

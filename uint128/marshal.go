@@ -1,14 +1,14 @@
 package uint128
 
 // MarshalText implements the encoding.TextMarshaler interface.
-func (self Uint128) MarshalText() ([]byte, error) {
-	return []byte(self.String()), nil
+func (ui Uint128) MarshalText() ([]byte, error) {
+	return []byte(ui.String()), nil
 }
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
-func (self *Uint128) UnmarshalText(b []byte) error {
+func (ui *Uint128) UnmarshalText(b []byte) error {
 	if len(b) == 0 {
-		*self = Zero
+		*ui = Zero
 		return nil
 	}
 
@@ -17,6 +17,6 @@ func (self *Uint128) UnmarshalText(b []byte) error {
 		return st.Error()
 	}
 
-	*self = r
+	*ui = r
 	return nil
 }
