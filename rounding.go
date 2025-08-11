@@ -17,16 +17,20 @@ func (d Dec128) RoundDown(prec uint8) Dec128 {
 		return d
 	}
 
-	q, r, s := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+	// arg to QuoRem64 will be > 0
+	q, r, _ := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
+
+	// unreachable because QuoRem64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
 
 	if d.state == state.Neg && r > 0 {
-		q, s = q.Add64(1)
-		if s >= state.Error {
-			return Dec128{state: s}
-		}
+		q, _ = q.Add64(1)
+		// unreachable because Add64(1) cannot overflow at this point
+		//if s >= state.Error {
+		//	return Dec128{state: s}
+		//}
 	}
 
 	return Dec128{coef: q, exp: prec, state: d.state}
@@ -47,16 +51,20 @@ func (d Dec128) RoundUp(prec uint8) Dec128 {
 		return d
 	}
 
-	q, r, s := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+	// arg to QuoRem64 will be > 0
+	q, r, _ := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
+
+	// unreachable because QuoRem64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
 
 	if d.state != state.Neg && r > 0 {
-		q, s = q.Add64(1)
-		if s >= state.Error {
-			return Dec128{state: s}
-		}
+		q, _ = q.Add64(1)
+		// unreachable because Add64(1) cannot overflow at this point
+		//if s >= state.Error {
+		//	return Dec128{state: s}
+		//}
 	}
 
 	return Dec128{coef: q, exp: prec, state: d.state}
@@ -91,16 +99,20 @@ func (d Dec128) RoundAwayFromZero(prec uint8) Dec128 {
 		return d
 	}
 
-	q, r, s := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+	// arg to QuoRem64 will be > 0
+	q, r, _ := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
+
+	// unreachable because QuoRem64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
 
 	if r > 0 {
-		q, s = q.Add64(1)
-		if s >= state.Error {
-			return Dec128{state: s}
-		}
+		q, _ = q.Add64(1)
+		// unreachable because Add64(1) cannot overflow at this point
+		//if s >= state.Error {
+		//	return Dec128{state: s}
+		//}
 	}
 
 	return Dec128{coef: q, exp: prec, state: d.state}
@@ -121,19 +133,23 @@ func (d Dec128) RoundHalfTowardZero(prec uint8) Dec128 {
 		return d
 	}
 
+	// factor will be > 0
 	factor := Pow10Uint64[d.exp-prec]
 	half := factor / 2
 
-	q, r, s := d.coef.QuoRem64(factor)
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+	q, r, _ := d.coef.QuoRem64(factor)
+
+	// unreachable because QuoRem64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
 
 	if half < r {
-		q, s = q.Add64(1)
-		if s >= state.Error {
-			return Dec128{state: s}
-		}
+		q, _ = q.Add64(1)
+		// unreachable because Add64(1) cannot overflow at this point
+		//if s >= state.Error {
+		//	return Dec128{state: s}
+		//}
 	}
 
 	return Dec128{coef: q, exp: prec, state: d.state}
@@ -154,19 +170,23 @@ func (d Dec128) RoundHalfAwayFromZero(prec uint8) Dec128 {
 		return d
 	}
 
+	// factor will be > 0
 	factor := Pow10Uint64[d.exp-prec]
 	half := factor / 2
 
-	q, r, s := d.coef.QuoRem64(factor)
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+	q, r, _ := d.coef.QuoRem64(factor)
+
+	// unreachable because QuoRem64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
 
 	if half <= r {
-		q, s = q.Add64(1)
-		if s >= state.Error {
-			return Dec128{state: s}
-		}
+		q, _ = q.Add64(1)
+		// unreachable because Add64(1) cannot overflow at this point
+		//if s >= state.Error {
+		//	return Dec128{state: s}
+		//}
 	}
 
 	return Dec128{coef: q, exp: prec, state: d.state}
@@ -186,19 +206,23 @@ func (d Dec128) RoundBank(prec uint8) Dec128 {
 		return d
 	}
 
+	// factor will be > 0
 	factor := Pow10Uint64[d.exp-prec]
 	half := factor / 2
 
-	q, r, s := d.coef.QuoRem64(factor)
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+	q, r, _ := d.coef.QuoRem64(factor)
+
+	// unreachable because QuoRem64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
 
 	if half < r || (half == r && q.Lo%2 == 1) {
-		q, s = q.Add64(1)
-		if s >= state.Error {
-			return Dec128{state: s}
-		}
+		q, _ = q.Add64(1)
+		// unreachable because Add64(1) cannot overflow at this point
+		//if s >= state.Error {
+		//	return Dec128{state: s}
+		//}
 	}
 
 	return Dec128{coef: q, exp: prec, state: d.state}
@@ -215,10 +239,13 @@ func (d Dec128) Trunc(prec uint8) Dec128 {
 		return d
 	}
 
-	q, _, s := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+	// arg to QuoRem will be > 0
+	q, _, _ := d.coef.QuoRem64(Pow10Uint64[d.exp-prec])
+
+	// unreachable because QuoRem64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
 
 	return Dec128{coef: q, exp: prec, state: d.state}
 }

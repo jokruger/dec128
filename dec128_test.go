@@ -2069,6 +2069,7 @@ func TestDecimalTrunc(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestDecimalParseStringHLE(t *testing.T) {
@@ -2716,11 +2717,24 @@ func TestDecimalMarshalText(t *testing.T) {
 		t.Errorf("expected '1000', got '%s'", b.String())
 	}
 
+	a = FromString("1.23")
+	bs, err = a.MarshalText()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if string(bs) != "1.23" {
+		t.Errorf("expected '1.23', got '%s'", string(bs))
+	}
+
 	if err := b.UnmarshalText(nil); err != nil {
 		t.Errorf("unexpected error unmarshaling text: %v", err)
 	}
 	if b.String() != "0" {
 		t.Errorf("expected '0', got '%s'", b.String())
+	}
+
+	if err := b.UnmarshalText([]byte("qqq")); err == nil {
+		t.Errorf("expected error unmarshaling 'qqq', got nil")
 	}
 }
 
