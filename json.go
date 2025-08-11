@@ -7,18 +7,18 @@ import (
 )
 
 // MarshalJSON implements the json.Marshaler interface.
-func (self Dec128) MarshalJSON() ([]byte, error) {
-	if self.state >= state.Error {
+func (d Dec128) MarshalJSON() ([]byte, error) {
+	if d.state >= state.Error {
 		return NaNJsonStrBytes, nil
 	}
 
-	if self.IsZero() {
+	if d.IsZero() {
 		return ZeroJsonStrBytes, nil
 	}
 
 	buf := [MaxStrLen + 2]byte{}
 	buf[0] = '"'
-	sb, trim := self.appendString(buf[:1])
+	sb, trim := d.appendString(buf[:1])
 	if trim {
 		sb = trimTrailingZeros(sb)
 	}
@@ -28,13 +28,13 @@ func (self Dec128) MarshalJSON() ([]byte, error) {
 var nullValue = []byte("null")
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
-func (self *Dec128) UnmarshalJSON(data []byte) error {
+func (d *Dec128) UnmarshalJSON(data []byte) error {
 	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
 		data = data[1 : len(data)-1]
 	}
 
 	if len(data) == 0 || bytes.Equal(data, nullValue) {
-		*self = Zero
+		*d = Zero
 		return nil
 	}
 
@@ -42,7 +42,7 @@ func (self *Dec128) UnmarshalJSON(data []byte) error {
 	if t.IsNaN() {
 		return t.ErrorDetails()
 	}
-	*self = t
+	*d = t
 
 	return nil
 }

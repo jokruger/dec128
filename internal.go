@@ -35,10 +35,10 @@ var (
 )
 
 // called only when both are not NaN
-func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
-	prec := max(self.exp, other.exp)
+func (d Dec128) tryAdd(other Dec128) (Dec128, bool) {
+	prec := max(d.exp, other.exp)
 
-	a := self.Rescale(prec)
+	a := d.Rescale(prec)
 	if a.state >= state.Error {
 		return a, false
 	}
@@ -75,10 +75,10 @@ func (self Dec128) tryAdd(other Dec128) (Dec128, bool) {
 }
 
 // called only when both are not NaN
-func (self Dec128) trySub(other Dec128) (Dec128, bool) {
-	prec := max(self.exp, other.exp)
+func (d Dec128) trySub(other Dec128) (Dec128, bool) {
+	prec := max(d.exp, other.exp)
 
-	a := self.Rescale(prec)
+	a := d.Rescale(prec)
 	if a.IsNaN() {
 		return a, false
 	}
@@ -118,14 +118,14 @@ func (self Dec128) trySub(other Dec128) (Dec128, bool) {
 }
 
 // called only when both are not NaN
-func (self Dec128) tryMul(other Dec128) (Dec128, bool) {
+func (d Dec128) tryMul(other Dec128) (Dec128, bool) {
 	var st state.State
-	if self.state != other.state {
+	if d.state != other.state {
 		st = state.Neg
 	}
 
-	prec := self.exp + other.exp
-	rcoef, rcarry := self.coef.MulCarry(other.coef)
+	prec := d.exp + other.exp
+	rcoef, rcarry := d.coef.MulCarry(other.coef)
 
 	if rcarry.IsZero() {
 		r := Dec128{coef: rcoef, exp: prec, state: st}
@@ -156,20 +156,20 @@ func (self Dec128) tryMul(other Dec128) (Dec128, bool) {
 }
 
 // called only when both are not NaN
-func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
+func (d Dec128) tryDiv(other Dec128) (Dec128, bool) {
 	factor := other.exp
-	prec := self.exp
+	prec := d.exp
 	if prec < defaultPrecision {
 		factor = factor + defaultPrecision - prec
 		prec = defaultPrecision
 	}
-	u, c := self.coef.MulCarry(Pow10Uint128[factor])
+	u, c := d.coef.MulCarry(Pow10Uint128[factor])
 	q, _, s := uint128.QuoRem256By128(u, c, other.coef)
 	if s >= state.Error {
 		return Dec128{state: s}, false
 	}
 
-	if self.state == other.state {
+	if d.state == other.state {
 		return Dec128{coef: q, exp: prec}, true
 	}
 
@@ -177,49 +177,49 @@ func (self Dec128) tryDiv(other Dec128) (Dec128, bool) {
 }
 
 // called only when both are not NaN
-func (self Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
+func (d Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 	var factor uint8
 	var u uint128.Uint128
 	var c uint128.Uint128
-	var d uint128.Uint128
+	var dv uint128.Uint128
 	var s state.State
 
-	if self.exp == other.exp {
-		factor = self.exp
-		u = self.coef
-		d = other.coef
+	if d.exp == other.exp {
+		factor = d.exp
+		u = d.coef
+		dv = other.coef
 	} else {
-		factor = max(self.exp, other.exp)
-		u, c = self.coef.MulCarry(Pow10Uint128[factor-self.exp])
-		d, s = other.coef.Mul(Pow10Uint128[factor-other.exp])
+		factor = max(d.exp, other.exp)
+		u, c = d.coef.MulCarry(Pow10Uint128[factor-d.exp])
+		dv, s = other.coef.Mul(Pow10Uint128[factor-other.exp])
 		if s >= state.Error {
 			return Dec128{state: s}, Dec128{state: s}, false
 		}
 	}
 
-	q1, r1, s := uint128.QuoRem256By128(u, c, d)
+	q1, r1, s := uint128.QuoRem256By128(u, c, dv)
 	if s >= state.Error {
 		return Dec128{state: s}, Dec128{state: s}, false
 	}
 
-	if self.state == other.state {
-		return Dec128{coef: q1, exp: 0}, Dec128{coef: r1, exp: factor, state: self.state}, true
+	if d.state == other.state {
+		return Dec128{coef: q1, exp: 0}, Dec128{coef: r1, exp: factor, state: d.state}, true
 	}
 
-	return Dec128{coef: q1, exp: 0, state: state.Neg}, Dec128{coef: r1, exp: factor, state: self.state}, true
+	return Dec128{coef: q1, exp: 0, state: state.Neg}, Dec128{coef: r1, exp: factor, state: d.state}, true
 }
 
 // appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal contains a decimal point.
-// called only when self is not NaN
-func (self Dec128) appendString(sb []byte) ([]byte, bool) {
+// called only when d is not NaN
+func (d Dec128) appendString(sb []byte) ([]byte, bool) {
 	buf := [uint128.MaxStrLen]byte{}
-	coef := self.coef.StringToBuf(buf[:])
+	coef := d.coef.StringToBuf(buf[:])
 
-	if self.state == state.Neg {
+	if d.state == state.Neg {
 		sb = append(sb, '-')
 	}
 
-	prec := int(self.exp)
+	prec := int(d.exp)
 	if prec == 0 {
 		return append(sb, coef...), false
 	}
@@ -255,22 +255,22 @@ func trimTrailingZeros(sb []byte) []byte {
 	return sb[:i]
 }
 
-// called only when self is not NaN
-func (self Dec128) trySqrt() (Dec128, bool) {
+// called only when d is not NaN
+func (d Dec128) trySqrt() (Dec128, bool) {
 	prec := defaultPrecision
 	prec2 := prec * 2
-	d := self
+	t := d
 
-	if d.exp > prec2 {
+	if t.exp > prec2 {
 		// scale down to prec2
-		coef, s := d.coef.Div(Pow10Uint128[d.exp-prec2])
+		coef, s := t.coef.Div(Pow10Uint128[t.exp-prec2])
 		if s >= state.Error {
 			return Dec128{state: s}, false
 		}
-		d = Dec128{coef: coef, exp: prec2, state: d.state}
+		t = Dec128{coef: coef, exp: prec2, state: t.state}
 	}
 
-	coef, carry := d.coef.MulCarry(Pow10Uint128[prec2-d.exp])
+	coef, carry := t.coef.MulCarry(Pow10Uint128[prec2-t.exp])
 	if carry.Hi > 0 {
 		return Dec128{state: state.Overflow}, false
 	}

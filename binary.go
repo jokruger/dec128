@@ -8,17 +8,17 @@ import (
 )
 
 // BinarySize returns the number of bytes required to encode this instance of Dec128 in binary form.
-func (self Dec128) BinarySize() int {
+func (d Dec128) BinarySize() int {
 	sz := 1
 
-	if self.state <= state.Error {
-		if self.coef.Hi > 0 {
+	if d.state <= state.Error {
+		if d.coef.Hi > 0 {
 			sz += 8
 		}
-		if self.coef.Lo > 0 {
+		if d.coef.Lo > 0 {
 			sz += 8
 		}
-		if self.exp > 0 {
+		if d.exp > 0 {
 			sz++
 		}
 	}
@@ -27,45 +27,45 @@ func (self Dec128) BinarySize() int {
 }
 
 // EncodeBinary encodes the binary representation of Dec128 into buf. It returns an error if buf is too small, otherwise the number of bytes written into buf.
-func (self Dec128) EncodeBinary(buf []byte) (int, error) {
+func (d Dec128) EncodeBinary(buf []byte) (int, error) {
 	sz := len(buf)
 
 	// Fast path for error state or zero coefficient
-	if self.state >= state.Error || self.coef.IsZero() {
+	if d.state >= state.Error || d.coef.IsZero() {
 		if sz == 0 {
 			return 0, io.ErrShortBuffer
 		}
-		buf[0] = byte(self.state)
+		buf[0] = byte(d.state)
 		return 1, nil
 	}
 
-	flags := byte(self.state)
+	flags := byte(d.state)
 	pos := 1
 
-	if self.coef.Hi > 0 {
+	if d.coef.Hi > 0 {
 		if pos+8 > sz {
 			return pos, io.ErrShortBuffer
 		}
 		flags |= 0b10000000
-		binary.LittleEndian.PutUint64(buf[pos:], self.coef.Hi)
+		binary.LittleEndian.PutUint64(buf[pos:], d.coef.Hi)
 		pos += 8
 	}
 
-	if self.coef.Lo > 0 {
+	if d.coef.Lo > 0 {
 		if pos+8 > sz {
 			return pos, io.ErrShortBuffer
 		}
 		flags |= 0b01000000
-		binary.LittleEndian.PutUint64(buf[pos:], self.coef.Lo)
+		binary.LittleEndian.PutUint64(buf[pos:], d.coef.Lo)
 		pos += 8
 	}
 
-	if self.exp > 0 {
+	if d.exp > 0 {
 		if pos+1 > sz {
 			return pos, io.ErrShortBuffer
 		}
 		flags |= 0b00100000
-		buf[pos] = self.exp
+		buf[pos] = d.exp
 		pos++
 	}
 
@@ -76,7 +76,7 @@ func (self Dec128) EncodeBinary(buf []byte) (int, error) {
 }
 
 // DecodeBinary decodes binary representation of Dec128 from buf. It returns an error if buf is too small, otherwise the number of bytes consumed from buf.
-func (self *Dec128) DecodeBinary(buf []byte) (int, error) {
+func (d *Dec128) DecodeBinary(buf []byte) (int, error) {
 	sz := len(buf)
 	if sz == 0 {
 		return 0, io.ErrShortBuffer
@@ -112,18 +112,18 @@ func (self *Dec128) DecodeBinary(buf []byte) (int, error) {
 		idx++
 	}
 
-	self.state = state.State(flags & 0b00011111)
-	self.coef.Hi = h
-	self.coef.Lo = l
-	self.exp = e
+	d.state = state.State(flags & 0b00011111)
+	d.coef.Hi = h
+	d.coef.Lo = l
+	d.exp = e
 
 	return idx, nil
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface. It encodes Dec128 into a binary form and returns the result.
-func (self Dec128) MarshalBinary() ([]byte, error) {
+func (d Dec128) MarshalBinary() ([]byte, error) {
 	var buf [MaxBytes]byte
-	n, err := self.EncodeBinary(buf[:])
+	n, err := d.EncodeBinary(buf[:])
 	if err != nil {
 		return nil, err
 	}
@@ -131,8 +131,8 @@ func (self Dec128) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
-func (self *Dec128) UnmarshalBinary(data []byte) error {
-	n, err := self.DecodeBinary(data)
+func (d *Dec128) UnmarshalBinary(data []byte) error {
+	n, err := d.DecodeBinary(data)
 	if err != nil {
 		return err
 	}
@@ -143,19 +143,19 @@ func (self *Dec128) UnmarshalBinary(data []byte) error {
 }
 
 // GobEncode implements the gob.GobEncoder interface for gob serialization.
-func (self Dec128) GobEncode() ([]byte, error) {
-	return self.MarshalBinary()
+func (d Dec128) GobEncode() ([]byte, error) {
+	return d.MarshalBinary()
 }
 
 // GobDecode implements the gob.GobDecoder interface for gob serialization.
-func (self *Dec128) GobDecode(data []byte) error {
-	return self.UnmarshalBinary(data)
+func (d *Dec128) GobDecode(data []byte) error {
+	return d.UnmarshalBinary(data)
 }
 
 // AppendBinary appends the binary representation of Dec128 to the end of b (allocating a larger slice if necessary) and returns the updated slice.
-func (self Dec128) AppendBinary(buf []byte) ([]byte, error) {
+func (d Dec128) AppendBinary(buf []byte) ([]byte, error) {
 	var tmp [MaxBytes]byte
-	n, err := self.EncodeBinary(tmp[:])
+	n, err := d.EncodeBinary(tmp[:])
 	if err != nil {
 		return buf, err
 	}
@@ -163,9 +163,9 @@ func (self Dec128) AppendBinary(buf []byte) ([]byte, error) {
 }
 
 // WriteBinary writes the binary representation of Dec128 to w.
-func (self Dec128) WriteBinary(w io.Writer) error {
+func (d Dec128) WriteBinary(w io.Writer) error {
 	var buf [MaxBytes]byte
-	n, err := self.EncodeBinary(buf[:])
+	n, err := d.EncodeBinary(buf[:])
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (self Dec128) WriteBinary(w io.Writer) error {
 }
 
 // ReadBinary reads the binary representation of Dec128 from r.
-func (self *Dec128) ReadBinary(r io.Reader) error {
+func (d *Dec128) ReadBinary(r io.Reader) error {
 	// Use one fixed buffer of 18 bytes.
 	var buf [18]byte
 
@@ -215,10 +215,10 @@ func (self *Dec128) ReadBinary(r io.Reader) error {
 		// idx++ is not needed since no further byte is used.
 	}
 
-	self.state = state.State(flags & 0b00011111)
-	self.coef.Hi = h
-	self.coef.Lo = l
-	self.exp = e
+	d.state = state.State(flags & 0b00011111)
+	d.coef.Hi = h
+	d.coef.Lo = l
+	d.exp = e
 
 	return nil
 }

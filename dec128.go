@@ -40,43 +40,43 @@ func NaN(reason state.State) Dec128 {
 
 // IsZero returns true if the Dec128 is zero.
 // If the Dec128 is NaN, it returns false.
-func (self Dec128) IsZero() bool {
-	return self.state < state.Error && self.coef.IsZero()
+func (d Dec128) IsZero() bool {
+	return d.state < state.Error && d.coef.IsZero()
 }
 
 // IsNegative returns true if the Dec128 is negative and false otherwise.
 // If the Dec128 is NaN, it returns false.
-func (self Dec128) IsNegative() bool {
-	return self.state == state.Neg && !self.coef.IsZero()
+func (d Dec128) IsNegative() bool {
+	return d.state == state.Neg && !d.coef.IsZero()
 }
 
 // IsPositive returns true if the Dec128 is positive and false otherwise.
 // If the Dec128 is NaN, it returns false.
-func (self Dec128) IsPositive() bool {
-	return self.state != state.Neg && self.state < state.Error && !self.coef.IsZero()
+func (d Dec128) IsPositive() bool {
+	return d.state != state.Neg && d.state < state.Error && !d.coef.IsZero()
 }
 
 // IsNaN returns true if the Dec128 is NaN.
-func (self Dec128) IsNaN() bool {
-	return self.state >= state.Error
+func (d Dec128) IsNaN() bool {
+	return d.state >= state.Error
 }
 
 // ErrorDetails returns the error details of the Dec128.
 // If the Dec128 is not NaN, it returns nil.
-func (self Dec128) ErrorDetails() error {
-	if self.state < state.Error {
+func (d Dec128) ErrorDetails() error {
+	if d.state < state.Error {
 		return nil
 	}
-	return self.state.Error()
+	return d.state.Error()
 }
 
 // Sign returns -1 if the Dec128 is negative, 0 if it is zero, and 1 if it is positive.
-func (self Dec128) Sign() int {
-	if self.state >= state.Error || self.coef.IsZero() {
+func (d Dec128) Sign() int {
+	if d.state >= state.Error || d.coef.IsZero() {
 		return 0
 	}
 
-	if self.state == state.Neg {
+	if d.state == state.Neg {
 		return -1
 	}
 
@@ -84,61 +84,61 @@ func (self Dec128) Sign() int {
 }
 
 // Precision returns the precision of the Dec128.
-func (self Dec128) Precision() uint8 {
-	return self.exp
+func (d Dec128) Precision() uint8 {
+	return d.exp
 }
 
 // Rescale returns a new Dec128 with the given precision.
 // If the Dec128 is NaN, it returns itself.
 // In case of errors it returns NaN with the error.
-func (self Dec128) Rescale(prec uint8) Dec128 {
-	if self.state >= state.Error || self.exp == prec {
-		return self
+func (d Dec128) Rescale(prec uint8) Dec128 {
+	if d.state >= state.Error || d.exp == prec {
+		return d
 	}
 
 	if prec > MaxPrecision {
 		return Dec128{state: state.PrecisionOutOfRange}
 	}
 
-	if prec > self.exp {
+	if prec > d.exp {
 		// scale up
-		diff := prec - self.exp
-		coef, s := self.coef.Mul64(Pow10Uint64[diff])
+		diff := prec - d.exp
+		coef, s := d.coef.Mul64(Pow10Uint64[diff])
 		if s >= state.Error {
 			return Dec128{state: s}
 		}
-		return Dec128{coef: coef, exp: prec, state: self.state}
+		return Dec128{coef: coef, exp: prec, state: d.state}
 	}
 
 	// scale down
-	diff := self.exp - prec
-	coef, s := self.coef.Div64(Pow10Uint64[diff])
+	diff := d.exp - prec
+	coef, s := d.coef.Div64(Pow10Uint64[diff])
 	if s >= state.Error {
 		return Dec128{state: s}
 	}
-	return Dec128{coef: coef, exp: prec, state: self.state}
+	return Dec128{coef: coef, exp: prec, state: d.state}
 }
 
 // Equal returns true if the Dec128 is equal to the other Dec128.
-func (self Dec128) Equal(other Dec128) bool {
-	if self.state != other.state {
+func (d Dec128) Equal(other Dec128) bool {
+	if d.state != other.state {
 		return false
 	}
 
-	if self.state >= state.Error {
+	if d.state >= state.Error {
 		return true
 	}
 
-	if self.exp == other.exp {
-		return self.coef.Equal(other.coef)
+	if d.exp == other.exp {
+		return d.coef.Equal(other.coef)
 	}
 
-	if self.coef.IsZero() && other.coef.IsZero() {
+	if d.coef.IsZero() && other.coef.IsZero() {
 		return true
 	}
 
-	prec := max(self.exp, other.exp)
-	a := self.Rescale(prec)
+	prec := max(d.exp, other.exp)
+	a := d.Rescale(prec)
 	b := other.Rescale(prec)
 	if !a.IsNaN() && !b.IsNaN() {
 		return a.coef.Equal(b.coef)
@@ -149,12 +149,12 @@ func (self Dec128) Equal(other Dec128) bool {
 
 // Compare returns -1 if the Dec128 is less than the other Dec128, 0 if they are equal, and 1 if the Dec128 is greater than the other Dec128.
 // NaN is considered less than any valid Dec128.
-func (self Dec128) Compare(other Dec128) int {
-	if self.state >= state.Error && other.state >= state.Error {
+func (d Dec128) Compare(other Dec128) int {
+	if d.state >= state.Error && other.state >= state.Error {
 		return 0
 	}
 
-	if self.state >= state.Error {
+	if d.state >= state.Error {
 		return -1
 	}
 
@@ -162,7 +162,7 @@ func (self Dec128) Compare(other Dec128) int {
 		return 1
 	}
 
-	sneg := self.IsNegative()
+	sneg := d.IsNegative()
 	oneg := other.IsNegative()
 
 	if sneg && !oneg {
@@ -173,19 +173,19 @@ func (self Dec128) Compare(other Dec128) int {
 		return 1
 	}
 
-	if self.coef.IsZero() && other.coef.IsZero() {
+	if d.coef.IsZero() && other.coef.IsZero() {
 		return 0
 	}
 
-	if self.exp == other.exp {
+	if d.exp == other.exp {
 		if sneg {
-			return -self.coef.Compare(other.coef)
+			return -d.coef.Compare(other.coef)
 		}
-		return self.coef.Compare(other.coef)
+		return d.coef.Compare(other.coef)
 	}
 
-	prec := max(self.exp, other.exp)
-	a := self.Rescale(prec)
+	prec := max(d.exp, other.exp)
+	a := d.Rescale(prec)
 	if a.IsNaN() {
 		return 1
 	}
@@ -203,21 +203,21 @@ func (self Dec128) Compare(other Dec128) int {
 
 // Canonical returns a new Dec128 with the canonical representation.
 // If the Dec128 is NaN, it returns itself.
-func (self Dec128) Canonical() Dec128 {
-	if self.state >= state.Error {
-		return Dec128{state: self.state}
+func (d Dec128) Canonical() Dec128 {
+	if d.state >= state.Error {
+		return Dec128{state: d.state}
 	}
 
-	if self.IsZero() {
+	if d.IsZero() {
 		return Zero
 	}
 
-	if self.exp == 0 {
-		return self
+	if d.exp == 0 {
+		return d
 	}
 
-	coef := self.coef
-	exp := self.exp
+	coef := d.coef
+	exp := d.exp
 	for {
 		t, r, s := coef.QuoRem64(10)
 		if s >= state.Error || r > 0 {
@@ -230,59 +230,59 @@ func (self Dec128) Canonical() Dec128 {
 		}
 	}
 
-	return Dec128{coef: coef, exp: exp, state: self.state}
+	return Dec128{coef: coef, exp: exp, state: d.state}
 }
 
 // Exponent returns the exponent of the Dec128.
-func (self Dec128) Exponent() uint8 {
-	return self.exp
+func (d Dec128) Exponent() uint8 {
+	return d.exp
 }
 
 // Coefficient returns the coefficient of the Dec128.
-func (self Dec128) Coefficient() uint128.Uint128 {
-	return self.coef
+func (d Dec128) Coefficient() uint128.Uint128 {
+	return d.coef
 }
 
 // LessThan returns true if the Dec128 is less than the other Dec128.
-func (self Dec128) LessThan(other Dec128) bool {
-	return self.Compare(other) < 0
+func (d Dec128) LessThan(other Dec128) bool {
+	return d.Compare(other) < 0
 }
 
 // LessThanOrEqual returns true if the Dec128 is less than or equal to the other Dec128.
-func (self Dec128) LessThanOrEqual(other Dec128) bool {
-	return self.Compare(other) <= 0
+func (d Dec128) LessThanOrEqual(other Dec128) bool {
+	return d.Compare(other) <= 0
 }
 
 // GreaterThan returns true if the Dec128 is greater than the other Dec128.
-func (self Dec128) GreaterThan(other Dec128) bool {
-	return self.Compare(other) > 0
+func (d Dec128) GreaterThan(other Dec128) bool {
+	return d.Compare(other) > 0
 }
 
 // GreaterThanOrEqual returns true if the Dec128 is greater than or equal to the other Dec128.
-func (self Dec128) GreaterThanOrEqual(other Dec128) bool {
-	return self.Compare(other) >= 0
+func (d Dec128) GreaterThanOrEqual(other Dec128) bool {
+	return d.Compare(other) >= 0
 }
 
 // Copy returns a copy of the Dec128.
-func (self Dec128) Copy() Dec128 {
-	return Dec128{coef: self.coef, exp: self.exp, state: self.state}
+func (d Dec128) Copy() Dec128 {
+	return Dec128{coef: d.coef, exp: d.exp, state: d.state}
 }
 
 // Scan implements the sql.Scanner interface.
-func (self *Dec128) Scan(src any) error {
+func (d *Dec128) Scan(src any) error {
 	var err error
 	switch v := src.(type) {
 	case string:
-		*self = FromString(v)
-		if self.IsNaN() {
-			err = self.ErrorDetails()
+		*d = FromString(v)
+		if d.IsNaN() {
+			err = d.ErrorDetails()
 		}
 	case int:
-		*self = FromInt64(int64(v))
+		*d = FromInt64(int64(v))
 	case int64:
-		*self = FromInt64(v)
+		*d = FromInt64(v)
 	case nil:
-		*self = Zero
+		*d = Zero
 	default:
 		err = fmt.Errorf("can't scan %T to Dec128: %T is not supported", src, src)
 	}
@@ -291,6 +291,6 @@ func (self *Dec128) Scan(src any) error {
 }
 
 // Value implements the driver.Valuer interface.
-func (self Dec128) Value() (driver.Value, error) {
-	return self.String(), nil
+func (d Dec128) Value() (driver.Value, error) {
+	return d.String(), nil
 }
