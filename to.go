@@ -128,6 +128,12 @@ func (self Dec128) StringFixed() string {
 	return string(sb)
 }
 
+// Int returns the integer part of the Dec128 as int.
+func (self Dec128) Int() (int, error) {
+	i, err := self.EncodeToInt64(0)
+	return int(i), err
+}
+
 // Int64 returns the integer part of the Dec128 as int64.
 func (self Dec128) Int64() (int64, error) {
 	return self.EncodeToInt64(0)

@@ -213,6 +213,11 @@ func DecodeFromInt64(coef int64, exp uint8) Dec128 {
 	return Dec128{coef: uint128.FromUint64(uint64(coef)), exp: exp}
 }
 
+// FromInt creates a new Dec128 from an int.
+func FromInt(i int) Dec128 {
+	return DecodeFromInt64(int64(i), 0)
+}
+
 // FromInt64 creates a new Dec128 from an int64.
 func FromInt64(i int64) Dec128 {
 	return DecodeFromInt64(i, 0)

@@ -28,6 +28,13 @@ func (self Dec128) Add(other Dec128) Dec128 {
 	return Dec128{state: state.Overflow}
 }
 
+// AddInt returns the sum of the Dec128 and the int.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, the result will be NaN.
+func (self Dec128) AddInt(other int) Dec128 {
+	return self.AddInt64(int64(other))
+}
+
 // AddInt64 returns the sum of the Dec128 and the int.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
@@ -59,6 +66,13 @@ func (self Dec128) Sub(other Dec128) Dec128 {
 
 	// If subtraction could not be performed without overflow, return an overflow Dec128.
 	return Dec128{state: state.Overflow}
+}
+
+// SubInt returns the difference of the Dec128 and the int.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow/underflow, the result will be NaN.
+func (self Dec128) SubInt(other int) Dec128 {
+	return self.SubInt64(int64(other))
 }
 
 // SubInt64 returns the difference of the Dec128 and the int.
@@ -97,6 +111,13 @@ func (self Dec128) Mul(other Dec128) Dec128 {
 	}
 
 	return Dec128{state: state.Overflow}
+}
+
+// MulInt returns self * other.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, the result will be NaN.
+func (self Dec128) MulInt(other int) Dec128 {
+	return self.MulInt64(int64(other))
 }
 
 // MulInt64 returns self * other.
@@ -139,6 +160,13 @@ func (self Dec128) Div(other Dec128) Dec128 {
 	}
 
 	return Dec128{state: state.Overflow}
+}
+
+// DivInt returns self / other.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (self Dec128) DivInt(other int) Dec128 {
+	return self.DivInt64(int64(other))
 }
 
 // DivInt64 returns self / other.

@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/jokruger/dec128.svg)](https://pkg.go.dev/github.com/jokruger/dec128)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jokruger/dec128)](https://goreportcard.com/report/github.com/jokruger/dec128)
+[![codecov](https://codecov.io/gh/jokruger/dec128/graph/badge.svg?token=TQWE8PA4AN)](https://codecov.io/gh/jokruger/dec128)
 
 128-bit fixed-point decimal numbers in go.
 

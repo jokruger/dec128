@@ -130,6 +130,14 @@ func TestDecimalBasics1(t *testing.T) {
 	if !a.IsNaN() {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
+
+	for i := range 1000 {
+		j := i - 500
+		a = FromInt(j)
+		if b, err := a.Int(); err != nil || b != j {
+			t.Errorf("expected %d, got: %d, error: %v", j, b, err)
+		}
+	}
 }
 
 func TestDecimalBasics2(t *testing.T) {
@@ -2743,5 +2751,82 @@ func TestDecimalTo(t *testing.T) {
 	}
 	if _, err := a.EncodeToInt64(0); err == nil {
 		t.Errorf("expected error, got nil")
+	}
+}
+
+func TestDecimalSymmetry(t *testing.T) {
+	SetDefaultPrecision(6)
+
+	var a, b, c Dec128
+
+	i, _ := FromInt(10).AddInt(3).SubInt(5).Int()
+	if i != 8 {
+		t.Errorf("expected 8, got %d", i)
+	}
+
+	i, _ = FromInt(10).MulInt(4).DivInt(2).Int()
+	if i != 20 {
+		t.Errorf("expected 20, got %d", i)
+	}
+
+	tcs := [...]string{
+		"0",
+		"1",
+		"0.1",
+		"0.01",
+		"0.1000",
+		"0.1000000000000000000",
+	}
+
+	for _, e := range tcs {
+		a = FromString(e)
+		if a.IsNaN() {
+			t.Errorf("expected no error, got: %v", a.ErrorDetails())
+		}
+
+		t.Run(fmt.Sprintf("add-sub %s", e), func(t *testing.T) {
+			c = a.Add(a).Sub(a)
+			if c.String() != a.String() {
+				t.Errorf("expected %s, got %s", a.String(), c.String())
+			}
+
+			c = a.Sub(a).Add(a)
+			if c.String() != a.String() {
+				t.Errorf("expected %s, got %s", a.String(), c.String())
+			}
+
+			for _, i := range []string{"1", "5", "10", "100", "1000", "1000000000", "0.1000000", "0.1000000000000000000"} {
+				b = FromString(i)
+				c = a.Add(b).Sub(b)
+				if c.String() != a.String() {
+					t.Errorf("expected %s, got %s (b = %s)", a.String(), c.String(), b.String())
+				}
+
+				c = a.Sub(b).Add(b)
+				if c.String() != a.String() {
+					t.Errorf("expected %s, got %s (b = %s)", a.String(), c.String(), b.String())
+				}
+			}
+		})
+
+		t.Run(fmt.Sprintf("mul-div %s", e), func(t *testing.T) {
+			for _, i := range []string{"1", "2", "3", "10", "100", "1000", "0.1000000", "0.1000000000000000000"} {
+				b = FromString(i)
+				c = a.Mul(b).Div(b)
+				if c.String() != a.String() {
+					t.Errorf("expected %s, got %s (b = %s)", a.String(), c.String(), b.String())
+				}
+			}
+		})
+
+		t.Run(fmt.Sprintf("div-mul %s", e), func(t *testing.T) {
+			for _, i := range []string{"1", "2", "4", "5", "8", "10", "100", "1000", "0.1000000", "0.1000000000000000000"} {
+				b = FromString(i)
+				c = a.Div(b).Mul(b)
+				if c.String() != a.String() {
+					t.Errorf("expected %s, got %s (b = %s)", a.String(), c.String(), b.String())
+				}
+			}
+		})
 	}
 }
