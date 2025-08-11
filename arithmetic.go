@@ -211,6 +211,13 @@ func (d Dec128) Mod(other Dec128) Dec128 {
 	return Dec128{state: state.Overflow}
 }
 
+// ModInt returns d % other.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (d Dec128) ModInt(other int) Dec128 {
+	return d.ModInt64(int64(other))
+}
+
 // ModInt64 returns d % other.
 // If Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
@@ -251,6 +258,13 @@ func (d Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
 	}
 
 	return Dec128{state: state.Overflow}, Dec128{state: state.Overflow}
+}
+
+// QuoRemInt returns the quotient and remainder of the division of Dec128 by int.
+// If Dec128 is NaN, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (d Dec128) QuoRemInt(other int) (Dec128, Dec128) {
+	return d.QuoRemInt64(int64(other))
 }
 
 // QuoRemInt64 returns the quotient and remainder of the division of Dec128 by int.
@@ -320,12 +334,17 @@ func (d Dec128) Sqrt() Dec128 {
 
 // PowInt returns Dec128 raised to the power of n.
 func (d Dec128) PowInt(n int) Dec128 {
+	return d.PowInt64(int64(n))
+}
+
+// PowInt64 returns Dec128 raised to the power of n.
+func (d Dec128) PowInt64(n int64) Dec128 {
 	if d.state >= state.Error {
 		return d
 	}
 
 	if n < 0 {
-		return One.Div(d.PowInt(-n))
+		return One.Div(d.PowInt64(-n))
 	}
 
 	if n == 0 {
@@ -337,8 +356,8 @@ func (d Dec128) PowInt(n int) Dec128 {
 	}
 
 	if (n & 1) == 0 {
-		return d.Mul(d).PowInt(n / 2)
+		return d.Mul(d).PowInt64(n / 2)
 	}
 
-	return d.Mul(d).PowInt((n - 1) / 2).Mul(d)
+	return d.Mul(d).PowInt64((n - 1) / 2).Mul(d)
 }

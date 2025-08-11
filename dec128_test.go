@@ -183,12 +183,12 @@ func TestDecimalBasics2(t *testing.T) {
 func TestDecimalBasics3(t *testing.T) {
 	SetDefaultPrecision(19)
 
-	a := FromString("4").ModInt64(3)
+	a := FromString("4").ModInt(3)
 	if a.String() != "1" {
 		t.Errorf("expected '1', got: %s", a.String())
 	}
 
-	q, r := FromString("4").QuoRemInt64(3)
+	q, r := FromString("4").QuoRemInt(3)
 	if q.String() != "1" {
 		t.Errorf("expected '1', got: %s", q.String())
 	}
