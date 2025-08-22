@@ -169,34 +169,35 @@ func (ui Uint128) QuoRem(other Uint128) (Uint128, Uint128, state.State) {
 			return Zero, Zero, s
 		}
 		r = FromUint64(r64)
-	} else {
-		n := uint(bits.LeadingZeros64(other.Hi))
-		v1 := other.Lsh(n)
-		u1 := ui.Rsh(1)
-		tq, _ := bits.Div64(u1.Hi, u1.Lo, v1.Hi)
-		tq >>= 63 - n
-		if tq > 0 {
-			tq--
-		}
-		q = FromUint64(tq)
-		var m Uint128
-		m, s = other.Mul64(tq)
+		return q, r, state.OK
+	}
+
+	n := uint(bits.LeadingZeros64(other.Hi))
+	v1 := other.Lsh(n)
+	u1 := ui.Rsh(1)
+	tq, _ := bits.Div64(u1.Hi, u1.Lo, v1.Hi)
+	tq >>= 63 - n
+	if tq > 0 {
+		tq--
+	}
+	q = FromUint64(tq)
+	var m Uint128
+	m, s = other.Mul64(tq)
+	if s >= state.Error {
+		return Zero, Zero, s
+	}
+	r, s = ui.Sub(m)
+	if s >= state.Error {
+		return Zero, Zero, s
+	}
+	if r.Compare(other) >= 0 {
+		q, s = q.Add64(1)
 		if s >= state.Error {
 			return Zero, Zero, s
 		}
-		r, s = ui.Sub(m)
+		r, s = r.Sub(other)
 		if s >= state.Error {
 			return Zero, Zero, s
-		}
-		if r.Compare(other) >= 0 {
-			q, s = q.Add64(1)
-			if s >= state.Error {
-				return Zero, Zero, s
-			}
-			r, s = r.Sub(other)
-			if s >= state.Error {
-				return Zero, Zero, s
-			}
 		}
 	}
 

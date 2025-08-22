@@ -40,11 +40,10 @@ func FromBigInt(i *big.Int) (Uint128, state.State) {
 func FromString[S string | []byte](s S) (Uint128, state.State) {
 	sz := len(s)
 
-	if sz == 0 {
+	switch {
+	case sz == 0:
 		return Zero, state.OK
-	}
-
-	if sz <= MaxSafeStrLen64 {
+	case sz <= MaxSafeStrLen64:
 		// can be safely parsed as uint64
 		var u uint64
 		for i := range sz {
@@ -93,11 +92,10 @@ func FromString[S string | []byte](s S) (Uint128, state.State) {
 func FromSafeString[S string | []byte](s S) (Uint128, state.State) {
 	sz := len(s)
 
-	if sz == 0 {
+	switch {
+	case sz == 0:
 		return Zero, state.OK
-	}
-
-	if sz <= MaxSafeStrLen64 {
+	case sz <= MaxSafeStrLen64:
 		// can be safely parsed as uint64
 		var u uint64
 		for i := range sz {
