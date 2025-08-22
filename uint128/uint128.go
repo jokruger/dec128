@@ -19,15 +19,14 @@ func (ui Uint128) Equal(other Uint128) bool {
 
 // Compare returns -1 if the value is less than the other value, 0 if the value is equal to the other value, and 1 if the value is greater than the other value.
 func (ui Uint128) Compare(other Uint128) int {
-	if ui == other {
+	switch {
+	case ui == other:
 		return 0
-	}
-
-	if ui.Hi < other.Hi || (ui.Hi == other.Hi && ui.Lo < other.Lo) {
+	case ui.Hi < other.Hi || (ui.Hi == other.Hi && ui.Lo < other.Lo):
 		return -1
+	default:
+		return 1
 	}
-
-	return 1
 }
 
 // BitLen returns the number of bits required to represent the value.

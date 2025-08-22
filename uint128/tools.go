@@ -52,17 +52,14 @@ func (ui Uint128) ReverseBytes() Uint128 {
 
 // QuoRem256By128 returns quotient, remainder and error.
 func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, state.State) {
-	if carry.IsZero() {
+	switch {
+	case carry.IsZero():
 		return Uint128{Lo: u.Lo, Hi: u.Hi}.QuoRem(v)
-	}
-
-	if v.Hi == 0 && carry.Hi == 0 {
+	case v.Hi == 0 && carry.Hi == 0:
 		q, r, e := QuoRem192By64(u, carry.Lo, v.Lo)
 		return q, Uint128{Lo: r}, e
-	}
-
-	// now we have u192 / u128 or u256 / u128
-	if carry.Compare(v) >= 0 {
+	case carry.Compare(v) >= 0:
+		// now we have u192 / u128 or u256 / u128
 		// obviously the result won't fit into u128
 		return Zero, Zero, state.Overflow
 	}
