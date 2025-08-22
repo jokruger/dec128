@@ -202,15 +202,14 @@ func DecodeFromUint64(coef uint64, exp uint8) Dec128 {
 
 // DecodeFromInt64 decodes a Dec128 from a int64 and an exponent.
 func DecodeFromInt64(coef int64, exp uint8) Dec128 {
-	if coef == -9223372036854775808 {
+	switch {
+	case coef == -9223372036854775808:
 		return Dec128{coef: uint128.FromUint64(9223372036854775808), exp: exp, state: state.Neg}
-	}
-
-	if coef < 0 {
+	case coef < 0:
 		return Dec128{coef: uint128.FromUint64(uint64(-coef)), exp: exp, state: state.Neg}
+	default:
+		return Dec128{coef: uint128.FromUint64(uint64(coef)), exp: exp}
 	}
-
-	return Dec128{coef: uint128.FromUint64(uint64(coef)), exp: exp}
 }
 
 // FromInt creates a new Dec128 from an int.

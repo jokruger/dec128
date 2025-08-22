@@ -1193,6 +1193,9 @@ func TestSqrt1(t *testing.T) {
 		{"1000", "31.6227766016837933199", ""},
 		{"31.6227766016837933199", "5.6234132519034908039", ""},
 		{"4.000000000000000000", "2", ""},
+		{"0.0000000000000000004", "0.000000000632455532", ""},
+		{"0.00000000000000000004", "NaN", "precision out of range"},
+		{"0.000000000000000000004", "NaN", "precision out of range"},
 	}
 
 	for _, tc := range testCases {
@@ -2532,6 +2535,26 @@ func TestBinary(t *testing.T) {
 		}
 		if !a.Equal(b) {
 			t.Errorf("expected %s, got %s", a.String(), b.String())
+		}
+	})
+
+	t.Run("error", func(t *testing.T) {
+		bs := make([]byte, 1)
+
+		_, err := Dec128{coef: uint128.Uint128{Lo: 0, Hi: 1}, exp: 0}.EncodeBinary(bs)
+		if err == nil {
+			t.Errorf("expected error for short slice, got nil")
+		}
+
+		_, err = Dec128{coef: uint128.Uint128{Lo: 1, Hi: 0}, exp: 0}.EncodeBinary(bs)
+		if err == nil {
+			t.Errorf("expected error for short slice, got nil")
+		}
+
+		bs = make([]byte, 17)
+		_, err = Dec128{coef: uint128.Uint128{Lo: 1, Hi: 1}, exp: 1}.EncodeBinary(bs)
+		if err == nil {
+			t.Errorf("expected error for short slice, got nil")
 		}
 	})
 

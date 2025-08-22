@@ -41,11 +41,10 @@ func (d Dec128) EncodeToInt64(exp uint8) (int64, error) {
 // EncodeToUint64 returns the Dec128 encoded as uint64 coefficient with requested exponent.
 // Negative and too large values are not allowed.
 func (d Dec128) EncodeToUint64(exp uint8) (uint64, error) {
-	if d.state < state.Error && d.coef.IsZero() {
+	switch {
+	case d.state < state.Error && d.coef.IsZero():
 		return 0, nil
-	}
-
-	if d.state == state.Neg {
+	case d.state == state.Neg:
 		return 0, state.NegativeInUnsignedOp.Error()
 	}
 
@@ -65,11 +64,10 @@ func (d Dec128) EncodeToUint64(exp uint8) (uint64, error) {
 // EncodeToUint128 returns the Dec128 encoded as uint128 coefficient with requested exponent.
 // Negative values are not allowed.
 func (d Dec128) EncodeToUint128(exp uint8) (uint128.Uint128, error) {
-	if d.state < state.Error && d.coef.IsZero() {
+	switch {
+	case d.state < state.Error && d.coef.IsZero():
 		return uint128.Zero, nil
-	}
-
-	if d.state == state.Neg {
+	case d.state == state.Neg:
 		return uint128.Zero, state.NegativeInUnsignedOp.Error()
 	}
 
@@ -95,11 +93,10 @@ func (d Dec128) String() string {
 func (d Dec128) StringToBuf(buf []byte) []byte {
 	buf = buf[:0]
 
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return append(buf, NaNStr...)
-	}
-
-	if d.coef.IsZero() {
+	case d.coef.IsZero():
 		return append(buf, ZeroStr...)
 	}
 
@@ -114,11 +111,10 @@ func (d Dec128) StringToBuf(buf []byte) []byte {
 // StringFixed returns the string representation of the Dec128 with the trailing zeros preserved.
 // If the Dec128 is NaN, the string "NaN" is returned.
 func (d Dec128) StringFixed() string {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return NaNStr
-	}
-
-	if d.coef.IsZero() {
+	case d.coef.IsZero():
 		return zeroStrs[d.exp]
 	}
 

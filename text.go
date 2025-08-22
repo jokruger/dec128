@@ -6,11 +6,10 @@ import (
 
 // MarshalText implements the encoding.TextMarshaler interface.
 func (d Dec128) MarshalText() ([]byte, error) {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return NaNStrBytes, nil
-	}
-
-	if d.IsZero() {
+	case d.IsZero():
 		return ZeroStrBytes, nil
 	}
 

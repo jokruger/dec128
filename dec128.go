@@ -72,15 +72,14 @@ func (d Dec128) ErrorDetails() error {
 
 // Sign returns -1 if the Dec128 is negative, 0 if it is zero, and 1 if it is positive.
 func (d Dec128) Sign() int {
-	if d.state >= state.Error || d.coef.IsZero() {
+	switch {
+	case d.state >= state.Error || d.coef.IsZero():
 		return 0
-	}
-
-	if d.state == state.Neg {
+	case d.state == state.Neg:
 		return -1
+	default:
+		return 1
 	}
-
-	return 1
 }
 
 // Precision returns the precision of the Dec128.
@@ -121,19 +120,14 @@ func (d Dec128) Rescale(prec uint8) Dec128 {
 
 // Equal returns true if the Dec128 is equal to the other Dec128.
 func (d Dec128) Equal(other Dec128) bool {
-	if d.state != other.state {
+	switch {
+	case d.state != other.state:
 		return false
-	}
-
-	if d.state >= state.Error {
+	case d.state >= state.Error:
 		return true
-	}
-
-	if d.exp == other.exp {
+	case d.exp == other.exp:
 		return d.coef.Equal(other.coef)
-	}
-
-	if d.coef.IsZero() && other.coef.IsZero() {
+	case d.coef.IsZero() && other.coef.IsZero():
 		return true
 	}
 
@@ -150,34 +144,26 @@ func (d Dec128) Equal(other Dec128) bool {
 // Compare returns -1 if the Dec128 is less than the other Dec128, 0 if they are equal, and 1 if the Dec128 is greater than the other Dec128.
 // NaN is considered less than any valid Dec128.
 func (d Dec128) Compare(other Dec128) int {
-	if d.state >= state.Error && other.state >= state.Error {
+	switch {
+	case d.state >= state.Error && other.state >= state.Error:
 		return 0
-	}
-
-	if d.state >= state.Error {
+	case d.state >= state.Error:
 		return -1
-	}
-
-	if other.state >= state.Error {
+	case other.state >= state.Error:
 		return 1
 	}
 
 	sneg := d.IsNegative()
 	oneg := other.IsNegative()
 
-	if sneg && !oneg {
+	switch {
+	case sneg && !oneg:
 		return -1
-	}
-
-	if !sneg && oneg {
+	case !sneg && oneg:
 		return 1
-	}
-
-	if d.coef.IsZero() && other.coef.IsZero() {
+	case d.coef.IsZero() && other.coef.IsZero():
 		return 0
-	}
-
-	if d.exp == other.exp {
+	case d.exp == other.exp:
 		if sneg {
 			return -d.coef.Compare(other.coef)
 		}
@@ -204,15 +190,12 @@ func (d Dec128) Compare(other Dec128) int {
 // Canonical returns a new Dec128 with the canonical representation.
 // If the Dec128 is NaN, it returns itself.
 func (d Dec128) Canonical() Dec128 {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return Dec128{state: d.state}
-	}
-
-	if d.IsZero() {
+	case d.IsZero():
 		return Zero
-	}
-
-	if d.exp == 0 {
+	case d.exp == 0:
 		return d
 	}
 

@@ -8,11 +8,10 @@ import (
 
 // MarshalJSON implements the json.Marshaler interface.
 func (d Dec128) MarshalJSON() ([]byte, error) {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return NaNJsonStrBytes, nil
-	}
-
-	if d.IsZero() {
+	case d.IsZero():
 		return ZeroJsonStrBytes, nil
 	}
 

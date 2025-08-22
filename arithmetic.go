@@ -7,10 +7,10 @@ import "github.com/jokruger/dec128/state"
 // In case of overflow, the result will be NaN.
 func (d Dec128) Add(other Dec128) Dec128 {
 	// Return immediately if either value is in an error state.
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-	if other.state >= state.Error {
+	case other.state >= state.Error:
 		return other
 	}
 
@@ -47,10 +47,10 @@ func (d Dec128) AddInt64(other int64) Dec128 {
 // In case of overflow/underflow, the result will be NaN.
 func (d Dec128) Sub(other Dec128) Dec128 {
 	// Return immediately if either value is in an error state.
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-	if other.state >= state.Error {
+	case other.state >= state.Error:
 		return other
 	}
 
@@ -86,15 +86,12 @@ func (d Dec128) SubInt64(other int64) Dec128 {
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (d Dec128) Mul(other Dec128) Dec128 {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-
-	if other.state >= state.Error {
+	case other.state >= state.Error:
 		return other
-	}
-
-	if d.coef.IsZero() || other.coef.IsZero() {
+	case d.coef.IsZero() || other.coef.IsZero():
 		return Zero
 	}
 
@@ -132,19 +129,14 @@ func (d Dec128) MulInt64(other int64) Dec128 {
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (d Dec128) Div(other Dec128) Dec128 {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-
-	if other.state >= state.Error {
+	case other.state >= state.Error:
 		return other
-	}
-
-	if other.coef.IsZero() {
+	case other.coef.IsZero():
 		return Dec128{state: state.DivisionByZero}
-	}
-
-	if d.coef.IsZero() {
+	case d.coef.IsZero():
 		return Zero
 	}
 
@@ -181,19 +173,14 @@ func (d Dec128) DivInt64(other int64) Dec128 {
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (d Dec128) Mod(other Dec128) Dec128 {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-
-	if other.state >= state.Error {
+	case other.state >= state.Error:
 		return other
-	}
-
-	if other.coef.IsZero() {
+	case other.coef.IsZero():
 		return Dec128{state: state.DivisionByZero}
-	}
-
-	if d.coef.IsZero() {
+	case d.coef.IsZero():
 		return Zero
 	}
 
@@ -230,19 +217,14 @@ func (d Dec128) ModInt64(other int64) Dec128 {
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (d Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d, d
-	}
-
-	if other.state >= state.Error {
+	case other.state >= state.Error:
 		return other, other
-	}
-
-	if other.coef.IsZero() {
+	case other.coef.IsZero():
 		return Dec128{state: state.DivisionByZero}, Dec128{state: state.DivisionByZero}
-	}
-
-	if d.coef.IsZero() {
+	case d.coef.IsZero():
 		return Zero, Zero
 	}
 
@@ -287,15 +269,14 @@ func (d Dec128) Abs() Dec128 {
 // Neg returns -d
 // If Dec128 is NaN, the result will be NaN.
 func (d Dec128) Neg() Dec128 {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-
-	if d.state == state.Neg {
+	case d.state == state.Neg:
 		return Dec128{coef: d.coef, exp: d.exp}
+	default:
+		return Dec128{coef: d.coef, exp: d.exp, state: state.Neg}
 	}
-
-	return Dec128{coef: d.coef, exp: d.exp, state: state.Neg}
 }
 
 // Sqrt returns the square root of the Dec128.
@@ -303,19 +284,14 @@ func (d Dec128) Neg() Dec128 {
 // If Dec128 is negative, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (d Dec128) Sqrt() Dec128 {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-
-	if d.coef.IsZero() {
+	case d.coef.IsZero():
 		return Zero
-	}
-
-	if d.state == state.Neg {
+	case d.state == state.Neg:
 		return Dec128{state: state.SqrtNegative}
-	}
-
-	if d.Equal(One) {
+	case d.Equal(One):
 		return One
 	}
 
@@ -341,25 +317,18 @@ func (d Dec128) PowInt(n int) Dec128 {
 
 // PowInt64 returns Dec128 raised to the power of n.
 func (d Dec128) PowInt64(n int64) Dec128 {
-	if d.state >= state.Error {
+	switch {
+	case d.state >= state.Error:
 		return d
-	}
-
-	if n < 0 {
+	case n < 0:
 		return One.Div(d.PowInt64(-n))
-	}
-
-	if n == 0 {
+	case n == 0:
 		return One
-	}
-
-	if n == 1 {
+	case n == 1:
 		return d
-	}
-
-	if (n & 1) == 0 {
+	case (n & 1) == 0:
 		return d.Mul(d).PowInt64(n / 2)
+	default:
+		return d.Mul(d).PowInt64((n - 1) / 2).Mul(d)
 	}
-
-	return d.Mul(d).PowInt64((n - 1) / 2).Mul(d)
 }
