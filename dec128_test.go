@@ -15,38 +15,36 @@ import (
 func assertDecimal(s string, isNaN bool, isZero bool, isNegative bool, isPositive bool) error {
 	d := FromString(s)
 
-	if isNaN {
-		if !d.IsNaN() {
-			return fmt.Errorf("expected NaN, got: %s", d.String())
-		}
-	} else {
-		if d.IsNaN() {
-			return fmt.Errorf("expected not NaN")
-		}
-		if d.String() != s {
-			return fmt.Errorf("expected %s, got: %s", s, d.String())
-		}
+	switch {
+	case isNaN && !d.IsNaN():
+		return fmt.Errorf("expected NaN, got: %s", d.String())
+	case !isNaN && d.IsNaN():
+		return fmt.Errorf("expected not NaN")
 	}
 
-	if isZero && !d.IsZero() {
+	switch {
+	case isZero && !d.IsZero():
 		return fmt.Errorf("expected zero")
-	}
-	if !isZero && d.IsZero() {
+	case !isZero && d.IsZero():
 		return fmt.Errorf("expected not zero")
 	}
 
-	if isNegative && !d.IsNegative() {
+	switch {
+	case isNegative && !d.IsNegative():
 		return fmt.Errorf("expected negative")
-	}
-	if !isNegative && d.IsNegative() {
+	case !isNegative && d.IsNegative():
 		return fmt.Errorf("expected not negative")
 	}
 
-	if isPositive && !d.IsPositive() {
+	switch {
+	case isPositive && !d.IsPositive():
 		return fmt.Errorf("expected positive")
-	}
-	if !isPositive && d.IsPositive() {
+	case !isPositive && d.IsPositive():
 		return fmt.Errorf("expected not positive")
+	}
+
+	if d.String() != s {
+		return fmt.Errorf("expected %s, got: %s", s, d.String())
 	}
 
 	return nil
@@ -63,7 +61,7 @@ func assertDecimalAbsNeg(s string, abs string, neg string) error {
 	return nil
 }
 
-func TestDecimalBasics1(t *testing.T) {
+func TestBasics1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type dt struct {
@@ -73,6 +71,7 @@ func TestDecimalBasics1(t *testing.T) {
 		isNeg  bool
 		isPos  bool
 	}
+
 	dts := []dt{
 		{"NaN", true, false, false, false},
 		{"0", false, true, false, false},
@@ -81,26 +80,37 @@ func TestDecimalBasics1(t *testing.T) {
 		{"-0.1", false, false, true, false},
 		{"-1", false, false, true, false},
 	}
+
 	for _, e := range dts {
 		if err := assertDecimal(e.s, e.isNaN, e.isZero, e.isNeg, e.isPos); err != nil {
 			t.Errorf("assertDecimal failed for %s: %s", e.s, err.Error())
 		}
 	}
+}
 
-	type dtan struct {
+func TestBasics2(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	type dt struct {
 		s   string
 		abs string
 		neg string
 	}
-	dtans := []dtan{
+
+	dts := []dt{
 		{"-123.456", "123.456", "123.456"},
 		{"123.456", "123.456", "-123.456"},
 	}
-	for _, e := range dtans {
+
+	for _, e := range dts {
 		if err := assertDecimalAbsNeg(e.s, e.abs, e.neg); err != nil {
 			t.Errorf("assertDecimalAbsNeg failed for %s: %s", e.s, err.Error())
 		}
 	}
+}
+
+func TestBasics3(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	a := FromString("NaN").Abs()
 	if !a.IsNaN() {
@@ -121,8 +131,12 @@ func TestDecimalBasics1(t *testing.T) {
 	if !a.IsNaN() {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
+}
 
-	a = FromString("NaN").Mod(FromInt64(1))
+func TestBasics4(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromString("NaN").Mod(FromInt64(1))
 	if !a.IsNaN() {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
@@ -130,17 +144,21 @@ func TestDecimalBasics1(t *testing.T) {
 	if !a.IsNaN() {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
+}
+
+func TestBasics5(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	for i := range 1000 {
 		j := i - 500
-		a = FromInt(j)
+		a := FromInt(j)
 		if b, err := a.Int(); err != nil || b != j {
 			t.Errorf("expected %d, got: %d, error: %v", j, b, err)
 		}
 	}
 }
 
-func TestDecimalBasics2(t *testing.T) {
+func TestBasics6(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	a := FromString("123.456")
@@ -180,7 +198,7 @@ func TestDecimalBasics2(t *testing.T) {
 	}
 }
 
-func TestDecimalBasics3(t *testing.T) {
+func TestModQuoRem1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	a := FromString("4").ModInt(3)
@@ -195,8 +213,12 @@ func TestDecimalBasics3(t *testing.T) {
 	if r.String() != "1" {
 		t.Errorf("expected '1', got: %s", r.String())
 	}
+}
 
-	a = FromString("4").Rescale(19)
+func TestModQuoRem2(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromString("4").Rescale(19)
 	b := FromString("3").Rescale(19)
 	c := a.Mod(b)
 	if c.String() != "1" {
@@ -209,10 +231,14 @@ func TestDecimalBasics3(t *testing.T) {
 	if c.String() != "1" {
 		t.Errorf("expected '1', got: %s", c.String())
 	}
+}
 
-	a = FromString("4000000000000000000").Rescale(19)
-	b = FromString("3000000000000000000").Rescale(10)
-	c = a.Mod(b)
+func TestModQuoRem3(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromString("4000000000000000000").Rescale(19)
+	b := FromString("3000000000000000000").Rescale(10)
+	c := a.Mod(b)
 	if c.String() != "1000000000000000000" {
 		t.Errorf("expected '1000000000000000000', got: %s", c.String())
 	}
@@ -223,43 +249,55 @@ func TestDecimalBasics3(t *testing.T) {
 	if c.String() != "1000000000000000000" {
 		t.Errorf("expected '1000000000000000000', got: %s", c.String())
 	}
+}
 
-	a = FromInt(1).Rescale(19)
-	b = FromString("40000000000000000000")
-	c = a.Mod(b)
+func TestModQuoRem4(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromInt(1).Rescale(19)
+	b := FromString("40000000000000000000")
+	c := a.Mod(b)
 	if c.String() != "1" {
 		t.Errorf("expected '1', got: %s", c.String())
 	}
-	q, r = a.QuoRem(b)
+	q, r := a.QuoRem(b)
 	if q.String() != "0" {
 		t.Errorf("expected 0, got: %s", q.String())
 	}
 	if r.String() != "1" {
 		t.Errorf("expected 1, got: %s", r.String())
 	}
+}
 
-	a = FromInt(1).Rescale(19)
-	b = FromString("35000000000000000000")
-	c = a.Mod(b)
+func TestModQuoRem5(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromInt(1).Rescale(19)
+	b := FromString("35000000000000000000")
+	c := a.Mod(b)
 	if c.String() != "1" {
 		t.Errorf("expected '1', got: %s", c.String())
 	}
-	q, r = a.QuoRem(b)
+	q, r := a.QuoRem(b)
 	if q.String() != "0" {
 		t.Errorf("expected 0, got: %s", q.String())
 	}
 	if r.String() != "1" {
 		t.Errorf("expected 1, got: %s", r.String())
 	}
+}
 
-	a = FromString("4").Rescale(10)
-	b = FromString("3").Rescale(19)
-	c = a.Mod(b)
+func TestModQuoRem6(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromString("4").Rescale(10)
+	b := FromString("3").Rescale(19)
+	c := a.Mod(b)
 	if c.String() != "1" {
 		t.Errorf("expected '1', got: %s", c.String())
 	}
 
-	q, r = a.QuoRem(b)
+	q, r := a.QuoRem(b)
 	if q.String() != "1" {
 		t.Errorf("expected '1', got: %s", q.String())
 	}
@@ -268,7 +306,7 @@ func TestDecimalBasics3(t *testing.T) {
 	}
 }
 
-func TestDecimalNew(t *testing.T) {
+func TestNew(t *testing.T) {
 	a := New(uint128.FromUint64(1), 19, false)
 	if a.IsNaN() {
 		t.Errorf("expected no error, got: %v", a.ErrorDetails())
@@ -291,7 +329,7 @@ func TestDecimalNew(t *testing.T) {
 	}
 }
 
-func TestDecimalNaN(t *testing.T) {
+func TestNaN(t *testing.T) {
 	a := NaN(state.DivisionByZero)
 	if !a.IsNaN() {
 		t.Errorf("expected NaN, got: %s", a.String())
@@ -309,7 +347,7 @@ func TestDecimalNaN(t *testing.T) {
 	}
 }
 
-func TestDecimalRescale(t *testing.T) {
+func TestRescale(t *testing.T) {
 	a := Decimal1.Rescale(19)
 	if a.IsNaN() {
 		t.Errorf("expected no error, got: %v", a.ErrorDetails())
@@ -376,7 +414,7 @@ func TestSign(t *testing.T) {
 	}
 }
 
-func TestDecimalAdd(t *testing.T) {
+func TestAdd1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -421,6 +459,10 @@ func TestDecimalAdd(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdd2(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	a := FromString("340282366920938463463374607431768211454")
 	a = a.AddInt64(1)
@@ -442,7 +484,7 @@ func TestDecimalAdd(t *testing.T) {
 	}
 }
 
-func TestDecimalSub(t *testing.T) {
+func TestSub1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -487,6 +529,10 @@ func TestDecimalSub(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSub2(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	a := FromString("-340282366920938463463374607431768211454")
 	a = a.SubInt64(1)
@@ -508,7 +554,7 @@ func TestDecimalSub(t *testing.T) {
 	}
 }
 
-func TestDecimalCompare(t *testing.T) {
+func TestCompare1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	var a, b Dec128
@@ -533,6 +579,12 @@ func TestDecimalCompare(t *testing.T) {
 	if a.Compare(b) != 0 {
 		t.Errorf("expected 0, got %d", a.Compare(b))
 	}
+}
+
+func TestCompare2(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	var a, b Dec128
 
 	a = FromString("-1")
 	b = FromString("-1")
@@ -554,6 +606,12 @@ func TestDecimalCompare(t *testing.T) {
 	if b.Compare(a) != -1 {
 		t.Errorf("expected -1, got %d", b.Compare(a))
 	}
+}
+
+func TestCompare3(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	var a, b Dec128
 
 	a = FromString(uint128.MaxUint128Str)
 	b = FromString("0.0001")
@@ -569,6 +627,12 @@ func TestDecimalCompare(t *testing.T) {
 	if a.Compare(b) != 0 {
 		t.Errorf("expected 0, got %d", a.Compare(b))
 	}
+}
+
+func TestCompare4(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	var a, b Dec128
 
 	a = FromString("123.456")
 	b = FromString("123.4560000")
@@ -586,7 +650,7 @@ func TestDecimalCompare(t *testing.T) {
 	}
 }
 
-func TestDecimalEqual(t *testing.T) {
+func TestEqual1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	var a, b Dec128
@@ -608,6 +672,12 @@ func TestDecimalEqual(t *testing.T) {
 	if !a.Equal(b) {
 		t.Errorf("expected true, got false")
 	}
+}
+
+func TestEqual2(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	var a, b Dec128
 
 	a = FromString("1")
 	b = FromString("-1")
@@ -626,6 +696,12 @@ func TestDecimalEqual(t *testing.T) {
 	if !a.Equal(b) {
 		t.Errorf("expected true, got false")
 	}
+}
+
+func TestEqual3(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	var a, b Dec128
 
 	a = FromString("123.456")
 	b = FromString("123.4560000")
@@ -646,7 +722,7 @@ func TestDecimalEqual(t *testing.T) {
 	}
 }
 
-func TestDecimalMul(t *testing.T) {
+func TestMul1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	a := FromInt(1).Rescale(19)
@@ -664,6 +740,10 @@ func TestDecimalMul(t *testing.T) {
 	if c.String() != "2" {
 		t.Errorf("expected '2', got: %s", c.String())
 	}
+}
+
+func TestMul2(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	type testCase struct {
 		a string
@@ -716,8 +796,12 @@ func TestDecimalMul(t *testing.T) {
 			}
 		})
 	}
+}
 
-	a = FromString("1.2").MulInt64(2)
+func TestMul3(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	a := FromString("1.2").MulInt64(2)
 	if a.String() != "2.4" {
 		t.Errorf("expected '2.4', got: %s", a.String())
 	}
@@ -732,7 +816,7 @@ func TestDecimalMul(t *testing.T) {
 	}
 }
 
-func TestDecimalDiv(t *testing.T) {
+func TestDiv1(t *testing.T) {
 	SetDefaultPrecision(10)
 
 	type testCase struct {
@@ -794,6 +878,10 @@ func TestDecimalDiv(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiv2(t *testing.T) {
+	SetDefaultPrecision(10)
 
 	a := FromString("NaN").Div(FromInt64(1))
 	if !a.IsNaN() {
@@ -816,7 +904,7 @@ func TestDecimalDiv(t *testing.T) {
 	}
 }
 
-func TestDecimalDiv2(t *testing.T) {
+func TestDiv3(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -854,7 +942,7 @@ func TestDecimalDiv2(t *testing.T) {
 	}
 }
 
-func TestDecimalDiv3(t *testing.T) {
+func TestDiv4(t *testing.T) {
 	SetDefaultPrecision(6)
 
 	type testCase struct {
@@ -892,7 +980,7 @@ func TestDecimalDiv3(t *testing.T) {
 	}
 }
 
-func TestDecimalMod1(t *testing.T) {
+func TestMod1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -955,7 +1043,7 @@ func TestDecimalMod1(t *testing.T) {
 	}
 }
 
-func TestDecimalQuoRem(t *testing.T) {
+func TestQuoRem(t *testing.T) {
 	type testCase struct {
 		a string
 		b string
@@ -1018,7 +1106,7 @@ func TestDecimalQuoRem(t *testing.T) {
 	}
 }
 
-func TestDecimalPowInt(t *testing.T) {
+func TestPowInt(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1079,7 +1167,7 @@ func TestDecimalPowInt(t *testing.T) {
 	}
 }
 
-func TestDecimalSqrt(t *testing.T) {
+func TestSqrt1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1121,6 +1209,10 @@ func TestDecimalSqrt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSqrt2(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	a := FromInt(4).Rescale(19)
 	if a.Sqrt().String() != "2" {
@@ -1128,7 +1220,7 @@ func TestDecimalSqrt(t *testing.T) {
 	}
 }
 
-func TestDecimalSqrt2(t *testing.T) {
+func TestSqrt3(t *testing.T) {
 	SetDefaultPrecision(6)
 
 	type testCase struct {
@@ -1169,7 +1261,7 @@ func TestDecimalSqrt2(t *testing.T) {
 	}
 }
 
-func TestDecimalCanonical(t *testing.T) {
+func TestCanonical(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1222,7 +1314,7 @@ func TestDecimalCanonical(t *testing.T) {
 	}
 }
 
-func TestDecimalToInt64(t *testing.T) {
+func TestToInt64(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1254,7 +1346,7 @@ func TestDecimalToInt64(t *testing.T) {
 	}
 }
 
-func TestDecimalInt64Encoding(t *testing.T) {
+func TestInt64Encoding(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1314,7 +1406,7 @@ func TestDecimalInt64Encoding(t *testing.T) {
 	}
 }
 
-func TestDecimalFromUint64Encoding(t *testing.T) {
+func TestFromUint64Encoding(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1351,7 +1443,7 @@ func TestDecimalFromUint64Encoding(t *testing.T) {
 	}
 }
 
-func TestDecimalUint64Encoding(t *testing.T) {
+func TestUint64Encoding(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1398,7 +1490,7 @@ func TestDecimalUint64Encoding(t *testing.T) {
 	}
 }
 
-func TestDecimalUint64Encoding2(t *testing.T) {
+func TestUint64Encoding2(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1429,7 +1521,7 @@ func TestDecimalUint64Encoding2(t *testing.T) {
 	}
 }
 
-func TestDecimalUint128Encoding(t *testing.T) {
+func TestUint128Encoding(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1462,7 +1554,7 @@ func TestDecimalUint128Encoding(t *testing.T) {
 	}
 }
 
-func TestDecimalRoundDown(t *testing.T) {
+func TestRoundDown(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1517,7 +1609,7 @@ func TestDecimalRoundDown(t *testing.T) {
 	}
 }
 
-func TestDecimalRoundUp(t *testing.T) {
+func TestRoundUp(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1607,7 +1699,7 @@ func TestRoundTowardZero(t *testing.T) {
 	}
 }
 
-func TestDecimalRoundAwayFromZero(t *testing.T) {
+func TestRoundAwayFromZero(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1655,7 +1747,7 @@ func TestDecimalRoundAwayFromZero(t *testing.T) {
 	}
 }
 
-func TestDecimalRoundHalfTowardZero(t *testing.T) {
+func TestRoundHalfTowardZero(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1762,7 +1854,7 @@ func TestDecimalRoundHalfTowardZero(t *testing.T) {
 	}
 }
 
-func TestDecimalRoundHalfAwayFromZero(t *testing.T) {
+func TestRoundHalfAwayFromZero(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1869,7 +1961,7 @@ func TestDecimalRoundHalfAwayFromZero(t *testing.T) {
 	}
 }
 
-func TestDecimalRoundBank(t *testing.T) {
+func TestRoundBank(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -1981,7 +2073,7 @@ func TestDecimalRoundBank(t *testing.T) {
 	}
 }
 
-func TestDecimalTrunc(t *testing.T) {
+func TestTrunc(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -2072,7 +2164,7 @@ func TestDecimalTrunc(t *testing.T) {
 
 }
 
-func TestDecimalParseStringHLE(t *testing.T) {
+func TestParseStringHLE(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -2127,7 +2219,7 @@ func TestDecimalParseStringHLE(t *testing.T) {
 	}
 }
 
-func TestDecimalConvString(t *testing.T) {
+func TestConvString(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -2260,7 +2352,7 @@ func TestDecimalConvString(t *testing.T) {
 	}
 }
 
-func TestDecimalToStringFixed(t *testing.T) {
+func TestToStringFixed(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -2298,7 +2390,7 @@ func TestDecimalToStringFixed(t *testing.T) {
 	}
 }
 
-func TestDecimalToStringFixed2(t *testing.T) {
+func TestToStringFixed2(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testCase struct {
@@ -2337,7 +2429,7 @@ func TestDecimalToStringFixed2(t *testing.T) {
 	}
 }
 
-func TestDecimalJson(t *testing.T) {
+func TestJson1(t *testing.T) {
 	SetDefaultPrecision(19)
 
 	type testStruct struct {
@@ -2377,6 +2469,10 @@ func TestDecimalJson(t *testing.T) {
 			t.Errorf("expected '%v', got '%v'", test.t.D, q.D)
 		}
 	}
+}
+
+func TestJson2(t *testing.T) {
+	SetDefaultPrecision(19)
 
 	a := FromString("NaN")
 	bs, err := a.MarshalJSON()
@@ -2401,7 +2497,7 @@ type GobTestStruct struct {
 	C []Dec128
 }
 
-func TestDecimalBinary(t *testing.T) {
+func TestBinary(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		a := Decimal1
 		_, err := a.EncodeBinary(nil)
@@ -2681,7 +2777,7 @@ func TestDecimalBinary(t *testing.T) {
 	})
 }
 
-func TestDecimalMarshalText(t *testing.T) {
+func TestMarshalText1(t *testing.T) {
 	a := FromString("NaN")
 	bs, err := a.MarshalText()
 	if err != nil {
@@ -2738,7 +2834,7 @@ func TestDecimalMarshalText(t *testing.T) {
 	}
 }
 
-func TestDecimalFloat(t *testing.T) {
+func TestFloat(t *testing.T) {
 	a := FromFloat64(1.2)
 	b, err := a.InexactFloat64()
 	if err != nil {
@@ -2759,7 +2855,7 @@ func TestDecimalFloat(t *testing.T) {
 	}
 }
 
-func TestDecimalSetDefaultPrecision(t *testing.T) {
+func TestSetDefaultPrecision(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		var f bool
 		defer func() {
@@ -2778,7 +2874,7 @@ func TestDecimalSetDefaultPrecision(t *testing.T) {
 	})
 }
 
-func TestDecimalCopy(t *testing.T) {
+func TestCopy(t *testing.T) {
 	a := FromString("1")
 	b := a.Copy()
 	if !a.Equal(b) {
@@ -2789,7 +2885,7 @@ func TestDecimalCopy(t *testing.T) {
 	}
 }
 
-func TestDecimalScan(t *testing.T) {
+func TestScan(t *testing.T) {
 	var a Dec128
 
 	if err := a.Scan("NaN"); err == nil {
@@ -2829,7 +2925,7 @@ func TestDecimalScan(t *testing.T) {
 	}
 }
 
-func TestDecimalValue(t *testing.T) {
+func TestValue(t *testing.T) {
 	v, err := Decimal1.Value()
 	if err != nil {
 		t.Errorf("unexpected error getting value: %v", err)
@@ -2839,7 +2935,7 @@ func TestDecimalValue(t *testing.T) {
 	}
 }
 
-func TestDecimalDecode(t *testing.T) {
+func TestDecode(t *testing.T) {
 	u := uint128.FromUint64(123)
 	a := DecodeFromUint128(u, 2)
 	if a.String() != "1.23" {
@@ -2857,7 +2953,7 @@ func TestDecimalDecode(t *testing.T) {
 	}
 }
 
-func TestDecimalTo(t *testing.T) {
+func TestTo1(t *testing.T) {
 	a := FromString("NaN")
 	if _, err := a.EncodeToInt64(1); err == nil {
 		t.Errorf("expected error for NaN, got nil")
@@ -2868,8 +2964,10 @@ func TestDecimalTo(t *testing.T) {
 	if _, err := a.EncodeToUint128(1); err == nil {
 		t.Errorf("expected error for NaN, got nil")
 	}
+}
 
-	a = FromString("123456789012345678901234567890")
+func TestTo2(t *testing.T) {
+	a := FromString("123456789012345678901234567890")
 	if a.String() != "123456789012345678901234567890" {
 		t.Errorf("expected '123456789012345678901234567890', got '%s'", a.String())
 	}
@@ -2879,8 +2977,10 @@ func TestDecimalTo(t *testing.T) {
 	if _, err := a.EncodeToUint64(1); err == nil {
 		t.Errorf("expected error for overflow, got nil")
 	}
+}
 
-	a = FromString("-123456789012345678901234567890")
+func TestTo3(t *testing.T) {
+	a := FromString("-123456789012345678901234567890")
 	if a.String() != "-123456789012345678901234567890" {
 		t.Errorf("expected '-123456789012345678901234567890', got '%s'", a.String())
 	}
@@ -2893,8 +2993,10 @@ func TestDecimalTo(t *testing.T) {
 	if _, err := a.EncodeToUint128(1); err == nil {
 		t.Errorf("expected error for negative, got nil")
 	}
+}
 
-	a = FromString("-9223372036854775809")
+func TestTo4(t *testing.T) {
+	a := FromString("-9223372036854775809")
 	if _, err := a.EncodeToInt64(0); err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -2908,7 +3010,7 @@ func TestDecimalTo(t *testing.T) {
 	}
 }
 
-func TestDecimalSymmetry(t *testing.T) {
+func TestSymmetry(t *testing.T) {
 	SetDefaultPrecision(6)
 
 	var a, b, c Dec128

@@ -1,11 +1,88 @@
 package uint128
 
 import (
+	"math"
 	"math/big"
 	"testing"
 )
 
-func TestUint128Pow10(t *testing.T) {
+func TestBasic1(t *testing.T) {
+	u := FromUint64(math.MaxUint64)
+	u, _ = u.Add64(1)
+	_, e := u.Uint64()
+	if e.IsOK() {
+		t.Errorf("expected overflow error")
+	}
+	u, _ = u.Sub64(1)
+	i, e := u.Uint64()
+	if !e.IsOK() {
+		t.Errorf("unexpected error: %s", e.String())
+	}
+	if i != math.MaxUint64 {
+		t.Errorf("expected %d, got %d", uint(math.MaxUint64), i)
+	}
+}
+
+func TestBasic2(t *testing.T) {
+	i1, e := FromString("0")
+	if e.IsError() {
+		t.Errorf("error creating uint128: %s", e.String())
+	}
+	if i1.IsZero() != true {
+		t.Errorf("expected true, got false")
+	}
+	if i1.BitLen() != 0 {
+		t.Errorf("expected 0, got %v", i1.BitLen())
+	}
+
+	i2, e := FromString("1")
+	if e.IsError() {
+		t.Errorf("error creating uint128: %s", e.String())
+	}
+	if i2.IsZero() != false {
+		t.Errorf("expected false, got true")
+	}
+	if i2.BitLen() != 1 {
+		t.Errorf("expected 1, got %v", i2.BitLen())
+	}
+
+	if i1.Equal(i2) != false {
+		t.Errorf("expected false, got true")
+	}
+}
+
+func TestBasic3(t *testing.T) {
+	i3, e := FromString("123456789012345678901234567890")
+	if e.IsError() {
+		t.Errorf("error creating uint128: %s", e.String())
+	}
+	if i3.IsZero() != false {
+		t.Errorf("expected false, got true")
+	}
+	if i3.BitLen() != 97 {
+		t.Errorf("expected 97, got %v", i3.BitLen())
+	}
+}
+
+func TestBasic4(t *testing.T) {
+	i, s := FromString("")
+	if s.IsError() {
+		t.Errorf("expected no error, got: %s", s.String())
+	}
+	if i.String() != "0" {
+		t.Errorf("expected '0', got '%s'", i.String())
+	}
+
+	i, s = FromSafeString("")
+	if s.IsError() {
+		t.Errorf("expected no error, got: %s", s.String())
+	}
+	if i.String() != "0" {
+		t.Errorf("expected '0', got '%s'", i.String())
+	}
+}
+
+func TestPow10(t *testing.T) {
 	u := FromUint64(1)
 	for i := range len(Pow10Uint128) {
 		if !u.Equal(Pow10Uint128[i]) {
@@ -15,8 +92,8 @@ func TestUint128Pow10(t *testing.T) {
 	}
 }
 
-func TestUint128ConvUint64(t *testing.T) {
-	testCases := [...]uint64{0, 1, 1234567890, 18446744073709551615}
+func TestConvUint64(t *testing.T) {
+	testCases := [...]uint64{0, 1, 1234567890, math.MaxUint64 - 1, math.MaxUint64}
 	for _, i := range testCases {
 		u := FromUint64(i)
 		j, e := u.Uint64()
@@ -27,16 +104,9 @@ func TestUint128ConvUint64(t *testing.T) {
 			t.Errorf("expected %v, got %v", i, j)
 		}
 	}
-
-	u := FromUint64(18446744073709551615)
-	u, _ = u.Add(FromUint64(1))
-	_, e := u.Uint64()
-	if e.IsOK() {
-		t.Errorf("expected overflow error")
-	}
 }
 
-func TestUint128ConvString(t *testing.T) {
+func TestConvString(t *testing.T) {
 	testCases := [...]string{
 		"0",
 		"1",
@@ -142,7 +212,7 @@ func TestUint128ConvString(t *testing.T) {
 	}
 }
 
-func TestUint128ConvBytes(t *testing.T) {
+func TestConvBytes(t *testing.T) {
 	type testCase struct {
 		s  string
 		be [16]byte
@@ -189,7 +259,7 @@ func TestUint128ConvBytes(t *testing.T) {
 	}
 }
 
-func TestUint128ConvBigInt(t *testing.T) {
+func TestConvBigInt1(t *testing.T) {
 	testCases := [...]string{"0", "1", "1234567890", "18446744073709551615", "18446744073709551616", "340282366920938463463374607431768211455", "123456789012345678901234567890"}
 	for _, tc := range testCases {
 		u, _ := FromString(tc)
@@ -211,77 +281,36 @@ func TestUint128ConvBigInt(t *testing.T) {
 			t.Errorf("expected %v, got %v", tc, s)
 		}
 	}
+}
 
+func TestConvBigInt2(t *testing.T) {
 	_, s := FromBigInt(big.NewInt(-10))
 	if !s.IsError() {
 		t.Errorf("expected error converting negative big.Int to uint128, got no error")
 	}
+}
 
+func TestConvBigInt3(t *testing.T) {
 	b := big.NewInt(1234567890123456789)
 	b = b.Mul(b, b)
 	b = b.Mul(b, b)
-	_, s = FromBigInt(b)
+	_, s := FromBigInt(b)
 	if !s.IsError() {
 		t.Errorf("expected error converting big.Int greater than max uint128 to uint128, got no error")
 	}
 }
 
-func TestUint128(t *testing.T) {
-	i1, e := FromString("0")
-	if e.IsError() {
-		t.Errorf("error creating uint128: %s", e.String())
+func TestConvBigInt4(t *testing.T) {
+	u, s := FromBigInt(nil)
+	if !u.IsZero() {
+		t.Errorf("expected zero uint128, got %v", u)
 	}
-	if i1.IsZero() != true {
-		t.Errorf("expected true, got false")
-	}
-	if i1.BitLen() != 0 {
-		t.Errorf("expected 0, got %v", i1.BitLen())
-	}
-
-	i2, e := FromString("1")
-	if e.IsError() {
-		t.Errorf("error creating uint128: %s", e.String())
-	}
-	if i2.IsZero() != false {
-		t.Errorf("expected false, got true")
-	}
-	if i2.BitLen() != 1 {
-		t.Errorf("expected 1, got %v", i2.BitLen())
-	}
-
-	if i1.Equal(i2) != false {
-		t.Errorf("expected false, got true")
-	}
-
-	i3, e := FromString("123456789012345678901234567890")
-	if e.IsError() {
-		t.Errorf("error creating uint128: %s", e.String())
-	}
-	if i3.IsZero() != false {
-		t.Errorf("expected false, got true")
-	}
-	if i3.BitLen() != 97 {
-		t.Errorf("expected 97, got %v", i3.BitLen())
-	}
-
-	i, s := FromString("")
-	if s.IsError() {
+	if !s.IsOK() {
 		t.Errorf("expected no error, got: %s", s.String())
-	}
-	if i.String() != "0" {
-		t.Errorf("expected '0', got '%s'", i.String())
-	}
-
-	i, s = FromSafeString("")
-	if s.IsError() {
-		t.Errorf("expected no error, got: %s", s.String())
-	}
-	if i.String() != "0" {
-		t.Errorf("expected '0', got '%s'", i.String())
 	}
 }
 
-func TestUint128Add(t *testing.T) {
+func TestAdd1(t *testing.T) {
 	type testCase struct {
 		a string
 		b string
@@ -316,14 +345,16 @@ func TestUint128Add(t *testing.T) {
 			t.Errorf("expected error '%s', got '%s'", tc.e, e.String())
 		}
 	}
+}
 
+func TestAdd2(t *testing.T) {
 	i, _ := FromString("340282366920938463463374607431768211455")
 	if _, s := i.Add64(1); !s.IsError() {
 		t.Errorf("expected overflow error when adding 1 to max uint128, got no error")
 	}
 }
 
-func TestUint128Sub(t *testing.T) {
+func TestSub(t *testing.T) {
 	type testCase struct {
 		a string
 		b string
@@ -363,7 +394,7 @@ func TestUint128Sub(t *testing.T) {
 	}
 }
 
-func TestUint128Mul(t *testing.T) {
+func TestMul1(t *testing.T) {
 	type testCase struct {
 		a string
 		b string
@@ -405,7 +436,9 @@ func TestUint128Mul(t *testing.T) {
 			t.Errorf("expected error '%s', got '%s'", tc.e, e.String())
 		}
 	}
+}
 
+func TestMul2(t *testing.T) {
 	i, _ := FromString("340282366920938463463374607431768211455")
 	if _, s := i.Mul64(1234567890); !s.IsError() {
 		t.Errorf("expected overflow error when multiplying max uint128 by 1234567890, got no error")
@@ -415,7 +448,7 @@ func TestUint128Mul(t *testing.T) {
 	}
 }
 
-func TestUint128Div(t *testing.T) {
+func TestDiv(t *testing.T) {
 	type testCase struct {
 		a string
 		b string
@@ -466,7 +499,7 @@ func TestUint128Div(t *testing.T) {
 	}
 }
 
-func TestUint128MulAdd64(t *testing.T) {
+func TestMulAdd64(t *testing.T) {
 	type testCase struct {
 		u string
 		a uint64
@@ -503,7 +536,7 @@ func TestUint128MulAdd64(t *testing.T) {
 	}
 }
 
-func TestUint128SubUnsafe(t *testing.T) {
+func TestSubUnsafe(t *testing.T) {
 	a, _ := FromString("170141183460469231731687303715884105727")
 	b, _ := FromString("170141183460469231731687303715884105726")
 	c := SubUnsafe(a, b)
@@ -512,7 +545,7 @@ func TestUint128SubUnsafe(t *testing.T) {
 	}
 }
 
-func TestUint128Sub64(t *testing.T) {
+func TestSub64(t *testing.T) {
 	type tc struct {
 		a string
 		b uint64
@@ -551,7 +584,7 @@ func TestUint128Sub64(t *testing.T) {
 	}
 }
 
-func TestUint128MulCarry(t *testing.T) {
+func TestMulCarry(t *testing.T) {
 	type tc struct {
 		i string
 		o string
@@ -580,7 +613,7 @@ func TestUint128MulCarry(t *testing.T) {
 	}
 }
 
-func TestUint128Div64(t *testing.T) {
+func TestDiv64(t *testing.T) {
 	type tc struct {
 		i string
 		o uint64
@@ -608,7 +641,7 @@ func TestUint128Div64(t *testing.T) {
 	}
 }
 
-func TestUint128Mod(t *testing.T) {
+func TestMod(t *testing.T) {
 	type tc struct {
 		i string
 		o string
@@ -637,7 +670,7 @@ func TestUint128Mod(t *testing.T) {
 	}
 }
 
-func TestUint128Mod64(t *testing.T) {
+func TestMod64(t *testing.T) {
 	type tc struct {
 		i string
 		o uint64
@@ -665,7 +698,7 @@ func TestUint128Mod64(t *testing.T) {
 	}
 }
 
-func TestUint128And(t *testing.T) {
+func TestAnd(t *testing.T) {
 	type tc struct {
 		i string
 		o string
@@ -692,7 +725,7 @@ func TestUint128And(t *testing.T) {
 	}
 }
 
-func TestUint128And64(t *testing.T) {
+func TestAnd64(t *testing.T) {
 	type tc struct {
 		i string
 		o uint64
@@ -716,7 +749,7 @@ func TestUint128And64(t *testing.T) {
 	}
 }
 
-func TestUint128Or(t *testing.T) {
+func TestOr(t *testing.T) {
 	type tc struct {
 		i string
 		o string
@@ -743,7 +776,7 @@ func TestUint128Or(t *testing.T) {
 	}
 }
 
-func TestUint128Or64(t *testing.T) {
+func TestOr64(t *testing.T) {
 	type tc struct {
 		i string
 		o uint64
@@ -767,7 +800,7 @@ func TestUint128Or64(t *testing.T) {
 	}
 }
 
-func TestUint128Xor(t *testing.T) {
+func TestXor(t *testing.T) {
 	type tc struct {
 		i string
 		o string
@@ -794,7 +827,7 @@ func TestUint128Xor(t *testing.T) {
 	}
 }
 
-func TestUint128Xor64(t *testing.T) {
+func TestXor64(t *testing.T) {
 	type tc struct {
 		i string
 		o uint64
@@ -818,7 +851,7 @@ func TestUint128Xor64(t *testing.T) {
 	}
 }
 
-func TestUint128TZBC(t *testing.T) {
+func TestTZBC(t *testing.T) {
 	type tc struct {
 		i string
 		r int
@@ -843,7 +876,7 @@ func TestUint128TZBC(t *testing.T) {
 	}
 }
 
-func TestUint128NZBC(t *testing.T) {
+func TestNZBC(t *testing.T) {
 	type tc struct {
 		i string
 		r int
@@ -868,7 +901,7 @@ func TestUint128NZBC(t *testing.T) {
 	}
 }
 
-func TestUint12RBL(t *testing.T) {
+func TestRBL(t *testing.T) {
 	type tc struct {
 		i string
 		o int
@@ -893,7 +926,7 @@ func TestUint12RBL(t *testing.T) {
 	}
 }
 
-func TestUint12RBR(t *testing.T) {
+func TestRBR(t *testing.T) {
 	type tc struct {
 		i string
 		o int
@@ -918,7 +951,7 @@ func TestUint12RBR(t *testing.T) {
 	}
 }
 
-func TestUint12RBits(t *testing.T) {
+func TestRBits(t *testing.T) {
 	type tc struct {
 		i string
 		r string
@@ -941,7 +974,7 @@ func TestUint12RBits(t *testing.T) {
 	}
 }
 
-func TestUint128MarshalText1(t *testing.T) {
+func TestMarshalText1(t *testing.T) {
 	a, _ := FromString("1234567890")
 	bs, err := a.MarshalText()
 	if err != nil {
@@ -960,7 +993,7 @@ func TestUint128MarshalText1(t *testing.T) {
 	}
 }
 
-func TestUint128MarshalText2(t *testing.T) {
+func TestMarshalText2(t *testing.T) {
 	a, _ := FromString("12345678901234567890")
 	bs, err := a.MarshalText()
 	if err != nil {
@@ -979,7 +1012,7 @@ func TestUint128MarshalText2(t *testing.T) {
 	}
 }
 
-func TestUint128MarshalText3(t *testing.T) {
+func TestMarshalText3(t *testing.T) {
 	a, _ := FromString("123456789012345678901234567890")
 	bs, err := a.MarshalText()
 	if err != nil {
@@ -998,7 +1031,7 @@ func TestUint128MarshalText3(t *testing.T) {
 	}
 }
 
-func TestUint128MarshalText4(t *testing.T) {
+func TestMarshalText4(t *testing.T) {
 	var b Uint128
 	if err := b.UnmarshalText(nil); err != nil {
 		t.Errorf("error unmarshaling uint128: %s", err)
@@ -1012,7 +1045,7 @@ func TestUint128MarshalText4(t *testing.T) {
 	}
 }
 
-func TestUint128QR256b128(t *testing.T) {
+func TestQR256b128(t *testing.T) {
 	type tc struct {
 		u string
 		c string
@@ -1057,7 +1090,7 @@ func TestUint128QR256b128(t *testing.T) {
 	}
 }
 
-func TestUint128AppendBytes(t *testing.T) {
+func TestAppendBytes(t *testing.T) {
 	a, _ := FromString("123456789012345678901234567890")
 	bs := a.AppendBytes([]byte("xxx"))
 	if len(bs) != 19 {
@@ -1069,7 +1102,7 @@ func TestUint128AppendBytes(t *testing.T) {
 	}
 }
 
-func TestUint128ReverseBytes(t *testing.T) {
+func TestReverseBytes(t *testing.T) {
 	a, _ := FromString("123456789012345678901234567890")
 	a = a.ReverseBytes()
 	if a.String() == "123456789012345678901234567890" {
@@ -1081,7 +1114,7 @@ func TestUint128ReverseBytes(t *testing.T) {
 	}
 }
 
-func TestUint128PutBytes(t *testing.T) {
+func TestPutBytes(t *testing.T) {
 	i := FromUint64(1234567890)
 
 	bs := make([]byte, 2)

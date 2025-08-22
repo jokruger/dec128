@@ -24,11 +24,12 @@ func FromBytesBigEndian(b [16]byte) Uint128 {
 
 // FromBigInt creates a new Uint128 from a *big.Int
 func FromBigInt(i *big.Int) (Uint128, state.State) {
-	if i.Sign() < 0 {
+	switch {
+	case i == nil:
+		return Zero, state.OK
+	case i.Sign() < 0:
 		return Zero, state.NegativeInUnsignedOp
-	}
-
-	if i.BitLen() > 128 {
+	case i.BitLen() > 128:
 		return Zero, state.Overflow
 	}
 
