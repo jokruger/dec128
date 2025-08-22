@@ -6,6 +6,32 @@ import (
 	"testing"
 )
 
+func TestParse(t *testing.T) {
+	if _, s := FromString("0"); !s.IsOK() {
+		t.Errorf("error parsing '0': %s", s.String())
+	}
+
+	if _, s := FromString("0A"); s.IsOK() {
+		t.Errorf("expected error parsing '0A', got none")
+	}
+
+	if _, s := FromString("123456789012345678901234567890A"); s.IsOK() {
+		t.Errorf("expected error parsing '0A', got none")
+	}
+
+	if _, s := FromString("1234A6789012345678901234567890"); s.IsOK() {
+		t.Errorf("expected error parsing '0A', got none")
+	}
+
+	if _, s := FromString("1234A678901234567890123456789A"); s.IsOK() {
+		t.Errorf("expected error parsing '0A', got none")
+	}
+
+	if _, s := FromString("1234567890123456789012345678901234567890"); s.IsOK() {
+		t.Errorf("expected error parsing '0A', got none")
+	}
+}
+
 func TestBasic1(t *testing.T) {
 	u := FromUint64(math.MaxUint64)
 	u, _ = u.Add64(1)

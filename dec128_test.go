@@ -61,6 +61,34 @@ func assertDecimalAbsNeg(s string, abs string, neg string) error {
 	return nil
 }
 
+func TestParse(t *testing.T) {
+	SetDefaultPrecision(19)
+
+	if FromString("0").IsNaN() {
+		t.Errorf("expected no error, got: %v", FromString("0").ErrorDetails())
+	}
+
+	if !FromString("0A").IsNaN() {
+		t.Errorf("expected NaN, got: %s", FromString("0A").String())
+	}
+
+	if !FromString("123456789012345678901234567890A").IsNaN() {
+		t.Errorf("expected NaN, got: %s", FromString("0A").String())
+	}
+
+	if !FromString("1234A67890123456789012345678900").IsNaN() {
+		t.Errorf("expected NaN, got: %s", FromString("0A").String())
+	}
+
+	if !FromString("1234A6789012345678901234567890A").IsNaN() {
+		t.Errorf("expected NaN, got: %s", FromString("0A").String())
+	}
+
+	if !FromString("1234567890123456789012345678901234567890").IsNaN() {
+		t.Errorf("expected NaN, got: %s", FromString("0A").String())
+	}
+}
+
 func TestBasics1(t *testing.T) {
 	SetDefaultPrecision(19)
 
