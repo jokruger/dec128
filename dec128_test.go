@@ -234,7 +234,33 @@ func TestBasics6(t *testing.T) {
 }
 
 func TestBasics7(t *testing.T) {
+	var d Dec128
 
+	d = MaxAtScale(0)
+	if d.String() != "340282366920938463463374607431768211455" {
+		t.Errorf("expected '340282366920938463463374607431768211455', got: %s", d.String())
+	}
+	d = MinAtScale(0)
+	if d.String() != "-340282366920938463463374607431768211455" {
+		t.Errorf("expected '-340282366920938463463374607431768211455', got: %s", d.String())
+	}
+	d = QuantumAtScale(0)
+	if d.String() != "1" {
+		t.Errorf("expected '1', got: %s", d.String())
+	}
+
+	d = MaxAtScale(2)
+	if d.String() != "3402823669209384634633746074317682114.55" {
+		t.Errorf("expected '3402823669209384634633746074317682114.55', got: %s", d.String())
+	}
+	d = MinAtScale(2)
+	if d.String() != "-3402823669209384634633746074317682114.55" {
+		t.Errorf("expected '-3402823669209384634633746074317682114.55', got: %s", d.String())
+	}
+	d = QuantumAtScale(2)
+	if d.String() != "0.01" {
+		t.Errorf("expected '0.01', got: %s", d.String())
+	}
 }
 
 func TestModQuoRem1(t *testing.T) {
