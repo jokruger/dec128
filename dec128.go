@@ -30,29 +30,6 @@ func New(coef uint128.Uint128, scale uint8, neg bool) Dec128 {
 	return Dec128{coef: coef, scale: scale}
 }
 
-// NaN returns a Dec128 with the given error.
-func NaN(reason state.State) Dec128 {
-	if reason < state.Error {
-		reason = state.Error
-	}
-	return Dec128{state: reason}
-}
-
-// MaxAtScale returns the largest finite decimal representable at the given scale.
-func MaxAtScale(scale uint8) Dec128 {
-	return Dec128{coef: uint128.Max, scale: scale, state: state.OK}
-}
-
-// MinAtScale returns the smallest finite (most negative) decimal representable at the given scale.
-func MinAtScale(scale uint8) Dec128 {
-	return Dec128{coef: uint128.Max, scale: scale, state: state.Neg}
-}
-
-// QuantumAtScale returns the quantum (unit in last place, or granularity) for the given scale. It represents the smallest positive increment distinguishable at that scale, i.e. 10^-scale.
-func QuantumAtScale(scale uint8) Dec128 {
-	return Dec128{coef: uint128.One, scale: scale, state: state.OK}
-}
-
 // IsZero returns true if the Dec128 is zero.
 // If the Dec128 is NaN, it returns false.
 func (d Dec128) IsZero() bool {
@@ -296,4 +273,14 @@ func (d *Dec128) Scan(src any) error {
 // Value implements the driver.Valuer interface.
 func (d Dec128) Value() (driver.Value, error) {
 	return d.String(), nil
+}
+
+// NextUp returns the next representable Dec128 greater than the current value.
+func (d Dec128) NextUp() Dec128 {
+	return d.Add(QuantumAtScale(d.scale))
+}
+
+// NextDown returns the next representable Dec128 less than the current value.
+func (d Dec128) NextDown() Dec128 {
+	return d.Sub(QuantumAtScale(d.scale))
 }

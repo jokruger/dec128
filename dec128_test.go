@@ -263,6 +263,44 @@ func TestBasics7(t *testing.T) {
 	}
 }
 
+func TestNextUp(t *testing.T) {
+	var d Dec128
+
+	d = FromString("0.05").NextUp()
+	if d.String() != "0.06" {
+		t.Errorf("expected '0.06', got: %s", d.String())
+	}
+
+	d = FromString("0.000005").NextUp()
+	if d.String() != "0.000006" {
+		t.Errorf("expected '0.000006', got: %s", d.String())
+	}
+
+	d = FromString("-0.000005").NextUp()
+	if d.String() != "-0.000004" {
+		t.Errorf("expected '-0.000004', got: %s", d.String())
+	}
+}
+
+func TestNextDown(t *testing.T) {
+	var d Dec128
+
+	d = FromString("0.05").NextDown()
+	if d.String() != "0.04" {
+		t.Errorf("expected '0.04', got: %s", d.String())
+	}
+
+	d = FromString("0.000005").NextDown()
+	if d.String() != "0.000004" {
+		t.Errorf("expected '0.000004', got: %s", d.String())
+	}
+
+	d = FromString("-0.000005").NextDown()
+	if d.String() != "-0.000006" {
+		t.Errorf("expected '-0.000006', got: %s", d.String())
+	}
+}
+
 func TestModQuoRem1(t *testing.T) {
 	SetDefaultScale(19)
 
