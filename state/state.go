@@ -19,9 +19,11 @@ const (
 	NegativeInUnsignedOp   = State(7)
 	NotEnoughBytes         = State(8)
 	InvalidFormat          = State(9)
-	PrecisionOutOfRange    = State(10)
-	RescaleToLessPrecision = State(11)
+	PrecisionOutOfRange    = State(10) // Deprecated
+	RescaleToLessPrecision = State(11) // Deprecated
 	SqrtNegative           = State(12)
+	ScaleOutOfRange        = State(13)
+	RescaleToLowerScale    = State(14)
 )
 
 var code2str = [...]string{
@@ -37,9 +39,11 @@ var code2str = [...]string{
 	NegativeInUnsignedOp:   "negative value in unsigned operation",
 	NotEnoughBytes:         "not enough bytes",
 	InvalidFormat:          "invalid format",
-	PrecisionOutOfRange:    "precision out of range",
-	RescaleToLessPrecision: "rescale to less precision",
+	PrecisionOutOfRange:    "precision out of range",    // Deprecated
+	RescaleToLessPrecision: "rescale to less precision", // Deprecated
 	SqrtNegative:           "square root of negative number",
+	ScaleOutOfRange:        "scale out of range",
+	RescaleToLowerScale:    "rescale to lower scale",
 }
 
 var code2err = [...]error{
@@ -53,9 +57,11 @@ var code2err = [...]error{
 	NegativeInUnsignedOp:   errors.New("negative value in unsigned operation"),
 	NotEnoughBytes:         errors.New("not enough bytes"),
 	InvalidFormat:          errors.New("invalid format"),
-	PrecisionOutOfRange:    errors.New("precision out of range"),
-	RescaleToLessPrecision: errors.New("rescale to less precision"),
+	PrecisionOutOfRange:    errors.New("precision out of range"),    // Deprecated
+	RescaleToLessPrecision: errors.New("rescale to less precision"), // Deprecated
 	SqrtNegative:           errors.New("square root of negative number"),
+	ScaleOutOfRange:        errors.New("scale out of range"),
+	RescaleToLowerScale:    errors.New("rescale to lower scale"),
 }
 
 var OK = Default

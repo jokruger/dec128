@@ -136,7 +136,7 @@ func (d Dec128) Int64() (int64, error) {
 }
 
 // InexactFloat64 returns the float64 representation of the decimal.
-// The result may not be 100% accurate due to the limitation of float64 (less decimal precision).
+// The result may not be 100% accurate due to the limitation of float64.
 func (d Dec128) InexactFloat64() (float64, error) {
 	if d.state >= state.Error {
 		return 0, d.state.Error()

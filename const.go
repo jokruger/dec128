@@ -9,9 +9,12 @@ import (
 // The actual number of bytes used can be less than this.
 const MaxBytes = 18
 
-// MaxPrecision is the maximum number of digits after the decimal point that can be represented.
-// MaxPrecision = 19
-const MaxPrecision = uint8(uint128.MaxSafeStrLen64)
+// MaxScale is the maximum number of digits after the decimal point that can be represented.
+// MaxScale = 19
+const MaxScale = uint8(uint128.MaxSafeStrLen64)
+
+// Deprecated: Use MaxScale instead.
+const MaxPrecision = MaxScale
 
 // MaxStrLen is the maximum number of characters that can be in a string representation of a Dec128.
 // MaxStrLen = uint128.MaxStrLen + dot + sign
@@ -49,13 +52,18 @@ var (
 	Pow10Uint64  = uint128.Pow10Uint64
 	Pow10Uint128 = uint128.Pow10Uint128
 
-	defaultPrecision = MaxPrecision
+	defaultScale = MaxScale
 )
 
-// SetDefaultPrecision sets the default precision for all Dec128 instances, where precision is the number of digits after the decimal point.
-func SetDefaultPrecision(prec uint8) {
-	if prec > MaxPrecision {
-		panic(state.PrecisionOutOfRange.String())
+// SetDefaultScale sets the default scale for new Dec128 instances.
+func SetDefaultScale(scale uint8) {
+	if scale > MaxScale {
+		panic(state.ScaleOutOfRange.Error())
 	}
-	defaultPrecision = prec
+	defaultScale = scale
+}
+
+// Deprecated: Use SetDefaultScale instead.
+func SetDefaultPrecision(prec uint8) {
+	SetDefaultScale(prec)
 }

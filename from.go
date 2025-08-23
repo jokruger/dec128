@@ -31,7 +31,7 @@ func FromString[S string | []byte](s S) Dec128 {
 		}
 	}
 
-	var i, prec int
+	var i, scale int
 	var st state.State
 
 	switch s[0] {
@@ -48,10 +48,10 @@ func FromString[S string | []byte](s S) Dec128 {
 		for ; i < sz; i++ {
 			c := s[i]
 			if c == '.' {
-				if prec != 0 {
+				if scale != 0 {
 					return Dec128{state: state.InvalidFormat}
 				}
-				prec = sz - i - 1
+				scale = sz - i - 1
 				continue
 			}
 			if c < '0' || c > '9' {
@@ -59,10 +59,10 @@ func FromString[S string | []byte](s S) Dec128 {
 			}
 			u = u*10 + uint64(c-'0')
 		}
-		if u == 0 && prec == 0 {
+		if u == 0 && scale == 0 {
 			return Zero
 		}
-		return Dec128{coef: uint128.FromUint64(u), exp: uint8(prec), state: st}
+		return Dec128{coef: uint128.FromUint64(u), exp: uint8(scale), state: st}
 	}
 
 	j := 0
@@ -84,9 +84,9 @@ func FromString[S string | []byte](s S) Dec128 {
 		return Dec128{state: state.InvalidFormat}
 	}
 
-	prec = sz - j - 1
-	if prec > uint128.MaxSafeStrLen64 {
-		return Dec128{state: state.PrecisionOutOfRange}
+	scale = sz - j - 1
+	if scale > uint128.MaxSafeStrLen64 {
+		return Dec128{state: state.ScaleOutOfRange}
 	}
 
 	ipart, ei := uint128.FromString(s[i:j])
@@ -99,17 +99,17 @@ func FromString[S string | []byte](s S) Dec128 {
 		return Dec128{state: ef}
 	}
 
-	// max prec is 19, so the fpart.Hi is always 0 and prec is always <= len(pow10)
-	coef, e := ipart.MulAdd64(Pow10Uint64[prec], fpart.Lo)
+	// max scale is 19, so the fpart.Hi is always 0 and scale is always <= len(pow10)
+	coef, e := ipart.MulAdd64(Pow10Uint64[scale], fpart.Lo)
 	if e >= state.Error {
 		return Dec128{state: e}
 	}
 
-	if coef.IsZero() && prec == 0 {
+	if coef.IsZero() && scale == 0 {
 		return Zero
 	}
 
-	return Dec128{coef: coef, exp: uint8(prec), state: st}
+	return Dec128{coef: coef, exp: uint8(scale), state: st}
 }
 
 // FromSafeString creates a new Dec128 from safe string (no format checks are applied).
@@ -121,7 +121,7 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		return Zero
 	}
 
-	var i, prec int
+	var i, scale int
 	var st state.State
 
 	switch s[0] {
@@ -138,15 +138,15 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		for ; i < sz; i++ {
 			c := s[i]
 			if c == '.' {
-				prec = sz - i - 1
+				scale = sz - i - 1
 				continue
 			}
 			u = u*10 + uint64(c-'0')
 		}
-		if u == 0 && prec == 0 {
+		if u == 0 && scale == 0 {
 			return Zero
 		}
-		return Dec128{coef: uint128.FromUint64(u), exp: uint8(prec), state: st}
+		return Dec128{coef: uint128.FromUint64(u), exp: uint8(scale), state: st}
 	}
 
 	j := 0
@@ -162,9 +162,9 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		return Dec128{coef: coef, exp: 0, state: st}
 	}
 
-	prec = sz - j - 1
-	if prec > uint128.MaxSafeStrLen64 {
-		return Dec128{state: state.PrecisionOutOfRange}
+	scale = sz - j - 1
+	if scale > uint128.MaxSafeStrLen64 {
+		return Dec128{state: state.ScaleOutOfRange}
 	}
 
 	ipart, ei := uint128.FromSafeString(s[i:j])
@@ -177,17 +177,17 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		return Dec128{state: ef}
 	}
 
-	// max prec is 19, so the fpart.Hi is always 0 and prec is always <= len(pow10)
-	coef, e := ipart.MulAdd64(Pow10Uint64[prec], fpart.Lo)
+	// max scale is 19, so the fpart.Hi is always 0 and scale is always <= len(pow10)
+	coef, e := ipart.MulAdd64(Pow10Uint64[scale], fpart.Lo)
 	if e >= state.Error {
 		return Dec128{state: e}
 	}
 
-	if coef.IsZero() && prec == 0 {
+	if coef.IsZero() && scale == 0 {
 		return Zero
 	}
 
-	return Dec128{coef: coef, exp: uint8(prec), state: st}
+	return Dec128{coef: coef, exp: uint8(scale), state: st}
 }
 
 // DecodeFromUint128 decodes a Dec128 from a Uint128 and an exponent.

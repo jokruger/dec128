@@ -18,7 +18,7 @@ func TestState(t *testing.T) {
 		}
 	}
 
-	for _, s := range []State{Error, NaN, DivisionByZero, Overflow, Underflow, NegativeInUnsignedOp, NotEnoughBytes, InvalidFormat, PrecisionOutOfRange, RescaleToLessPrecision, SqrtNegative} {
+	for _, s := range []State{Error, NaN, DivisionByZero, Overflow, Underflow, NegativeInUnsignedOp, NotEnoughBytes, InvalidFormat, ScaleOutOfRange, RescaleToLowerScale, SqrtNegative} {
 		if s.IsOK() {
 			t.Errorf("Expected state %d to be an error", s)
 		}

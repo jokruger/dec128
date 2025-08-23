@@ -10,7 +10,7 @@ High performance 128-bit fixed-point decimal numbers in go.
 - [x] High performance
 - [x] Zero dependencies
 - [x] Minimal or zero memory allocation
-- [x] Precision up to 19 decimal places
+- [x] Scale up to 19 decimal places
 - [x] Fixed size memory layout (128 bits)
 - [x] No panic or error arithmetics (use NaN instead)
 - [x] Immutability (methods return new instances)
@@ -19,7 +19,7 @@ High performance 128-bit fixed-point decimal numbers in go.
 - [x] Easy to use
 - [x] Easy to integrate with external systems (e.g. databases, accounting systems, JSON, etc.)
 - [x] Financially correct rounding
-- [x] Correct comparison of numbers encoded in different precisions (e.g. 1.0 == 1.00)
+- [x] Correct comparison of numbers encoded in different scales (e.g. 1.0 == 1.00)
 - [x] Correct handling of NaN values (e.g. NaN + 1 = NaN)
 - [x] Conversion to canonical representation (e.g. 1.0000 -> 1)
 - [x] Conversion to fixed string representation (e.g. 1.0000 -> "1.0000")
@@ -86,9 +86,10 @@ shopspring.Decimal                     152.263         169.300         218.909  
 
 ## Notes on Terminology
 
-- **Precision**: The number of decimal places in a number. For example, 1.00 has a precision of 2 and 1.0000 has a precision of 4.
-- **Exponent**: Same as precision, but in the context of low-level implementation details or Dec128 encoding.
+- **Scale**: Number of digits after the decimal point. For example, 1.00 has scale of 2 and 1.0000 has scale of 4.
+- **Exponent**: Same as scale, but in the context of low-level implementation details or Dec128 encoding.
 - **Canonical**: The representation of a number with the minimum number of decimal places required to represent the number.
+- **Quantum***: The smallest step at a given scale. For example, scale 2 has quantum 0.01
 
 ## License
 

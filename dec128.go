@@ -16,18 +16,18 @@ type Dec128 struct {
 	state state.State
 }
 
-// New creates a new Dec128 from a uint64 coefficient, uint8 exponent, and negative flag.
+// New creates a new Dec128 from a uint64 coefficient, uint8 scale, and negative flag.
 // In case of errors it returns NaN with the error.
-func New(coef uint128.Uint128, exp uint8, neg bool) Dec128 {
-	if exp > MaxPrecision {
-		return NaN(state.PrecisionOutOfRange)
+func New(coef uint128.Uint128, scale uint8, neg bool) Dec128 {
+	if scale > MaxScale {
+		return NaN(state.ScaleOutOfRange)
 	}
 
 	if neg {
-		return Dec128{coef: coef, exp: exp, state: state.Neg}
+		return Dec128{coef: coef, exp: scale, state: state.Neg}
 	}
 
-	return Dec128{coef: coef, exp: exp}
+	return Dec128{coef: coef, exp: scale}
 }
 
 // NaN returns a Dec128 with the given error.
@@ -82,40 +82,55 @@ func (d Dec128) Sign() int {
 	}
 }
 
-// Precision returns the precision of the Dec128.
+// Coefficient returns the coefficient of the Dec128.
+func (d Dec128) Coefficient() uint128.Uint128 {
+	return d.coef
+}
+
+// Scale returns the scale of the Dec128.
+func (d Dec128) Scale() uint8 {
+	return d.exp
+}
+
+// Exponent returns the exponent of the Dec128.
+func (d Dec128) Exponent() uint8 {
+	return d.exp
+}
+
+// Deprecated: Use Scale() instead.
 func (d Dec128) Precision() uint8 {
 	return d.exp
 }
 
-// Rescale returns a new Dec128 with the given precision.
+// Rescale returns a new Dec128 with the given scale.
 // If the Dec128 is NaN, it returns itself.
 // In case of errors it returns NaN with the error.
-func (d Dec128) Rescale(prec uint8) Dec128 {
-	if d.state >= state.Error || d.exp == prec {
+func (d Dec128) Rescale(scale uint8) Dec128 {
+	if d.state >= state.Error || d.exp == scale {
 		return d
 	}
 
-	if prec > MaxPrecision {
-		return Dec128{state: state.PrecisionOutOfRange}
+	if scale > MaxScale {
+		return Dec128{state: state.ScaleOutOfRange}
 	}
 
-	if prec > d.exp {
+	if scale > d.exp {
 		// scale up
-		diff := prec - d.exp
+		diff := scale - d.exp
 		coef, s := d.coef.Mul64(Pow10Uint64[diff])
 		if s >= state.Error {
 			return Dec128{state: s}
 		}
-		return Dec128{coef: coef, exp: prec, state: d.state}
+		return Dec128{coef: coef, exp: scale, state: d.state}
 	}
 
 	// scale down
-	diff := d.exp - prec
+	diff := d.exp - scale
 	coef, s := d.coef.Div64(Pow10Uint64[diff])
 	if s >= state.Error {
 		return Dec128{state: s}
 	}
-	return Dec128{coef: coef, exp: prec, state: d.state}
+	return Dec128{coef: coef, exp: scale, state: d.state}
 }
 
 // Equal returns true if the Dec128 is equal to the other Dec128.
@@ -131,9 +146,9 @@ func (d Dec128) Equal(other Dec128) bool {
 		return true
 	}
 
-	prec := max(d.exp, other.exp)
-	a := d.Rescale(prec)
-	b := other.Rescale(prec)
+	scale := max(d.exp, other.exp)
+	a := d.Rescale(scale)
+	b := other.Rescale(scale)
 	if !a.IsNaN() && !b.IsNaN() {
 		return a.coef.Equal(b.coef)
 	}
@@ -170,12 +185,12 @@ func (d Dec128) Compare(other Dec128) int {
 		return d.coef.Compare(other.coef)
 	}
 
-	prec := max(d.exp, other.exp)
-	a := d.Rescale(prec)
+	scale := max(d.exp, other.exp)
+	a := d.Rescale(scale)
 	if a.IsNaN() {
 		return 1
 	}
-	b := other.Rescale(prec)
+	b := other.Rescale(scale)
 	if b.IsNaN() {
 		return -1
 	}
@@ -214,16 +229,6 @@ func (d Dec128) Canonical() Dec128 {
 	}
 
 	return Dec128{coef: coef, exp: exp, state: d.state}
-}
-
-// Exponent returns the exponent of the Dec128.
-func (d Dec128) Exponent() uint8 {
-	return d.exp
-}
-
-// Coefficient returns the coefficient of the Dec128.
-func (d Dec128) Coefficient() uint128.Uint128 {
-	return d.coef
 }
 
 // LessThan returns true if the Dec128 is less than the other Dec128.

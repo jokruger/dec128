@@ -61,8 +61,15 @@ func assertDecimalAbsNeg(s string, abs string, neg string) error {
 	return nil
 }
 
+func TestDefaultScale(t *testing.T) {
+	SetDefaultScale(7)
+	if defaultScale != 7 {
+		t.Errorf("expected defaultScale to be 7, got %d", defaultScale)
+	}
+}
+
 func TestParse(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	if FromString("0").IsNaN() {
 		t.Errorf("expected no error, got: %v", FromString("0").ErrorDetails())
@@ -90,7 +97,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestBasics1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type dt struct {
 		s      string
@@ -117,7 +124,7 @@ func TestBasics1(t *testing.T) {
 }
 
 func TestBasics2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type dt struct {
 		s   string
@@ -138,7 +145,7 @@ func TestBasics2(t *testing.T) {
 }
 
 func TestBasics3(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("NaN").Abs()
 	if !a.IsNaN() {
@@ -162,7 +169,7 @@ func TestBasics3(t *testing.T) {
 }
 
 func TestBasics4(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("NaN").Mod(FromInt64(1))
 	if !a.IsNaN() {
@@ -175,7 +182,7 @@ func TestBasics4(t *testing.T) {
 }
 
 func TestBasics5(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	for i := range 1000 {
 		j := i - 500
@@ -187,7 +194,7 @@ func TestBasics5(t *testing.T) {
 }
 
 func TestBasics6(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("123.456")
 	b := FromString("123.5")
@@ -227,7 +234,7 @@ func TestBasics6(t *testing.T) {
 }
 
 func TestModQuoRem1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("4").ModInt(3)
 	if a.String() != "1" {
@@ -244,7 +251,7 @@ func TestModQuoRem1(t *testing.T) {
 }
 
 func TestModQuoRem2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("4").Rescale(19)
 	b := FromString("3").Rescale(19)
@@ -262,7 +269,7 @@ func TestModQuoRem2(t *testing.T) {
 }
 
 func TestModQuoRem3(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("4000000000000000000").Rescale(19)
 	b := FromString("3000000000000000000").Rescale(10)
@@ -280,7 +287,7 @@ func TestModQuoRem3(t *testing.T) {
 }
 
 func TestModQuoRem4(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromInt(1).Rescale(19)
 	b := FromString("40000000000000000000")
@@ -298,7 +305,7 @@ func TestModQuoRem4(t *testing.T) {
 }
 
 func TestModQuoRem5(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromInt(1).Rescale(19)
 	b := FromString("35000000000000000000")
@@ -316,7 +323,7 @@ func TestModQuoRem5(t *testing.T) {
 }
 
 func TestModQuoRem6(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("4").Rescale(10)
 	b := FromString("3").Rescale(19)
@@ -400,7 +407,7 @@ func TestRescale(t *testing.T) {
 }
 
 func TestSign(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a    string
@@ -443,7 +450,7 @@ func TestSign(t *testing.T) {
 }
 
 func TestAdd1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a string
@@ -470,7 +477,7 @@ func TestAdd1(t *testing.T) {
 		{"1000000", "-0.0000001", "999999.9999999"},
 		{"999999.9999999", "0.0000001", "1000000"},
 		{"340282366920938463463374607431768211454", "1", "340282366920938463463374607431768211455"},
-		{"340282366920938463463374607431768211454", "1.00", "340282366920938463463374607431768211455"}, // overflow due to precision fixed by auto canonicalization
+		{"340282366920938463463374607431768211454", "1.00", "340282366920938463463374607431768211455"}, // overflow due to scale fixed by auto canonicalization
 		{"NaN", "1", "NaN"},
 		{"1", "NaN", "NaN"},
 		{"NaN", "NaN", "NaN"},
@@ -490,7 +497,7 @@ func TestAdd1(t *testing.T) {
 }
 
 func TestAdd2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("340282366920938463463374607431768211454")
 	a = a.AddInt64(1)
@@ -513,7 +520,7 @@ func TestAdd2(t *testing.T) {
 }
 
 func TestSub1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a string
@@ -540,7 +547,7 @@ func TestSub1(t *testing.T) {
 		{"1000000", "0.0000001", "999999.9999999"},
 		{"999999.9999999", "-0.0000001", "1000000"},
 		{"340282366920938463463374607431768211455", "1", "340282366920938463463374607431768211454"},
-		{"340282366920938463463374607431768211455", "1.00", "340282366920938463463374607431768211454"}, // overflow due to precision fixed by auto canonicalization
+		{"340282366920938463463374607431768211455", "1.00", "340282366920938463463374607431768211454"}, // overflow due to scale fixed by auto canonicalization
 		{"NaN", "1", "NaN"},
 		{"1", "NaN", "NaN"},
 		{"NaN", "NaN", "NaN"},
@@ -560,7 +567,7 @@ func TestSub1(t *testing.T) {
 }
 
 func TestSub2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("-340282366920938463463374607431768211454")
 	a = a.SubInt64(1)
@@ -583,7 +590,7 @@ func TestSub2(t *testing.T) {
 }
 
 func TestCompare1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	var a, b Dec128
 
@@ -610,7 +617,7 @@ func TestCompare1(t *testing.T) {
 }
 
 func TestCompare2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	var a, b Dec128
 
@@ -637,7 +644,7 @@ func TestCompare2(t *testing.T) {
 }
 
 func TestCompare3(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	var a, b Dec128
 
@@ -658,7 +665,7 @@ func TestCompare3(t *testing.T) {
 }
 
 func TestCompare4(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	var a, b Dec128
 
@@ -679,7 +686,7 @@ func TestCompare4(t *testing.T) {
 }
 
 func TestEqual1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	var a, b Dec128
 
@@ -703,7 +710,7 @@ func TestEqual1(t *testing.T) {
 }
 
 func TestEqual2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	var a, b Dec128
 
@@ -727,7 +734,7 @@ func TestEqual2(t *testing.T) {
 }
 
 func TestEqual3(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	var a, b Dec128
 
@@ -751,7 +758,7 @@ func TestEqual3(t *testing.T) {
 }
 
 func TestMul1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromInt(1).Rescale(19)
 	if a.IsNaN() {
@@ -771,7 +778,7 @@ func TestMul1(t *testing.T) {
 }
 
 func TestMul2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a string
@@ -800,7 +807,7 @@ func TestMul2(t *testing.T) {
 		{"1234567890", "0.0000000001", "0.123456789", ""},
 		{"1234567890.123456789", "0.0000000001", "0.1234567890123456789", ""},
 		{"340282366920938463463374607431768211455", "1", "340282366920938463463374607431768211455", ""},
-		{"340282366920938463463374607431768211455", "1.000000", "340282366920938463463374607431768211455", ""}, // overflow due to precision fixed by auto canonicalization
+		{"340282366920938463463374607431768211455", "1.000000", "340282366920938463463374607431768211455", ""}, // overflow due to scale fixed by auto canonicalization
 		{"340282366920938463463374607431768211455", "1.1", "NaN", "overflow"},
 		{"NaN", "1", "NaN", "invalid format"},
 		{"1", "NaN", "NaN", "invalid format"},
@@ -827,7 +834,7 @@ func TestMul2(t *testing.T) {
 }
 
 func TestMul3(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("1.2").MulInt64(2)
 	if a.String() != "2.4" {
@@ -845,7 +852,7 @@ func TestMul3(t *testing.T) {
 }
 
 func TestDiv1(t *testing.T) {
-	SetDefaultPrecision(10)
+	SetDefaultScale(10)
 
 	type testCase struct {
 		a string
@@ -876,7 +883,7 @@ func TestDiv1(t *testing.T) {
 		{"18446744073709551615", "1", "18446744073709551615", ""},
 		{"18446744073709551615", "0.1", "184467440737095516150", ""},
 		{"18446744073709551615", "0.0001", "184467440737095516150000", ""},
-		{"18446744073709551615.000000000000000000", "0.0001", "184467440737095516150000", ""}, // overflow due to precision fixed by auto canonicalization
+		{"18446744073709551615.000000000000000000", "0.0001", "184467440737095516150000", ""}, // overflow due to scale fixed by auto canonicalization
 		{"12345678901234567890", "365", "33823777811601555.8630136986", ""},
 		{"1", "2", "0.5", ""},
 		{"1", "3", "0.3333333333", ""},
@@ -909,7 +916,7 @@ func TestDiv1(t *testing.T) {
 }
 
 func TestDiv2(t *testing.T) {
-	SetDefaultPrecision(10)
+	SetDefaultScale(10)
 
 	a := FromString("NaN").Div(FromInt64(1))
 	if !a.IsNaN() {
@@ -933,7 +940,7 @@ func TestDiv2(t *testing.T) {
 }
 
 func TestDiv3(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a string
@@ -971,7 +978,7 @@ func TestDiv3(t *testing.T) {
 }
 
 func TestDiv4(t *testing.T) {
-	SetDefaultPrecision(6)
+	SetDefaultScale(6)
 
 	type testCase struct {
 		a string
@@ -1009,7 +1016,7 @@ func TestDiv4(t *testing.T) {
 }
 
 func TestMod1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a string
@@ -1135,7 +1142,7 @@ func TestQuoRem(t *testing.T) {
 }
 
 func TestPowInt(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a string
@@ -1196,7 +1203,7 @@ func TestPowInt(t *testing.T) {
 }
 
 func TestSqrt1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		a string
@@ -1222,8 +1229,8 @@ func TestSqrt1(t *testing.T) {
 		{"31.6227766016837933199", "5.6234132519034908039", ""},
 		{"4.000000000000000000", "2", ""},
 		{"0.0000000000000000004", "0.000000000632455532", ""},
-		{"0.00000000000000000004", "NaN", "precision out of range"},
-		{"0.000000000000000000004", "NaN", "precision out of range"},
+		{"0.00000000000000000004", "NaN", "scale out of range"},
+		{"0.000000000000000000004", "NaN", "scale out of range"},
 	}
 
 	for _, tc := range testCases {
@@ -1243,7 +1250,7 @@ func TestSqrt1(t *testing.T) {
 }
 
 func TestSqrt2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromInt(4).Rescale(19)
 	if a.Sqrt().String() != "2" {
@@ -1252,7 +1259,7 @@ func TestSqrt2(t *testing.T) {
 }
 
 func TestSqrt3(t *testing.T) {
-	SetDefaultPrecision(6)
+	SetDefaultScale(6)
 
 	type testCase struct {
 		a string
@@ -1293,7 +1300,7 @@ func TestSqrt3(t *testing.T) {
 }
 
 func TestCanonical(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i  string
@@ -1331,11 +1338,11 @@ func TestCanonical(t *testing.T) {
 			if s != tc.s {
 				t.Errorf("expected '%s', got: %s", tc.s, s)
 			}
-			if d.Precision() != tc.e1 {
-				t.Errorf("expected %d, got: %d", tc.e1, d.Precision())
+			if d.Scale() != tc.e1 {
+				t.Errorf("expected %d, got: %d", tc.e1, d.Scale())
 			}
-			if c.Precision() != tc.e2 {
-				t.Errorf("expected %d, got: %d", tc.e2, c.Precision())
+			if c.Scale() != tc.e2 {
+				t.Errorf("expected %d, got: %d", tc.e2, c.Scale())
 			}
 		})
 	}
@@ -1346,7 +1353,7 @@ func TestCanonical(t *testing.T) {
 }
 
 func TestToInt64(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		s string
@@ -1378,7 +1385,7 @@ func TestToInt64(t *testing.T) {
 }
 
 func TestInt64Encoding(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i int64
@@ -1438,7 +1445,7 @@ func TestInt64Encoding(t *testing.T) {
 }
 
 func TestFromUint64Encoding(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i uint64
@@ -1475,7 +1482,7 @@ func TestFromUint64Encoding(t *testing.T) {
 }
 
 func TestUint64Encoding(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1522,7 +1529,7 @@ func TestUint64Encoding(t *testing.T) {
 }
 
 func TestUint64Encoding2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1553,7 +1560,7 @@ func TestUint64Encoding2(t *testing.T) {
 }
 
 func TestUint128Encoding(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1586,7 +1593,7 @@ func TestUint128Encoding(t *testing.T) {
 }
 
 func TestRoundDown(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1641,7 +1648,7 @@ func TestRoundDown(t *testing.T) {
 }
 
 func TestRoundUp(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1695,7 +1702,7 @@ func TestRoundUp(t *testing.T) {
 }
 
 func TestRoundTowardZero(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1731,7 +1738,7 @@ func TestRoundTowardZero(t *testing.T) {
 }
 
 func TestRoundAwayFromZero(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1779,7 +1786,7 @@ func TestRoundAwayFromZero(t *testing.T) {
 }
 
 func TestRoundHalfTowardZero(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1886,7 +1893,7 @@ func TestRoundHalfTowardZero(t *testing.T) {
 }
 
 func TestRoundHalfAwayFromZero(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -1993,7 +2000,7 @@ func TestRoundHalfAwayFromZero(t *testing.T) {
 }
 
 func TestRoundBank(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -2105,7 +2112,7 @@ func TestRoundBank(t *testing.T) {
 }
 
 func TestTrunc(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -2196,7 +2203,7 @@ func TestTrunc(t *testing.T) {
 }
 
 func TestParseStringHLE(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -2251,7 +2258,7 @@ func TestParseStringHLE(t *testing.T) {
 }
 
 func TestConvString(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -2384,7 +2391,7 @@ func TestConvString(t *testing.T) {
 }
 
 func TestToStringFixed(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i uint64
@@ -2422,7 +2429,7 @@ func TestToStringFixed(t *testing.T) {
 }
 
 func TestToStringFixed2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testCase struct {
 		i string
@@ -2461,7 +2468,7 @@ func TestToStringFixed2(t *testing.T) {
 }
 
 func TestJson1(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	type testStruct struct {
 		D Dec128 `json:"d"`
@@ -2503,7 +2510,7 @@ func TestJson1(t *testing.T) {
 }
 
 func TestJson2(t *testing.T) {
-	SetDefaultPrecision(19)
+	SetDefaultScale(19)
 
 	a := FromString("NaN")
 	bs, err := a.MarshalJSON()
@@ -2906,7 +2913,7 @@ func TestFloat(t *testing.T) {
 	}
 }
 
-func TestSetDefaultPrecision(t *testing.T) {
+func TestSetDefaultScale(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		var f bool
 		defer func() {
@@ -2914,11 +2921,11 @@ func TestSetDefaultPrecision(t *testing.T) {
 				f = true
 			}
 		}()
-		SetDefaultPrecision(19)
+		SetDefaultScale(19)
 		if f {
 			t.Errorf("expected no panic, got one")
 		}
-		SetDefaultPrecision(20)
+		SetDefaultScale(20)
 		if !f {
 			t.Errorf("expected panic, got none")
 		}
@@ -3062,7 +3069,7 @@ func TestTo4(t *testing.T) {
 }
 
 func TestSymmetry(t *testing.T) {
-	SetDefaultPrecision(6)
+	SetDefaultScale(6)
 
 	var a, b, c Dec128
 
@@ -3140,5 +3147,20 @@ func TestSymmetry(t *testing.T) {
 		if c.String() != a.String() {
 			t.Errorf("expected %s, got %s", a.String(), c.String())
 		}
+	}
+}
+
+func TestDeprecatedFunctions(t *testing.T) {
+	SetDefaultPrecision(10)
+	if defaultScale != 10 {
+		t.Errorf("expected defaultScale to be 10, got %d", defaultScale)
+	}
+
+	d := FromString("0.01")
+	if d.Precision() != 2 {
+		t.Errorf("expected precision to be 2, got %d", d.Precision())
+	}
+	if d.Exponent() != 2 {
+		t.Errorf("expected exponent to be 2, got %d", d.Exponent())
 	}
 }
