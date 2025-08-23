@@ -115,7 +115,7 @@ func (d Dec128) StringFixed() string {
 	case d.state >= state.Error:
 		return NaNStr
 	case d.coef.IsZero():
-		return zeroStrs[d.exp]
+		return zeroStrs[d.scale]
 	}
 
 	buf := [MaxStrLen]byte{}

@@ -36,7 +36,7 @@ var (
 
 // called only when both are not NaN
 func (d Dec128) tryAdd(other Dec128) (Dec128, bool) {
-	scale := max(d.exp, other.exp)
+	scale := max(d.scale, other.scale)
 
 	a := d.Rescale(scale)
 	if a.state >= state.Error {
@@ -53,7 +53,7 @@ func (d Dec128) tryAdd(other Dec128) (Dec128, bool) {
 		if s >= state.Error {
 			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: scale, state: a.state}, true
+		return Dec128{coef: coef, scale: scale, state: a.state}, true
 	}
 
 	switch a.coef.Compare(b.coef) {
@@ -62,7 +62,7 @@ func (d Dec128) tryAdd(other Dec128) (Dec128, bool) {
 		if s >= state.Error {
 			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: scale, state: a.state}, true
+		return Dec128{coef: coef, scale: scale, state: a.state}, true
 	case 0:
 		return Zero, true
 	default:
@@ -70,13 +70,13 @@ func (d Dec128) tryAdd(other Dec128) (Dec128, bool) {
 		if s >= state.Error {
 			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: scale, state: b.state}, true
+		return Dec128{coef: coef, scale: scale, state: b.state}, true
 	}
 }
 
 // called only when both are not NaN
 func (d Dec128) trySub(other Dec128) (Dec128, bool) {
-	scale := max(d.exp, other.exp)
+	scale := max(d.scale, other.scale)
 
 	a := d.Rescale(scale)
 	if a.IsNaN() {
@@ -93,7 +93,7 @@ func (d Dec128) trySub(other Dec128) (Dec128, bool) {
 		if s >= state.Error {
 			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: scale, state: a.state}, true
+		return Dec128{coef: coef, scale: scale, state: a.state}, true
 	}
 
 	switch a.coef.Compare(b.coef) {
@@ -102,7 +102,7 @@ func (d Dec128) trySub(other Dec128) (Dec128, bool) {
 		if s >= state.Error {
 			return Dec128{state: s}, false
 		}
-		return Dec128{coef: coef, exp: scale, state: a.state}, true
+		return Dec128{coef: coef, scale: scale, state: a.state}, true
 	case 0:
 		return Zero, true
 	default:
@@ -111,9 +111,9 @@ func (d Dec128) trySub(other Dec128) (Dec128, bool) {
 			return Dec128{state: s}, false
 		}
 		if a.state == state.Neg {
-			return Dec128{coef: coef, exp: scale}, true
+			return Dec128{coef: coef, scale: scale}, true
 		}
-		return Dec128{coef: coef, exp: scale, state: state.Neg}, true
+		return Dec128{coef: coef, scale: scale, state: state.Neg}, true
 	}
 }
 
@@ -124,16 +124,16 @@ func (d Dec128) tryMul(other Dec128) (Dec128, bool) {
 		st = state.Neg
 	}
 
-	scale := d.exp + other.exp
+	scale := d.scale + other.scale
 	rcoef, rcarry := d.coef.MulCarry(other.coef)
 
 	if rcarry.IsZero() {
-		r := Dec128{coef: rcoef, exp: scale, state: st}
+		r := Dec128{coef: rcoef, scale: scale, state: st}
 		if scale <= MaxScale {
 			return r, true
 		}
 		r = r.Canonical()
-		return r, r.exp <= MaxScale
+		return r, r.scale <= MaxScale
 	}
 
 	i := scale
@@ -143,7 +143,7 @@ func (d Dec128) tryMul(other Dec128) (Dec128, bool) {
 		}
 		q, r, s := uint128.QuoRem256By128(rcoef, rcarry, Pow10Uint128[i])
 		if s < state.Error && r.IsZero() {
-			return Dec128{coef: q, exp: scale - i, state: st}, true
+			return Dec128{coef: q, scale: scale - i, state: st}, true
 		}
 		if s >= state.Error {
 			return Dec128{state: s}, false
@@ -157,8 +157,8 @@ func (d Dec128) tryMul(other Dec128) (Dec128, bool) {
 
 // called only when both are not NaN
 func (d Dec128) tryDiv(other Dec128) (Dec128, bool) {
-	factor := other.exp
-	scale := d.exp
+	factor := other.scale
+	scale := d.scale
 	if scale < defaultScale {
 		factor = factor + defaultScale - scale
 		scale = defaultScale
@@ -170,10 +170,10 @@ func (d Dec128) tryDiv(other Dec128) (Dec128, bool) {
 	}
 
 	if d.state == other.state {
-		return Dec128{coef: q, exp: scale}, true
+		return Dec128{coef: q, scale: scale}, true
 	}
 
-	return Dec128{coef: q, exp: scale, state: state.Neg}, true
+	return Dec128{coef: q, scale: scale, state: state.Neg}, true
 }
 
 // called only when both are not NaN
@@ -184,14 +184,14 @@ func (d Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 	var dv uint128.Uint128
 	var s state.State
 
-	if d.exp == other.exp {
-		factor = d.exp
+	if d.scale == other.scale {
+		factor = d.scale
 		u = d.coef
 		dv = other.coef
 	} else {
-		factor = max(d.exp, other.exp)
-		u, c = d.coef.MulCarry(Pow10Uint128[factor-d.exp])
-		dv, s = other.coef.Mul(Pow10Uint128[factor-other.exp])
+		factor = max(d.scale, other.scale)
+		u, c = d.coef.MulCarry(Pow10Uint128[factor-d.scale])
+		dv, s = other.coef.Mul(Pow10Uint128[factor-other.scale])
 		if s >= state.Error {
 			return Dec128{state: s}, Dec128{state: s}, false
 		}
@@ -203,10 +203,10 @@ func (d Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 	}
 
 	if d.state == other.state {
-		return Dec128{coef: q1, exp: 0}, Dec128{coef: r1, exp: factor, state: d.state}, true
+		return Dec128{coef: q1, scale: 0}, Dec128{coef: r1, scale: factor, state: d.state}, true
 	}
 
-	return Dec128{coef: q1, exp: 0, state: state.Neg}, Dec128{coef: r1, exp: factor, state: d.state}, true
+	return Dec128{coef: q1, scale: 0, state: state.Neg}, Dec128{coef: r1, scale: factor, state: d.state}, true
 }
 
 // appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal contains a decimal point.
@@ -219,7 +219,7 @@ func (d Dec128) appendString(sb []byte) ([]byte, bool) {
 		sb = append(sb, '-')
 	}
 
-	scale := int(d.exp)
+	scale := int(d.scale)
 	if scale == 0 {
 		return append(sb, coef...), false
 	}
@@ -261,16 +261,16 @@ func (d Dec128) trySqrt() (Dec128, bool) {
 	scale2 := scale * 2
 	t := d
 
-	if t.exp > scale2 {
+	if t.scale > scale2 {
 		// scale down to prec2
-		coef, s := t.coef.Div(Pow10Uint128[t.exp-scale2])
+		coef, s := t.coef.Div(Pow10Uint128[t.scale-scale2])
 		if s >= state.Error {
 			return Dec128{state: s}, false
 		}
-		t = Dec128{coef: coef, exp: scale2, state: t.state}
+		t = Dec128{coef: coef, scale: scale2, state: t.state}
 	}
 
-	coef, carry := t.coef.MulCarry(Pow10Uint128[scale2-t.exp])
+	coef, carry := t.coef.MulCarry(Pow10Uint128[scale2-t.scale])
 	if carry.Hi > 0 {
 		return Dec128{state: state.Overflow}, false
 	}
@@ -302,5 +302,5 @@ func (d Dec128) trySqrt() (Dec128, bool) {
 		x = x1
 	}
 
-	return Dec128{coef: x, exp: scale}, true
+	return Dec128{coef: x, scale: scale}, true
 }

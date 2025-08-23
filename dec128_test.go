@@ -233,6 +233,10 @@ func TestBasics6(t *testing.T) {
 	}
 }
 
+func TestBasics7(t *testing.T) {
+
+}
+
 func TestModQuoRem1(t *testing.T) {
 	SetDefaultScale(19)
 
@@ -2576,18 +2580,18 @@ func TestBinary(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		bs := make([]byte, 1)
 
-		_, err := Dec128{coef: uint128.Uint128{Lo: 0, Hi: 1}, exp: 0}.EncodeBinary(bs)
+		_, err := Dec128{coef: uint128.Uint128{Lo: 0, Hi: 1}, scale: 0}.EncodeBinary(bs)
 		if err == nil {
 			t.Errorf("expected error for short slice, got nil")
 		}
 
-		_, err = Dec128{coef: uint128.Uint128{Lo: 1, Hi: 0}, exp: 0}.EncodeBinary(bs)
+		_, err = Dec128{coef: uint128.Uint128{Lo: 1, Hi: 0}, scale: 0}.EncodeBinary(bs)
 		if err == nil {
 			t.Errorf("expected error for short slice, got nil")
 		}
 
 		bs = make([]byte, 17)
-		_, err = Dec128{coef: uint128.Uint128{Lo: 1, Hi: 1}, exp: 1}.EncodeBinary(bs)
+		_, err = Dec128{coef: uint128.Uint128{Lo: 1, Hi: 1}, scale: 1}.EncodeBinary(bs)
 		if err == nil {
 			t.Errorf("expected error for short slice, got nil")
 		}

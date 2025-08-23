@@ -18,7 +18,7 @@ func (d Dec128) BinarySize() int {
 		if d.coef.Lo > 0 {
 			sz += 8
 		}
-		if d.exp > 0 {
+		if d.scale > 0 {
 			sz++
 		}
 	}
@@ -60,12 +60,12 @@ func (d Dec128) EncodeBinary(buf []byte) (int, error) {
 		pos += 8
 	}
 
-	if d.exp > 0 {
+	if d.scale > 0 {
 		if pos+1 > sz {
 			return pos, io.ErrShortBuffer
 		}
 		flags |= 0b00100000
-		buf[pos] = d.exp
+		buf[pos] = d.scale
 		pos++
 	}
 
@@ -115,7 +115,7 @@ func (d *Dec128) DecodeBinary(buf []byte) (int, error) {
 	d.state = state.State(flags & 0b00011111)
 	d.coef.Hi = h
 	d.coef.Lo = l
-	d.exp = e
+	d.scale = e
 
 	return idx, nil
 }
@@ -218,7 +218,7 @@ func (d *Dec128) ReadBinary(r io.Reader) error {
 	d.state = state.State(flags & 0b00011111)
 	d.coef.Hi = h
 	d.coef.Lo = l
-	d.exp = e
+	d.scale = e
 
 	return nil
 }

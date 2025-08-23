@@ -263,7 +263,7 @@ func (d Dec128) Abs() Dec128 {
 	if d.state >= state.Error {
 		return d
 	}
-	return Dec128{coef: d.coef, exp: d.exp}
+	return Dec128{coef: d.coef, scale: d.scale}
 }
 
 // Neg returns -d
@@ -273,9 +273,9 @@ func (d Dec128) Neg() Dec128 {
 	case d.state >= state.Error:
 		return d
 	case d.state == state.Neg:
-		return Dec128{coef: d.coef, exp: d.exp}
+		return Dec128{coef: d.coef, scale: d.scale}
 	default:
-		return Dec128{coef: d.coef, exp: d.exp, state: state.Neg}
+		return Dec128{coef: d.coef, scale: d.scale, state: state.Neg}
 	}
 }
 

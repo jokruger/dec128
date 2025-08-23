@@ -62,7 +62,7 @@ func FromString[S string | []byte](s S) Dec128 {
 		if u == 0 && scale == 0 {
 			return Zero
 		}
-		return Dec128{coef: uint128.FromUint64(u), exp: uint8(scale), state: st}
+		return Dec128{coef: uint128.FromUint64(u), scale: uint8(scale), state: st}
 	}
 
 	j := 0
@@ -77,7 +77,7 @@ func FromString[S string | []byte](s S) Dec128 {
 		if e >= state.Error {
 			return Dec128{state: e}
 		}
-		return Dec128{coef: coef, exp: 0, state: st}
+		return Dec128{coef: coef, scale: 0, state: st}
 	}
 
 	if j == sz-1 {
@@ -109,7 +109,7 @@ func FromString[S string | []byte](s S) Dec128 {
 		return Zero
 	}
 
-	return Dec128{coef: coef, exp: uint8(scale), state: st}
+	return Dec128{coef: coef, scale: uint8(scale), state: st}
 }
 
 // FromSafeString creates a new Dec128 from safe string (no format checks are applied).
@@ -146,7 +146,7 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		if u == 0 && scale == 0 {
 			return Zero
 		}
-		return Dec128{coef: uint128.FromUint64(u), exp: uint8(scale), state: st}
+		return Dec128{coef: uint128.FromUint64(u), scale: uint8(scale), state: st}
 	}
 
 	j := 0
@@ -159,7 +159,7 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		if e >= state.Error {
 			return Dec128{state: e}
 		}
-		return Dec128{coef: coef, exp: 0, state: st}
+		return Dec128{coef: coef, scale: 0, state: st}
 	}
 
 	scale = sz - j - 1
@@ -187,28 +187,28 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		return Zero
 	}
 
-	return Dec128{coef: coef, exp: uint8(scale), state: st}
+	return Dec128{coef: coef, scale: uint8(scale), state: st}
 }
 
 // DecodeFromUint128 decodes a Dec128 from a Uint128 and an exponent.
 func DecodeFromUint128(coef uint128.Uint128, exp uint8) Dec128 {
-	return Dec128{coef: coef, exp: exp}
+	return Dec128{coef: coef, scale: exp}
 }
 
 // DecodeFromUint64 decodes a Dec128 from a uint64 and an exponent.
 func DecodeFromUint64(coef uint64, exp uint8) Dec128 {
-	return Dec128{coef: uint128.FromUint64(coef), exp: exp}
+	return Dec128{coef: uint128.FromUint64(coef), scale: exp}
 }
 
 // DecodeFromInt64 decodes a Dec128 from a int64 and an exponent.
 func DecodeFromInt64(coef int64, exp uint8) Dec128 {
 	switch {
 	case coef == -9223372036854775808:
-		return Dec128{coef: uint128.FromUint64(9223372036854775808), exp: exp, state: state.Neg}
+		return Dec128{coef: uint128.FromUint64(9223372036854775808), scale: exp, state: state.Neg}
 	case coef < 0:
-		return Dec128{coef: uint128.FromUint64(uint64(-coef)), exp: exp, state: state.Neg}
+		return Dec128{coef: uint128.FromUint64(uint64(-coef)), scale: exp, state: state.Neg}
 	default:
-		return Dec128{coef: uint128.FromUint64(uint64(coef)), exp: exp}
+		return Dec128{coef: uint128.FromUint64(uint64(coef)), scale: exp}
 	}
 }
 
