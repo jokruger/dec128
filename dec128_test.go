@@ -96,6 +96,36 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestParseSpecialCases(t *testing.T) {
+	SetDefaultScale(19)
+
+	tcs := map[string]string{
+		"":        "0",
+		"0":       "0",
+		"00":      "0",
+		"+0":      "0",
+		"-0":      "0",
+		"1":       "1",
+		"01":      "1",
+		"+1":      "1",
+		"-1":      "-1",
+		"0.1":     "0.1",
+		"+0.1":    "0.1",
+		"-0.1":    "-0.1",
+		".1":      "0.1",
+		"+.1":     "0.1",
+		"-.1":     "-0.1",
+		".01":     "0.01",
+		".012345": "0.012345",
+	}
+
+	for k, v := range tcs {
+		if FromString(k).String() != v {
+			t.Errorf("case %s: expected %s, got %s", k, v, FromString(k).String())
+		}
+	}
+}
+
 func TestBasics1(t *testing.T) {
 	SetDefaultScale(19)
 
