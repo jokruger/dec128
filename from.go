@@ -59,8 +59,8 @@ func FromString[S string | []byte](s S) Dec128 {
 			}
 			u = u*10 + uint64(c-'0')
 		}
-		if u == 0 && scale == 0 {
-			return Zero
+		if u == 0 {
+			return Dec128{coef: uint128.Zero, scale: uint8(scale)}
 		}
 		return Dec128{coef: uint128.FromUint64(u), scale: uint8(scale), state: st}
 	}
@@ -76,6 +76,9 @@ func FromString[S string | []byte](s S) Dec128 {
 		coef, e := uint128.FromString(s[i:])
 		if e >= state.Error {
 			return Dec128{state: e}
+		}
+		if coef.IsZero() {
+			return Zero
 		}
 		return Dec128{coef: coef, scale: 0, state: st}
 	}
@@ -105,8 +108,8 @@ func FromString[S string | []byte](s S) Dec128 {
 		return Dec128{state: e}
 	}
 
-	if coef.IsZero() && scale == 0 {
-		return Zero
+	if coef.IsZero() {
+		return Dec128{coef: uint128.Zero, scale: uint8(scale)}
 	}
 
 	return Dec128{coef: coef, scale: uint8(scale), state: st}
@@ -143,8 +146,8 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 			}
 			u = u*10 + uint64(c-'0')
 		}
-		if u == 0 && scale == 0 {
-			return Zero
+		if u == 0 {
+			return Dec128{coef: uint128.Zero, scale: uint8(scale)}
 		}
 		return Dec128{coef: uint128.FromUint64(u), scale: uint8(scale), state: st}
 	}
@@ -158,6 +161,9 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		coef, e := uint128.FromSafeString(s[i:])
 		if e >= state.Error {
 			return Dec128{state: e}
+		}
+		if coef.IsZero() {
+			return Zero
 		}
 		return Dec128{coef: coef, scale: 0, state: st}
 	}
@@ -183,8 +189,8 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		return Dec128{state: e}
 	}
 
-	if coef.IsZero() && scale == 0 {
-		return Zero
+	if coef.IsZero() {
+		return Dec128{coef: uint128.Zero, scale: uint8(scale)}
 	}
 
 	return Dec128{coef: coef, scale: uint8(scale), state: st}
@@ -203,6 +209,8 @@ func DecodeFromUint64(coef uint64, exp uint8) Dec128 {
 // DecodeFromInt64 decodes a Dec128 from a int64 and an exponent.
 func DecodeFromInt64(coef int64, exp uint8) Dec128 {
 	switch {
+	case coef == 0:
+		return Dec128{coef: uint128.Zero, scale: exp}
 	case coef == -9223372036854775808:
 		return Dec128{coef: uint128.FromUint64(9223372036854775808), scale: exp, state: state.Neg}
 	case coef < 0:

@@ -23,6 +23,10 @@ func New(coef uint128.Uint128, scale uint8, neg bool) Dec128 {
 		return NaN(state.ScaleOutOfRange)
 	}
 
+	if coef.IsZero() {
+		return Dec128{coef: coef, scale: scale}
+	}
+
 	if neg {
 		return Dec128{coef: coef, scale: scale, state: state.Neg}
 	}
@@ -158,6 +162,8 @@ func (d Dec128) Compare(other Dec128) int {
 		return -1
 	case other.state >= state.Error:
 		return 1
+	case d.coef.IsZero() && other.coef.IsZero():
+		return 0
 	}
 
 	sneg := d.IsNegative()

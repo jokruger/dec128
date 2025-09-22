@@ -100,23 +100,29 @@ func TestParseSpecialCases(t *testing.T) {
 	SetDefaultScale(19)
 
 	tcs := map[string]string{
-		"":        "0",
-		"0":       "0",
-		"00":      "0",
-		"+0":      "0",
-		"-0":      "0",
-		"1":       "1",
-		"01":      "1",
-		"+1":      "1",
-		"-1":      "-1",
-		"0.1":     "0.1",
-		"+0.1":    "0.1",
-		"-0.1":    "-0.1",
-		".1":      "0.1",
-		"+.1":     "0.1",
-		"-.1":     "-0.1",
-		".01":     "0.01",
-		".012345": "0.012345",
+		"":                       "0",
+		"0":                      "0",
+		"00":                     "0",
+		"+0":                     "0",
+		"-0":                     "0",
+		"0.0":                    "0",
+		"0.00000000":             "0",
+		"0.0000000000000000000":  "0",
+		"-0.0":                   "0",
+		"-0.00000000":            "0",
+		"-0.0000000000000000000": "0",
+		"1":                      "1",
+		"01":                     "1",
+		"+1":                     "1",
+		"-1":                     "-1",
+		"0.1":                    "0.1",
+		"+0.1":                   "0.1",
+		"-0.1":                   "-0.1",
+		".1":                     "0.1",
+		"+.1":                    "0.1",
+		"-.1":                    "-0.1",
+		".01":                    "0.01",
+		".012345":                "0.012345",
 	}
 
 	for k, v := range tcs {
@@ -3260,5 +3266,39 @@ func TestDeprecatedFunctions(t *testing.T) {
 	}
 	if d.Exponent() != 2 {
 		t.Errorf("expected exponent to be 2, got %d", d.Exponent())
+	}
+}
+
+func TestZeros(t *testing.T) {
+	for s := uint8(0); s <= MaxScale; s++ {
+		d1 := New(uint128.FromUint64(0), s, false)
+		if !d1.IsZero() {
+			t.Fatalf("zero at scale %d => %s", s, d1.String())
+		}
+		if !d1.Equal(Zero) {
+			t.Fatalf("zero equality failure at scale %d => %s", s, d1.String())
+		}
+		if d1.String() != "0" {
+			t.Fatalf("zero string failure at scale %d => %s", s, d1.String())
+		}
+		f, err := d1.InexactFloat64()
+		if err != nil || math.Float64bits(f) != 0 {
+			t.Fatalf("zero at scale %d => %v (%v)", s, f, err)
+		}
+
+		d2 := New(uint128.FromUint64(0), s, true) // "-0" conceptually, but current API normalizes
+		if !d2.IsZero() {
+			t.Fatalf("neg zero normalized failure at scale %d => %s", s, d2.String())
+		}
+		if !d2.Equal(Zero) {
+			t.Fatalf("neg zero normalized equality failure at scale %d => %s", s, d2.String())
+		}
+		if d2.String() != "0" {
+			t.Fatalf("neg zero normalized string failure at scale %d => %s", s, d2.String())
+		}
+		f2, err := d2.InexactFloat64()
+		if err != nil || math.Signbit(f2) { // expect +0
+			t.Fatalf("neg zero normalized failure scale %d => %v (%v)", s, f2, err)
+		}
 	}
 }
