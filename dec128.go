@@ -129,6 +129,11 @@ func (d Dec128) Rescale(scale uint8) Dec128 {
 	return Dec128{coef: coef, scale: scale, state: d.state}
 }
 
+// ToScale is an alias for Rescale.
+func (d Dec128) ToScale(scale uint8) Dec128 {
+	return d.Rescale(scale)
+}
+
 // Equal returns true if the Dec128 is equal to the other Dec128.
 func (d Dec128) Equal(other Dec128) bool {
 	switch {

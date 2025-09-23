@@ -274,6 +274,8 @@ func (d Dec128) Neg() Dec128 {
 		return d
 	case d.state == state.Neg:
 		return Dec128{coef: d.coef, scale: d.scale}
+	case d.coef.IsZero():
+		return d
 	default:
 		return Dec128{coef: d.coef, scale: d.scale, state: state.Neg}
 	}

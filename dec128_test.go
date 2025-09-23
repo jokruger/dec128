@@ -6,11 +6,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
 )
+
+func legacyInexactFloat64(d Dec128) (float64, error) {
+	if d.state >= state.Error {
+		return 0, d.state.Error()
+	}
+	return strconv.ParseFloat(d.String(), 64)
+}
 
 func assertDecimal(s string, isNaN bool, isZero bool, isNegative bool, isPositive bool) error {
 	d := FromString(s)
@@ -3286,6 +3295,12 @@ func TestZeros(t *testing.T) {
 			t.Fatalf("zero at scale %d => %v (%v)", s, f, err)
 		}
 
+		df := FromFloat64(f)
+		ds := FromString(strconv.FormatFloat(f, 'f', -1, 64))
+		if !df.Equal(ds) {
+			t.Fatalf("zero from float/string equality failure at scale %d => %s != %s", s, df.String(), ds.String())
+		}
+
 		d2 := New(uint128.FromUint64(0), s, true) // "-0" conceptually, but current API normalizes
 		if !d2.IsZero() {
 			t.Fatalf("neg zero normalized failure at scale %d => %s", s, d2.String())
@@ -3300,5 +3315,170 @@ func TestZeros(t *testing.T) {
 		if err != nil || math.Signbit(f2) { // expect +0
 			t.Fatalf("neg zero normalized failure scale %d => %v (%v)", s, f2, err)
 		}
+	}
+}
+
+func TestSmallestQuantum(t *testing.T) {
+	// Smallest quantum and a few increments
+	for coef := uint64(1); coef <= 5; coef++ {
+		d := New(uint128.FromUint64(coef), 19, false)
+		f, err := d.InexactFloat64()
+		if err != nil || f <= 0 {
+			t.Fatalf("small quantum fail coef=%d => %v (%v)", coef, f, err)
+		}
+
+		df := FromFloat64(f)
+		ds := FromString(strconv.FormatFloat(f, 'f', -1, 64))
+		if !df.Equal(ds) {
+			t.Fatalf("small quantum from float/string equality fail coef=%d => %s != %s", coef, df.String(), ds.String())
+		}
+
+		s := d.String()
+		expected := fmt.Sprintf("0.000000000000000000%d", coef)
+		if s != expected {
+			t.Fatalf("small quantum string fail coef=%d => %s (expected %s)", coef, s, expected)
+		}
+		d2 := FromString(expected)
+		if !d.Equal(d2) {
+			t.Fatalf("small quantum equality fail coef=%d => %s != %s", coef, d.String(), d2.String())
+		}
+	}
+}
+
+func TestMaxAtScale0(t *testing.T) {
+	// Max at scale 0 and neighbors
+	max0 := MaxAtScale(0)
+	max0m1 := max0.SubInt(1)
+	for _, dd := range []Dec128{max0, max0m1, max0.Neg(), max0m1.Neg()} {
+		if dd.IsNaN() {
+			t.Fatalf("unexpected NaN preparing max tests")
+		}
+		f, err := dd.InexactFloat64()
+		if err != nil {
+			t.Fatalf("max conversion error: %v", err)
+		}
+
+		df := FromFloat64(f)
+		ds := FromString(strconv.FormatFloat(f, 'f', -1, 64))
+		if !df.Equal(ds) {
+			t.Fatalf("max from float/string equality fail %s => %s != %s", dd.String(), df.String(), ds.String())
+		}
+
+		s := dd.String()
+		d2 := FromString(s)
+		if !dd.Equal(d2) {
+			t.Fatalf("max equality fail %s != %s", dd.String(), d2.String())
+		}
+	}
+}
+
+func TestMaxAtScale19(t *testing.T) {
+	// Max at scale 19 and neighbor
+	max19 := MaxAtScale(19)
+	q19 := QuantumAtScale(19)
+	max19m1q := max19.Sub(q19)
+	for _, dd := range []Dec128{max19, max19m1q} {
+		f, err := dd.InexactFloat64()
+		if err != nil {
+			t.Fatalf("max19 conversion error: %v", err)
+		}
+
+		df := FromFloat64(f)
+		ds := FromString(strconv.FormatFloat(f, 'f', -1, 64))
+		if !df.Equal(ds) {
+			t.Fatalf("max19 from float/string equality fail %s => %s != %s", dd.String(), df.String(), ds.String())
+		}
+
+		s := dd.String()
+		d2 := FromString(s)
+		if !dd.Equal(d2) {
+			t.Fatalf("max19 equality fail %s != %s", dd.String(), d2.String())
+		}
+	}
+}
+
+func TestMantissaBoundary(t *testing.T) {
+	limits := []uint64{1<<52 - 1, 1 << 52, 1<<52 + 1, 1<<53 - 1, 1 << 53, 1<<53 + 1}
+	for _, v := range limits {
+		d := New(uint128.FromUint64(v), 0, false)
+		f, err := d.InexactFloat64()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		fLegacy, _ := legacyInexactFloat64(d)
+		if math.Float64bits(f) != math.Float64bits(fLegacy) {
+			t.Fatalf("mantissa boundary mismatch v=%d fast=%g legacy=%g", v, f, fLegacy)
+		}
+
+		df := FromFloat64(f)
+		ds := FromString(strconv.FormatFloat(f, 'f', -1, 64))
+		if !df.Equal(ds) {
+			t.Fatalf("mantissa boundary from float/string equality fail v=%d => %s != %s", v, df.String(), ds.String())
+		}
+
+		s := d.String()
+		d2 := FromString(s)
+		if !d.Equal(d2) {
+			t.Fatalf("mantissa boundary equality fail v=%d => %s != %s", v, d.String(), d2.String())
+		}
+	}
+}
+
+func TestRandom(t *testing.T) {
+	const samples = 10000
+	r := rand.New(rand.NewSource(12345))
+	for range samples {
+		hi := r.Uint64()
+		lo := r.Uint64()
+		scale := uint8(r.Intn(int(MaxScale + 1)))
+		neg := r.Intn(2) == 1
+		d := New(uint128.Uint128{Lo: lo, Hi: hi}, scale, neg)
+
+		s := d.String()
+		d2 := FromString(s)
+		if !d.Equal(d2) {
+			t.Fatalf("random equality fail %s != %s", d.String(), d2.String())
+		}
+
+		f, err := d.InexactFloat64()
+		if err != nil {
+			t.Fatalf("random conversion error %s => %v", d.String(), err)
+		}
+		df := FromFloat64(f)
+		ds := FromString(strconv.FormatFloat(f, 'f', -1, 64))
+		if !df.Equal(ds) {
+			t.Fatalf("random from float/string equality fail %s => %s != %s", d.String(), df.String(), ds.String())
+		}
+
+		fLegacy, _ := legacyInexactFloat64(d)
+		if math.Float64bits(f) != math.Float64bits(fLegacy) {
+			t.Fatalf("random mantissa mismatch %s => fast=%g legacy=%g", d.String(), f, fLegacy)
+		}
+	}
+}
+
+func TestMonotonic(t *testing.T) {
+	// Increasing sequence should produce non-decreasing float64 sequence
+	for s := uint8(0); s <= MaxScale; s++ {
+		base := FromString("12345678901234567890").ToScale(s)
+		step := QuantumAtScale(s)
+		prev, _ := base.InexactFloat64()
+		for i := range 1000 {
+			base = base.Add(step)
+			f, err := base.InexactFloat64()
+			if err != nil {
+				t.Fatalf("monotonic conversion error: %v", err)
+			}
+			if f < prev {
+				t.Fatalf("monotonicity fail at scale %d step %d: %g < %g", s, i, f, prev)
+			}
+			prev = f
+		}
+	}
+}
+
+func TestInexactFloat64_NaN(t *testing.T) {
+	if _, err := FromString("NaN").InexactFloat64(); err == nil {
+		t.Fatalf("expected error for NaN")
 	}
 }
