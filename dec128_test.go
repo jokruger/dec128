@@ -14,7 +14,7 @@ import (
 	"github.com/jokruger/dec128/uint128"
 )
 
-func legacyInexactFloat64(d Dec128) (float64, error) {
+func stableInexactFloat64(d Dec128) (float64, error) {
 	if d.state >= state.Error {
 		return 0, d.state.Error()
 	}
@@ -3405,7 +3405,7 @@ func TestMantissaBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		fLegacy, _ := legacyInexactFloat64(d)
+		fLegacy, _ := stableInexactFloat64(d)
 		if math.Float64bits(f) != math.Float64bits(fLegacy) {
 			t.Fatalf("mantissa boundary mismatch v=%d fast=%g legacy=%g", v, f, fLegacy)
 		}
@@ -3450,7 +3450,7 @@ func TestRandom(t *testing.T) {
 			t.Fatalf("random from float/string equality fail %s => %s != %s", d.String(), df.String(), ds.String())
 		}
 
-		fLegacy, _ := legacyInexactFloat64(d)
+		fLegacy, _ := stableInexactFloat64(d)
 		if math.Float64bits(f) != math.Float64bits(fLegacy) {
 			t.Fatalf("random mantissa mismatch %s => fast=%g legacy=%g", d.String(), f, fLegacy)
 		}
