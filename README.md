@@ -3,10 +3,12 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/jokruger/dec128.svg)](https://pkg.go.dev/github.com/jokruger/dec128)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jokruger/dec128)](https://goreportcard.com/report/github.com/jokruger/dec128)
 [![codecov](https://codecov.io/gh/jokruger/dec128/graph/badge.svg?token=TQWE8PA4AN)](https://codecov.io/gh/jokruger/dec128)
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
 High performance 128-bit fixed-point decimal numbers in go.
 
 ## Key Objectives / Features
+
 - [x] High performance
 - [x] Zero dependencies
 - [x] Minimal or zero memory allocation
@@ -89,7 +91,7 @@ shopspring.Decimal                     152.263         169.300         218.909  
 - **Scale**: Number of digits after the decimal point. For example, 1.00 has scale of 2 and 1.0000 has scale of 4.
 - **Exponent**: Same as scale, but in the context of low-level implementation details or Dec128 encoding.
 - **Canonical**: The representation of a number with the minimum number of decimal places required to represent the number.
-- **Quantum***: The smallest step at a given scale. For example, scale 2 has quantum 0.01
+- **Quantum\***: The smallest step at a given scale. For example, scale 2 has quantum 0.01
 
 ## License
 
@@ -98,6 +100,7 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 ### Attribution
 
 This project includes code derived from:
+
 - A project licensed under the BSD 3-Clause License (Copyright © 2025 Quang).
 - A project licensed under the MIT License (Copyright © 2019 Luke Champine).
 
