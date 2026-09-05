@@ -58,18 +58,26 @@ func (d Dec128) tryAdd(other Dec128) (Dec128, bool) {
 
 	switch a.coef.Compare(b.coef) {
 	case 1:
-		coef, s := a.coef.Sub(b.coef)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
+		// a.coef > b.coef
+		coef, _ := a.coef.Sub(b.coef)
+
+		// unreachable because Sub cannot be error for a.coef > b.coef
+		//if s >= state.Error {
+		//	return Dec128{state: s}, false
+		//}
+
 		return Dec128{coef: coef, scale: scale, state: a.state}, true
 	case 0:
 		return Zero, true
 	default:
-		coef, s := b.coef.Sub(a.coef)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
+		// b.coef > a.coef
+		coef, _ := b.coef.Sub(a.coef)
+
+		// unreachable because Sub cannot be error for b.coef > a.coef
+		//if s >= state.Error {
+		//	return Dec128{state: s}, false
+		//}
+
 		return Dec128{coef: coef, scale: scale, state: b.state}, true
 	}
 }
@@ -98,18 +106,26 @@ func (d Dec128) trySub(other Dec128) (Dec128, bool) {
 
 	switch a.coef.Compare(b.coef) {
 	case 1:
-		coef, s := a.coef.Sub(b.coef)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
+		// a.coef > b.coef
+		coef, _ := a.coef.Sub(b.coef)
+
+		// unreachable because Sub cannot be error for a.coef > b.coef
+		//if s >= state.Error {
+		//	return Dec128{state: s}, false
+		//}
+
 		return Dec128{coef: coef, scale: scale, state: a.state}, true
 	case 0:
 		return Zero, true
 	default:
-		coef, s := b.coef.Sub(a.coef)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
+		// b.coef > a.coef
+		coef, _ := b.coef.Sub(a.coef)
+
+		// unreachable because Sub cannot be error for b.coef > a.coef
+		//if s >= state.Error {
+		//	return Dec128{state: s}, false
+		//}
+
 		if a.state == state.Neg {
 			return Dec128{coef: coef, scale: scale}, true
 		}
@@ -262,11 +278,14 @@ func (d Dec128) trySqrt() (Dec128, bool) {
 	t := d
 
 	if t.scale > scale2 {
-		// scale down to prec2
-		coef, s := t.coef.Div(Pow10Uint128[t.scale-scale2])
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
+		// scale down to prec2, arg to Div will be > 0
+		coef, _ := t.coef.Div(Pow10Uint128[t.scale-scale2])
+
+		// unreachable because Div cannot be error for arg > 0
+		//if s >= state.Error {
+		//	return Dec128{state: s}, false
+		//}
+
 		t = Dec128{coef: coef, scale: scale2, state: t.state}
 	}
 

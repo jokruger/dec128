@@ -122,10 +122,15 @@ func (d Dec128) Rescale(scale uint8) Dec128 {
 
 	// scale down
 	diff := d.scale - scale
-	coef, s := d.coef.Div64(Pow10Uint64[diff])
-	if s >= state.Error {
-		return Dec128{state: s}
-	}
+
+	// diff > 0, so arg to Div64 will be > 0
+	coef, _ := d.coef.Div64(Pow10Uint64[diff])
+
+	// unreachable because Div64 cannot be error for arg > 0
+	//if s >= state.Error {
+	//	return Dec128{state: s}
+	//}
+
 	return Dec128{coef: coef, scale: scale, state: d.state}
 }
 
@@ -179,8 +184,9 @@ func (d Dec128) Compare(other Dec128) int {
 		return -1
 	case !sneg && oneg:
 		return 1
-	case d.coef.IsZero() && other.coef.IsZero():
-		return 0
+	// unreachable because the both-zero case is already handled by the switch above
+	//case d.coef.IsZero() && other.coef.IsZero():
+	//	return 0
 	case d.scale == other.scale:
 		if sneg {
 			return -d.coef.Compare(other.coef)

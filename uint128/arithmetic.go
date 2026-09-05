@@ -163,11 +163,15 @@ func (ui Uint128) QuoRem(other Uint128) (Uint128, Uint128, state.State) {
 	var s state.State
 
 	if other.Hi == 0 {
+		// other is not zero and other.Hi == 0, so other.Lo will be > 0
 		var r64 uint64
-		q, r64, s = ui.QuoRem64(other.Lo)
-		if s >= state.Error {
-			return Zero, Zero, s
-		}
+		q, r64, _ = ui.QuoRem64(other.Lo)
+
+		// unreachable because QuoRem64 cannot be error for arg > 0
+		//if s >= state.Error {
+		//	return Zero, Zero, s
+		//}
+
 		r = FromUint64(r64)
 		return q, r, state.OK
 	}

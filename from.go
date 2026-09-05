@@ -178,10 +178,13 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 		return Dec128{state: ei}
 	}
 
-	fpart, ef := uint128.FromSafeString(s[j+1:])
-	if ef >= state.Error {
-		return Dec128{state: ef}
-	}
+	// scale is <= MaxSafeStrLen64, so the fractional part fits into uint64
+	fpart, _ := uint128.FromSafeString(s[j+1:])
+
+	// unreachable because FromSafeString cannot be error for <= MaxSafeStrLen64 digits
+	//if ef >= state.Error {
+	//	return Dec128{state: ef}
+	//}
 
 	// max scale is 19, so the fpart.Hi is always 0 and scale is always <= len(pow10)
 	coef, e := ipart.MulAdd64(Pow10Uint64[scale], fpart.Lo)

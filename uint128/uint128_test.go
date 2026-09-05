@@ -3,7 +3,10 @@ package uint128
 import (
 	"math"
 	"math/big"
+	"math/rand"
 	"testing"
+
+	"github.com/jokruger/dec128/state"
 )
 
 func TestParse(t *testing.T) {
@@ -1152,5 +1155,68 @@ func TestPutBytes(t *testing.T) {
 	}
 	if !i.PutBytesBigEndian(bs).IsError() {
 		t.Errorf("expected error when putting bytes into too small slice")
+	}
+}
+
+// u256ToBig converts a 256-bit value held as (low 128 bits, high 128 bits) into a big.Int.
+func u256ToBig(lo Uint128, hi Uint128) *big.Int {
+	b := new(big.Int).SetUint64(hi.Hi)
+	b.Lsh(b, 64)
+	b.Or(b, new(big.Int).SetUint64(hi.Lo))
+	b.Lsh(b, 64)
+	b.Or(b, new(big.Int).SetUint64(lo.Hi))
+	b.Lsh(b, 64)
+	b.Or(b, new(big.Int).SetUint64(lo.Lo))
+	return b
+}
+
+// TestQR256b128Random cross-checks the 256/128 division against math/big. The
+// trial quotient produced by bits.Div64 can be up to 2 too large, and only a
+// randomised sweep reliably exercises both correction steps.
+func TestQR256b128Random(t *testing.T) {
+	rnd := rand.New(rand.NewSource(42))
+
+	n := 0
+	for range 20000 {
+		u := Uint128{Lo: rnd.Uint64(), Hi: rnd.Uint64()}
+		carry := Uint128{Lo: rnd.Uint64()}
+		v := Uint128{Lo: rnd.Uint64(), Hi: rnd.Uint64()}
+
+		// Skip the inputs handled by the fast paths and the ones that cannot fit.
+		if v.Hi == 0 || carry.Compare(v) >= 0 {
+			continue
+		}
+
+		q, r, s := QuoRem256By128(u, carry, v)
+		if s.IsError() {
+			t.Fatalf("unexpected error for %s / %s: %s", u256ToBig(u, carry), v.String(), s.String())
+		}
+		n++
+
+		num := u256ToBig(u, carry)
+		den := u256ToBig(v, Zero)
+		wq, wr := new(big.Int).QuoRem(num, den, new(big.Int))
+		if q.String() != wq.String() || r.String() != wr.String() {
+			t.Fatalf("%s / %s: expected %s rem %s, got %s rem %s", num, den, wq, wr, q.String(), r.String())
+		}
+	}
+
+	if n == 0 {
+		t.Fatal("no cases exercised")
+	}
+}
+
+func TestFromSafeStringOverflow(t *testing.T) {
+	// 41 digits cannot fit into 128 bits; the overflow is detected while folding
+	// the digits past the uint64-safe prefix.
+	testCases := [...]string{
+		"99999999999999999999999999999999999999999",
+		"340282366920938463463374607431768211456", // max + 1
+	}
+
+	for _, tc := range testCases {
+		if _, e := FromSafeString(tc); e != state.Overflow {
+			t.Errorf("FromSafeString(%s): expected overflow, got %s", tc, e.String())
+		}
 	}
 }

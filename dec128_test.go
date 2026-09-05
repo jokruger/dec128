@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"strconv"
@@ -3468,5 +3470,237 @@ func TestMonotonic(t *testing.T) {
 func TestInexactFloat64_NaN(t *testing.T) {
 	if _, err := FromString("NaN").InexactFloat64(); err == nil {
 		t.Fatalf("expected error for NaN")
+	}
+}
+
+func TestNegZero(t *testing.T) {
+	// Zero has a zero coefficient and state.Default, so Neg must return it
+	// unchanged instead of producing a negative zero.
+	for _, d := range []Dec128{Zero, FromInt64(0), FromString("0.000")} {
+		n := d.Neg()
+		if n.IsNaN() {
+			t.Errorf("Neg(%v) unexpectedly NaN", d)
+			continue
+		}
+		if n.state != state.Default {
+			t.Errorf("Neg(%v): expected state %s, got %s", d, state.Default.String(), n.state.String())
+		}
+		if !n.IsZero() || n.IsNegative() {
+			t.Errorf("Neg(%v): expected non-negative zero, got %v", d, n)
+		}
+	}
+}
+
+func TestJson3(t *testing.T) {
+	// UnmarshalJSON must surface the parse error rather than silently yielding NaN.
+	for _, s := range []string{`"abc"`, `"1.2.3"`, `"+"`, `"9999999999999999999999999999999999999999999"`} {
+		var d Dec128
+		err := json.Unmarshal([]byte(s), &d)
+		if err == nil {
+			t.Errorf("expected error unmarshalling %s, got none (value %v)", s, d)
+		}
+	}
+}
+
+// errReader fails on the first read; used to exercise the ReadBinary error paths.
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestBinaryErrors(t *testing.T) {
+	t.Run("unmarshal trailing bytes", func(t *testing.T) {
+		// DecodeBinary consumes only one byte here; UnmarshalBinary must reject
+		// the leftover byte rather than ignoring it.
+		var d Dec128
+		if err := d.UnmarshalBinary([]byte{0x00, 0xff}); !errors.Is(err, io.ErrShortBuffer) {
+			t.Errorf("expected io.ErrShortBuffer, got %v", err)
+		}
+	})
+
+	t.Run("read empty", func(t *testing.T) {
+		var d Dec128
+		if err := d.ReadBinary(bytes.NewReader(nil)); !errors.Is(err, io.EOF) {
+			t.Errorf("expected io.EOF, got %v", err)
+		}
+	})
+
+	t.Run("read failing reader", func(t *testing.T) {
+		var d Dec128
+		if err := d.ReadBinary(errReader{}); !errors.Is(err, io.ErrClosedPipe) {
+			t.Errorf("expected io.ErrClosedPipe, got %v", err)
+		}
+	})
+
+	t.Run("read truncated payload", func(t *testing.T) {
+		// Flag byte claims Hi, Lo and scale are present (18 bytes total) but the
+		// reader only holds the flag byte plus one more.
+		var d Dec128
+		if err := d.ReadBinary(bytes.NewReader([]byte{0b1110_0000, 0x01})); !errors.Is(err, io.ErrUnexpectedEOF) {
+			t.Errorf("expected io.ErrUnexpectedEOF, got %v", err)
+		}
+	})
+
+	t.Run("gob decode trailing bytes", func(t *testing.T) {
+		var d Dec128
+		if err := d.GobDecode([]byte{0x00, 0xff}); !errors.Is(err, io.ErrShortBuffer) {
+			t.Errorf("expected io.ErrShortBuffer, got %v", err)
+		}
+	})
+}
+
+func TestFromStringLongForms(t *testing.T) {
+	// Strings longer than uint128.MaxSafeStrLen64 (19) take the uint128 parsing
+	// path rather than the uint64 fast path.
+	type tc struct {
+		s   string
+		st  state.State
+		out string
+	}
+
+	tcs := [...]tc{
+		{"00000000000000000000", state.Default, "0"},                                                          // 20 digits, all zero, no dot
+		{"0000000000000000000000000.00000", state.Default, "0.00000"},                                         // zero with a fractional part
+		{"1234567890123456789.", state.InvalidFormat, ""},                                                     // 20 chars ending in a dot
+		{"999999999999999999999999999999999999999999.5", state.Overflow, ""},                                  // integer part > 2^128
+		{"12345678901234567890.ab", state.InvalidFormat, ""},                                                  // non-digit fractional part
+		{"1234567890123456789012345678901234567890", state.Overflow, ""},                                      // 40 digits, no dot
+		{"340282366920938463463374607431768211455.5", state.Overflow, ""},                                     // coefficient overflows on scaling
+		{"340282366920938463463374607431768211455", state.Default, "340282366920938463463374607431768211455"}, // exactly max
+	}
+
+	for _, e := range tcs {
+		d := FromString(e.s)
+		if d.state != e.st {
+			t.Errorf("FromString(%q): expected state %s, got %s", e.s, e.st.String(), d.state.String())
+			continue
+		}
+		if e.st < state.Error && d.StringFixed() != e.out {
+			t.Errorf("FromString(%q): expected %q, got %q", e.s, e.out, d.StringFixed())
+		}
+	}
+}
+
+func TestFromSafeStringLongForms(t *testing.T) {
+	// FromSafeString skips format validation, so only overflow and scale errors
+	// can be reported here.
+	type tc struct {
+		s   string
+		st  state.State
+		out string
+	}
+
+	tcs := [...]tc{
+		{"00000000000000000000", state.Default, "0"},
+		{"00000000000000000000.0000", state.Default, "0.0000"},
+		{"9999999999999999999999999999999999999999", state.Overflow, ""},     // 40 digits, no dot
+		{"1.00000000000000000000", state.ScaleOutOfRange, ""},                // scale 20 > MaxScale
+		{"999999999999999999999999999999999999999999.5", state.Overflow, ""}, // integer part > 2^128
+		{"340282366920938463463374607431768211455.5", state.Overflow, ""},    // coefficient overflows on scaling
+	}
+
+	for _, e := range tcs {
+		d := FromSafeString(e.s)
+		if d.state != e.st {
+			t.Errorf("FromSafeString(%q): expected state %s, got %s", e.s, e.st.String(), d.state.String())
+			continue
+		}
+		if e.st < state.Error && d.StringFixed() != e.out {
+			t.Errorf("FromSafeString(%q): expected %q, got %q", e.s, e.out, d.StringFixed())
+		}
+	}
+}
+
+func TestOverflowPaths(t *testing.T) {
+	maxAt0 := MaxAtScale(0)
+	minAt0 := MinAtScale(0)
+	quantum := QuantumAtScale(MaxScale)
+
+	// Add/Sub: rescaling the second operand up to scale 19 overflows, and the
+	// Canonical() retry cannot rescue it either.
+	t.Run("add rescale", func(t *testing.T) {
+		for _, d := range []Dec128{maxAt0.Add(quantum), quantum.Add(maxAt0), minAt0.Add(quantum)} {
+			if !d.IsNaN() {
+				t.Errorf("expected NaN, got %v", d)
+			}
+		}
+	})
+
+	t.Run("sub rescale", func(t *testing.T) {
+		for _, d := range []Dec128{maxAt0.Sub(quantum), quantum.Sub(maxAt0), minAt0.Sub(quantum)} {
+			if !d.IsNaN() {
+				t.Errorf("expected NaN, got %v", d)
+			}
+		}
+	})
+
+	// Add of two same-sign maxima overflows the coefficient directly.
+	t.Run("add coefficient", func(t *testing.T) {
+		if d := maxAt0.Add(maxAt0); !d.IsNaN() {
+			t.Errorf("expected NaN, got %v", d)
+		}
+	})
+
+	// Mul: the 256-bit product cannot be scaled back into 128 bits.
+	t.Run("mul", func(t *testing.T) {
+		// 10.0000000000000000001 squared keeps producing a non-zero remainder, so
+		// the loop walks the scale down until scale-i exceeds MaxScale.
+		wide := FromString("10.0000000000000000001")
+		for _, d := range []Dec128{
+			maxAt0.Mul(maxAt0),               // scale 0: no room to divide the carry away
+			MaxAtScale(1).Mul(MaxAtScale(1)), // scale 2: the quotient never fits
+			MaxAtScale(MaxScale).Mul(MaxAtScale(MaxScale)),
+			wide.Mul(wide),
+			FromString("10000000000.0000000001").Mul(FromString("10000000000.0000000001")),
+		} {
+			if !d.IsNaN() {
+				t.Errorf("expected NaN, got %v", d)
+			}
+		}
+	})
+
+	// QuoRem/Mod: the quotient does not fit into 128 bits.
+	t.Run("quorem", func(t *testing.T) {
+		q, r := maxAt0.QuoRem(quantum)
+		if !q.IsNaN() || !r.IsNaN() {
+			t.Errorf("expected NaN, NaN, got %v, %v", q, r)
+		}
+		if d := maxAt0.Mod(quantum); !d.IsNaN() {
+			t.Errorf("expected NaN, got %v", d)
+		}
+	})
+
+	// Sqrt: coef * 10^(2*defaultScale) overflows the 256-bit intermediate.
+	t.Run("sqrt", func(t *testing.T) {
+		if d := maxAt0.Sqrt(); !d.IsNaN() {
+			t.Errorf("expected NaN, got %v", d)
+		}
+	})
+}
+
+func TestSqrt4(t *testing.T) {
+	// With a small default scale the operand has to be scaled down to
+	// 2*defaultScale before the Newton-Raphson iteration starts.
+	old := defaultScale
+	defer SetDefaultScale(old)
+
+	SetDefaultScale(5)
+
+	type tc struct {
+		in  string
+		out string
+	}
+
+	tcs := [...]tc{
+		{"340282366920938463.4633746074317682114", "583337266.87135"},
+		{"0.1234567890123456789", "0.35136"},
+		{"4", "2"},
+		{"2", "1.41421"},
+	}
+
+	for _, e := range tcs {
+		d := FromString(e.in).Sqrt()
+		if d.String() != e.out {
+			t.Errorf("Sqrt(%s): expected %s, got %s", e.in, e.out, d.String())
+		}
 	}
 }

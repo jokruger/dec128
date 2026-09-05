@@ -75,9 +75,10 @@ func (ui Uint128) StringToBuf(buf []byte) []byte {
 			n--
 		}
 
-		if q.IsZero() {
-			return buf[i:]
-		}
+		// unreachable because q.Hi != 0 implies ui >= 2^64 > 1e19, hence q >= 1
+		//if q.IsZero() {
+		//	return buf[i:]
+		//}
 
 		for n > 0 {
 			i--

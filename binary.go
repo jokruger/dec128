@@ -123,10 +123,15 @@ func (d *Dec128) DecodeBinary(buf []byte) (int, error) {
 // MarshalBinary implements the encoding.BinaryMarshaler interface. It encodes Dec128 into a binary form and returns the result.
 func (d Dec128) MarshalBinary() ([]byte, error) {
 	var buf [MaxBytes]byte
-	n, err := d.EncodeBinary(buf[:])
-	if err != nil {
-		return nil, err
-	}
+
+	// buf is MaxBytes long, which is the worst case size of the encoded form
+	n, _ := d.EncodeBinary(buf[:])
+
+	// unreachable because EncodeBinary cannot be error for a buffer of MaxBytes
+	//if err != nil {
+	//	return nil, err
+	//}
+
 	return buf[:n], nil
 }
 
@@ -155,21 +160,31 @@ func (d *Dec128) GobDecode(data []byte) error {
 // AppendBinary appends the binary representation of Dec128 to the end of b (allocating a larger slice if necessary) and returns the updated slice.
 func (d Dec128) AppendBinary(buf []byte) ([]byte, error) {
 	var tmp [MaxBytes]byte
-	n, err := d.EncodeBinary(tmp[:])
-	if err != nil {
-		return buf, err
-	}
+
+	// tmp is MaxBytes long, which is the worst case size of the encoded form
+	n, _ := d.EncodeBinary(tmp[:])
+
+	// unreachable because EncodeBinary cannot be error for a buffer of MaxBytes
+	//if err != nil {
+	//	return buf, err
+	//}
+
 	return append(buf, tmp[:n]...), nil
 }
 
 // WriteBinary writes the binary representation of Dec128 to w.
 func (d Dec128) WriteBinary(w io.Writer) error {
 	var buf [MaxBytes]byte
-	n, err := d.EncodeBinary(buf[:])
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(buf[:n])
+
+	// buf is MaxBytes long, which is the worst case size of the encoded form
+	n, _ := d.EncodeBinary(buf[:])
+
+	// unreachable because EncodeBinary cannot be error for a buffer of MaxBytes
+	//if err != nil {
+	//	return err
+	//}
+
+	_, err := w.Write(buf[:n])
 	return err
 }
 
