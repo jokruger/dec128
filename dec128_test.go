@@ -2670,9 +2670,7 @@ func TestBinary(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
 		a := Zero
 		var b Dec128
-		var bs []byte
-
-		bs = make([]byte, a.BinarySize())
+		bs := make([]byte, a.BinarySize())
 		_, err := a.EncodeBinary(bs)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -2709,9 +2707,7 @@ func TestBinary(t *testing.T) {
 	t.Run("nan", func(t *testing.T) {
 		a := FromString("NaN")
 		var b Dec128
-		var bs []byte
-
-		bs = make([]byte, a.BinarySize())
+		bs := make([]byte, a.BinarySize())
 		_, err := a.EncodeBinary(bs)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -2728,9 +2724,7 @@ func TestBinary(t *testing.T) {
 	t.Run("small decimal", func(t *testing.T) {
 		a := FromString("123.456")
 		var b Dec128
-		var bs []byte
-
-		bs = make([]byte, a.BinarySize())
+		bs := make([]byte, a.BinarySize())
 		_, err := a.EncodeBinary(bs)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -2747,9 +2741,7 @@ func TestBinary(t *testing.T) {
 	t.Run("big decimal", func(t *testing.T) {
 		a := FromString("123456789012345678901234567890.123456")
 		var b Dec128
-		var bs []byte
-
-		bs = make([]byte, a.BinarySize())
+		bs := make([]byte, a.BinarySize())
 		_, err := a.EncodeBinary(bs)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -2766,9 +2758,7 @@ func TestBinary(t *testing.T) {
 	t.Run("small int", func(t *testing.T) {
 		a := FromString("123")
 		var b Dec128
-		var bs []byte
-
-		bs = make([]byte, a.BinarySize())
+		bs := make([]byte, a.BinarySize())
 		_, err := a.EncodeBinary(bs)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -2785,9 +2775,7 @@ func TestBinary(t *testing.T) {
 	t.Run("big int", func(t *testing.T) {
 		a := FromString("123456789012345678901234567890")
 		var b Dec128
-		var bs []byte
-
-		bs = make([]byte, a.BinarySize())
+		bs := make([]byte, a.BinarySize())
 		_, err := a.EncodeBinary(bs)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)

@@ -227,6 +227,9 @@ func TestConvString(t *testing.T) {
 		if e.IsError() {
 			t.Errorf("error converting string to uint128: %s", e.String())
 		}
+		if s := u.String(); tc != s {
+			t.Errorf("expected %v, got %v", tc, s)
+		}
 		u, e = FromSafeString(tc)
 		if e.IsError() {
 			t.Errorf("error converting safe string to uint128: %s", e.String())

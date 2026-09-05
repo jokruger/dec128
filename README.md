@@ -1,7 +1,7 @@
 # dec128
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/jokruger/dec128.svg)](https://pkg.go.dev/github.com/jokruger/dec128)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jokruger/dec128)](https://goreportcard.com/report/github.com/jokruger/dec128)
+[![lint](https://github.com/jokruger/dec128/actions/workflows/lint.yml/badge.svg)](https://github.com/jokruger/dec128/actions/workflows/lint.yml)
 [![codecov](https://codecov.io/gh/jokruger/dec128/graph/badge.svg?token=TQWE8PA4AN)](https://codecov.io/gh/jokruger/dec128)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
@@ -33,7 +33,19 @@ Run `go get github.com/jokruger/dec128`
 
 ## Requirements
 
-This library requires Go version `>=1.23`
+This library requires Go version `>=1.24` (as declared in `go.mod`).
+
+## Development
+
+```bash
+make test       # run tests with coverage
+make view       # open the HTML coverage report
+make lint       # run golangci-lint (installs the pinned version on first use)
+make lint-fix   # run golangci-lint with --fix
+```
+
+Linting is configured in `.golangci.yml` and enforced in CI by
+`.github/workflows/lint.yml`.
 
 ## Documentation
 

@@ -1,0 +1,21 @@
+version: "2"
+
+# Zero-dependency library: this config is deliberately conservative.
+# `standard` = errcheck, govet, ineffassign, staticcheck, unused.
+# revive is intentionally NOT enabled: its var-naming rule wants
+# ZeroJsonStrBytes -> ZeroJSONStrBytes, which would break the public API.
+linters:
+  default: standard
+  enable:
+    - misspell
+    - unconvert
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  # Report every occurrence; the defaults cap duplicates at 3 per linter,
+  # which hides repeated findings across the large test files.
+  max-issues-per-linter: 0
+  max-same-issues: 0
