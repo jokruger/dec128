@@ -3704,3 +3704,310 @@ func TestSqrt4(t *testing.T) {
 		}
 	}
 }
+
+// sciCase is one scientific notation parsing case: the input, the state it must
+// produce and, for valid input, its regular form with the scale preserved.
+// Only FromString accepts scientific notation; FromSafeString is regular form only.
+type sciCase struct {
+	in  string
+	st  state.State
+	out string
+}
+
+var sciParseCases = [...]sciCase{
+	// basic forms, both markers, both exponent signs
+	{"1.5e3", state.Default, "1500"},
+	{"1.5E3", state.Default, "1500"},
+	{"1.5e+3", state.Default, "1500"},
+	{"1.5e-3", state.Default, "0.0015"},
+	{"1e0", state.Default, "1"},
+	{"1e-0", state.Default, "1"},
+	{"1e10", state.Default, "10000000000"},
+	{"-1.2e3", state.Neg, "-1200"},
+	{"+1.2e3", state.Default, "1200"},
+	{"-1e-3", state.Neg, "-0.001"},
+
+	// zero is zero at every exponent, and never negative
+	{"0e5", state.Default, "0"},
+	{"-0e5", state.Default, "0"},
+	{"0.0e0", state.Default, "0"},
+	{"0e-99", state.Default, "0"},
+
+	// the mantissa may omit either side of the decimal point
+	{".5e1", state.Default, "5"},
+	{"5.e1", state.Default, "50"},
+
+	// scale boundaries
+	{"1e-19", state.Default, "0.0000000000000000001"},
+	{"1e-20", state.ScaleOutOfRange, ""},
+	{"1e38", state.Default, "100000000000000000000000000000000000000"},
+	{"1e39", state.Overflow, ""},
+
+	// trailing zeros in the coefficient can pull an out of range scale back in
+	{"1.0000000000000000000e0", state.Default, "1.0000000000000000000"},
+	// the coefficient is only trimmed until the scale fits, not down to canonical form
+	{"1000000e-24", state.Default, "0.0000000000000000010"},
+	{"100000e-25", state.ScaleOutOfRange, ""},
+
+	// exponents far outside anything representable
+	{"1e1000000000000", state.Overflow, ""},
+	{"1e-1000000000000", state.ScaleOutOfRange, ""},
+
+	// inputs longer than uint128.MaxSafeStrLen64 take the uint128 parsing path
+	{"1234567890123456789012e-10", state.Default, "123456789012.3456789012"},
+	{"1.2345678901234567890123e5", state.Default, "123456.78901234567890123"},
+	{"12345678901234567890.12345e2", state.Default, "1234567890123456789012.345"},
+	{"12345678901234567890123456789012345678e-19", state.Default, "1234567890123456789.0123456789012345678"},
+	{"0.0000000000000000000000000000000000000001e40", state.Default, "1"},
+	{"1234567890123456789012345678901234567890e-2", state.Overflow, ""},
+
+	// the full range of the coefficient
+	{"3.40282366920938463463374607431768211455e38", state.Default, "340282366920938463463374607431768211455"},
+
+	// a mantissa padded past the width of a coefficient still names a real value
+	{"1.000000000000000000000000000000000000000e5", state.Default, "100000.0000000000000000000"},
+	{"1.5000000000000000000000000000000000000000e5", state.Default, "150000.0000000000000000000"},
+	{"1.50e0", state.Default, "1.50"}, // padding within range keeps its scale
+
+	// every way the coefficient can fail to fit
+	{"1.99999999999999999999999999999999999999999e5", state.Overflow, ""}, // fractional part alone
+	{"99999999999999999999999999999999999999.9e0", state.Overflow, ""},    // shifting the integer part
+	{"34028236692093846346337460743176821145.9e0", state.Overflow, ""},    // adding the fractional part
+	{"99999999999999999999999999999999999999e5", state.Overflow, ""},      // applying the exponent
+	// a fractional part that fits on its own but not once the integer part is folded in
+	{"1.340282366920938463463374607431768211455e0", state.Overflow, ""},
+}
+
+func TestSciFromString(t *testing.T) {
+	for _, e := range sciParseCases {
+		d := FromString(e.in)
+		if d.state != e.st {
+			t.Errorf("FromString(%q): expected state %s, got %s", e.in, e.st.String(), d.state.String())
+			continue
+		}
+		if e.st < state.Error && d.StringFixed() != e.out {
+			t.Errorf("FromString(%q): expected %q, got %q", e.in, e.out, d.StringFixed())
+		}
+	}
+}
+
+func TestSciFromStringInvalid(t *testing.T) {
+	testCases := [...]string{
+		"e5",                        // no mantissa
+		"E5",                        // no mantissa, upper case marker
+		"-e5",                       // sign only
+		".e5",                       // decimal point only
+		"1.5e",                      // no exponent
+		"1e+",                       // exponent sign only
+		"1e-",                       // exponent sign only
+		"1e5e6",                     // two exponents
+		"1ee5",                      // repeated marker
+		"1e5.5",                     // fractional exponent
+		"1.2.3e5",                   // two decimal points
+		"1e5x",                      // trailing garbage
+		"1x5e5",                     // garbage in the integer part
+		"1.2x3e5",                   // garbage in the fractional part
+		"12345678901234567890e5e6",  // two exponents, long form
+		"12345678901234567890.1e5x", // trailing garbage, long form
+		"1.23456789012345678901234e5x",
+	}
+
+	for _, tc := range testCases {
+		d := FromString(tc)
+		if d.state != state.InvalidFormat {
+			t.Errorf("FromString(%q): expected invalid format, got %s (%v)", tc, d.state.String(), d)
+		}
+	}
+}
+
+func TestSciString(t *testing.T) {
+	type tc struct {
+		in  string
+		out string
+	}
+
+	testCases := [...]tc{
+		{"12345", "1.2345e+4"},
+		{"0.00015", "1.5e-4"},
+		{"-1200", "-1.2e+3"},
+		{"1", "1e+0"},
+		{"-1", "-1e+0"},
+		{"0", "0e+0"},
+		{"0.000", "0e+0"},
+		{"1.00", "1e+0"}, // trailing zeros of the mantissa are dropped
+		{"0.5", "5e-1"},
+		{"-0.5", "-5e-1"},
+		{"10", "1e+1"},
+		{"100", "1e+2"},
+		{"0.0000000000000000001", "1e-19"},
+		{"340282366920938463463374607431768211455", "3.40282366920938463463374607431768211455e+38"},
+		{"0.0000000000000000009", "9e-19"},
+		{"NaN", "NaN"},
+	}
+
+	for _, e := range testCases {
+		if s := FromString(e.in).StringSci(); s != e.out {
+			t.Errorf("StringSci(%q): expected %q, got %q", e.in, e.out, s)
+		}
+	}
+
+	// every NaN reason prints as NaN
+	for _, r := range []state.State{state.Overflow, state.DivisionByZero, state.InvalidFormat, state.ScaleOutOfRange} {
+		if s := NaN(r).StringSci(); s != NaNStr {
+			t.Errorf("StringSci(NaN(%s)): expected %q, got %q", r.String(), NaNStr, s)
+		}
+	}
+}
+
+func TestSciStringToBuf(t *testing.T) {
+	// the buffer is caller supplied and must be reusable across calls
+	buf := [MaxSciStrLen]byte{}
+
+	for _, e := range [...]string{"12345", "-0.00015", "0", "NaN", "340282366920938463463374607431768211455"} {
+		d := FromString(e)
+		if got, want := string(d.StringSciToBuf(buf[:])), d.StringSci(); got != want {
+			t.Errorf("StringSciToBuf(%q): expected %q, got %q", e, want, got)
+		}
+	}
+}
+
+func TestSciRoundTrip(t *testing.T) {
+	// the scientific form must parse back to the same value; the scale may differ
+	// because the mantissa drops trailing zeros, so compare with Equal
+	testCases := [...]string{
+		"0", "1", "-1", "12345", "-12345", "0.5", "-0.5", "1.00", "0.00015",
+		"1200", "0.0000000000000000001", "340282366920938463463374607431768211455",
+		"-340282366920938463463374607431768211455", "123456789.987654321",
+	}
+
+	for _, tc := range testCases {
+		d := FromString(tc)
+		r := FromString(d.StringSci())
+		if r.IsNaN() {
+			t.Errorf("round trip of %q via %q: unexpected NaN (%s)", tc, d.StringSci(), r.state.String())
+			continue
+		}
+		if !r.Equal(d) {
+			t.Errorf("round trip of %q via %q: expected %v, got %v", tc, d.StringSci(), d, r)
+		}
+	}
+}
+
+func TestSciSerialisation(t *testing.T) {
+	// parsing accepts the scientific form everywhere, output stays regular
+	t.Run("json", func(t *testing.T) {
+		var d Dec128
+		if err := json.Unmarshal([]byte(`"1.5e3"`), &d); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if d.String() != "1500" {
+			t.Errorf("expected 1500, got %s", d.String())
+		}
+		bs, err := json.Marshal(d)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(bs) != `"1500"` {
+			t.Errorf(`expected "1500", got %s`, string(bs))
+		}
+	})
+
+	t.Run("text", func(t *testing.T) {
+		var d Dec128
+		if err := d.UnmarshalText([]byte("2.5e-2")); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if d.String() != "0.025" {
+			t.Errorf("expected 0.025, got %s", d.String())
+		}
+		bs, err := d.MarshalText()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(bs) != "0.025" {
+			t.Errorf("expected 0.025, got %s", string(bs))
+		}
+	})
+
+	t.Run("sql", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan("-4.2e2"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if d.String() != "-420" {
+			t.Errorf("expected -420, got %s", d.String())
+		}
+		v, err := d.Value()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if v != "-420" {
+			t.Errorf("expected -420, got %v", v)
+		}
+	})
+
+	t.Run("json invalid", func(t *testing.T) {
+		var d Dec128
+		if err := json.Unmarshal([]byte(`"1e5e6"`), &d); err == nil {
+			t.Error("expected an error, got none")
+		}
+	})
+}
+
+func TestScanTypes(t *testing.T) {
+	// drivers return a numeric column in different shapes; all the lossless ones
+	// a database/sql driver can produce must be accepted
+	t.Run("bytes", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan([]byte("123.45")); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if d.String() != "123.45" {
+			t.Errorf("expected 123.45, got %s", d.String())
+		}
+	})
+
+	t.Run("bytes scientific", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan([]byte("1.5e3")); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if d.String() != "1500" {
+			t.Errorf("expected 1500, got %s", d.String())
+		}
+	})
+
+	t.Run("bytes invalid", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan([]byte("abc")); err == nil {
+			t.Error("expected an error, got none")
+		}
+	})
+
+	t.Run("bytes empty", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan([]byte{}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !d.IsZero() {
+			t.Errorf("expected zero, got %s", d.String())
+		}
+	})
+
+	t.Run("uint64", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan(uint64(18446744073709551615)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if d.String() != "18446744073709551615" {
+			t.Errorf("expected 18446744073709551615, got %s", d.String())
+		}
+	})
+
+	t.Run("unsupported", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan(1.5); err == nil {
+			t.Error("expected an error for float64, got none")
+		}
+	})
+}

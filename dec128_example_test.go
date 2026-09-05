@@ -123,3 +123,24 @@ func ExampleAvg() {
 	// 2
 	// 1.775
 }
+
+func ExampleFromString_scientific() {
+	// the regular and the scientific form are both accepted
+	a := FromString("1.5e3")
+	b := FromString("-2.5E-2")
+	fmt.Println(a, b)
+	// Output:
+	// 1500 -0.025
+}
+
+func ExampleDec128_StringSci() {
+	a := FromString("12345")
+	b := FromString("0.00015")
+	c := FromString("-1200")
+	// String stays in the regular form, StringSci is the opt-in
+	fmt.Println(a.String(), a.StringSci())
+	fmt.Println(b.StringSci(), c.StringSci())
+	// Output:
+	// 12345 1.2345e+4
+	// 1.5e-4 -1.2e+3
+}

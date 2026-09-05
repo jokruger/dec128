@@ -274,10 +274,19 @@ func (d *Dec128) Scan(src any) error {
 		if d.IsNaN() {
 			err = d.ErrorDetails()
 		}
+	case []byte:
+		// most drivers hand back a numeric/decimal column as bytes; FromString is
+		// generic over string | []byte, so this costs no conversion and no allocation
+		*d = FromString(v)
+		if d.IsNaN() {
+			err = d.ErrorDetails()
+		}
 	case int:
 		*d = FromInt64(int64(v))
 	case int64:
 		*d = FromInt64(v)
+	case uint64:
+		*d = DecodeFromUint64(v, 0)
 	case nil:
 		*d = Zero
 	default:

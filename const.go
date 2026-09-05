@@ -20,6 +20,11 @@ const MaxPrecision = MaxScale
 // MaxStrLen = uint128.MaxStrLen + dot + sign
 const MaxStrLen = uint128.MaxStrLen + 2
 
+// MaxSciStrLen is the maximum number of characters that can be in a scientific notation
+// representation of a Dec128.
+// MaxSciStrLen = uint128.MaxStrLen + sign + dot + marker + exponent sign + 2 exponent digits
+const MaxSciStrLen = uint128.MaxStrLen + 6
+
 var (
 	Zero        = Dec128{}
 	One         = FromInt64(1)
@@ -44,6 +49,9 @@ var (
 	ZeroStr          = "0"
 	ZeroStrBytes     = []byte(ZeroStr)
 	ZeroJsonStrBytes = []byte(`"0"`)
+
+	ZeroSciStr      = "0e+0"
+	ZeroSciStrBytes = []byte(ZeroSciStr)
 
 	NaNStr          = "NaN"
 	NaNStrBytes     = []byte(NaNStr)

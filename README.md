@@ -17,7 +17,6 @@ High performance 128-bit fixed-point decimal numbers in go.
 - [x] No panic or error arithmetics (use NaN instead)
 - [x] Immutability (methods return new instances)
 - [x] Basic arithmetic operations required for financial calculations (specifically for banking and accounting)
-- [ ] Additional arithmetic operations for scientific calculations
 - [x] Easy to use
 - [x] Easy to integrate with external systems (e.g. databases, accounting systems, JSON, etc.)
 - [x] Financially correct rounding
@@ -26,6 +25,7 @@ High performance 128-bit fixed-point decimal numbers in go.
 - [x] Conversion to canonical representation (e.g. 1.0000 -> 1)
 - [x] Conversion to fixed string representation (e.g. 1.0000 -> "1.0000")
 - [x] Conversion to human-readable string representation (e.g. 1.0000 -> "1")
+- [x] Scientific notation: parsed by `FromString`, printed on request (e.g. "1.5e3" -> 1500, 12345 -> "1.2345e+4")
 
 ## Install
 
@@ -80,6 +80,35 @@ func main() {
     fmt.Printf("Total after %v days: %v\n", days, total.StringFixed())
 }
 ```
+
+## Scientific notation
+
+`FromString` accepts both forms, so JSON, text and `sql.Scanner` input needs no extra
+handling:
+
+```go
+dec128.FromString("1.5e3")   // 1500
+dec128.FromString("-2.5E-2") // -0.025
+```
+
+`FromSafeString` is regular form only. It skips all format checks by design, so there
+is nothing for the exponent marker to be caught by, and adding a check would cost a
+comparison per character on the fastest parsing path. Send input that may carry an
+exponent through `FromString`, which detects the marker inside the validation it
+already performs and so costs nothing extra.
+
+Printing stays in the regular form unless the scientific one is asked for. `String`,
+`MarshalJSON`, `MarshalText` and `Value` are unchanged:
+
+```go
+d := dec128.FromString("12345")
+d.String()    // "12345"
+d.StringSci() // "1.2345e+4"
+```
+
+`StringSci` normalises to a single leading digit, always signs the exponent and drops
+the trailing zeros of the mantissa; zero prints as `0e+0` and NaN as `NaN`. Use
+`StringSciToBuf` with a `[MaxSciStrLen]byte` buffer to format without allocating.
 
 ## Why not use other libraries?
 

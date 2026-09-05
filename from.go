@@ -55,6 +55,9 @@ func FromString[S string | []byte](s S) Dec128 {
 				continue
 			}
 			if c < '0' || c > '9' {
+				if c == 'e' || c == 'E' {
+					return fromSciString(s, i)
+				}
 				return Dec128{state: state.InvalidFormat}
 			}
 			u = u*10 + uint64(c-'0')
@@ -65,10 +68,19 @@ func FromString[S string | []byte](s S) Dec128 {
 		return Dec128{coef: uint128.FromUint64(u), scale: uint8(scale), state: st}
 	}
 
+	// locate the decimal point, stopping early if an exponent marker comes first
 	j := 0
 	for ; j < sz; j++ {
-		if s[j] == '.' {
+		c := s[j]
+		if c == '.' {
 			break
+		}
+		if c > '9' {
+			// digits, the sign and the decimal point are all <= '9'
+			if c == 'e' || c == 'E' {
+				return fromSciString(s, j)
+			}
+			return Dec128{state: state.InvalidFormat}
 		}
 	}
 
@@ -87,8 +99,13 @@ func FromString[S string | []byte](s S) Dec128 {
 		return Dec128{state: state.InvalidFormat}
 	}
 
+	// the exponent part, if any, is counted into the scale here, which is what pushes
+	// a scientific mantissa over the limit
 	scale = sz - j - 1
 	if scale > uint128.MaxSafeStrLen64 {
+		if m := indexExp(s[j+1:]); m >= 0 {
+			return fromSciString(s, j+1+m)
+		}
 		return Dec128{state: state.ScaleOutOfRange}
 	}
 
@@ -99,6 +116,10 @@ func FromString[S string | []byte](s S) Dec128 {
 
 	fpart, ef := uint128.FromString(s[j+1:])
 	if ef >= state.Error {
+		// the marker is not a digit, so it lands here rather than parsing
+		if m := indexExp(s[j+1:]); m >= 0 {
+			return fromSciString(s, j+1+m)
+		}
 		return Dec128{state: ef}
 	}
 
@@ -117,6 +138,10 @@ func FromString[S string | []byte](s S) Dec128 {
 
 // FromSafeString creates a new Dec128 from safe string (no format checks are applied).
 // In case of errors, it returns NaN with the corresponding error.
+//
+// Only the regular form is supported here: scientific notation is not recognised and
+// would be parsed as if the exponent marker were a digit. Use FromString for input
+// that may carry an exponent; it accepts both forms and costs nothing extra to do so.
 func FromSafeString[S string | []byte](s S) Dec128 {
 	sz := len(s)
 
