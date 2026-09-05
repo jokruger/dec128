@@ -24,6 +24,7 @@ const (
 	SqrtNegative           = State(12)
 	ScaleOutOfRange        = State(13)
 	RescaleToLowerScale    = State(14)
+	Null                   = State(15)
 )
 
 var code2str = [...]string{
@@ -44,6 +45,7 @@ var code2str = [...]string{
 	SqrtNegative:           "square root of negative number",
 	ScaleOutOfRange:        "scale out of range",
 	RescaleToLowerScale:    "rescale to lower scale",
+	Null:                   "null",
 }
 
 var code2err = [...]error{
@@ -62,6 +64,7 @@ var code2err = [...]error{
 	SqrtNegative:           errors.New("square root of negative number"),
 	ScaleOutOfRange:        errors.New("scale out of range"),
 	RescaleToLowerScale:    errors.New("rescale to lower scale"),
+	Null:                   errors.New("null"),
 }
 
 var OK = Default

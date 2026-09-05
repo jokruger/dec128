@@ -60,15 +60,38 @@ var (
 	Pow10Uint64  = uint128.Pow10Uint64
 	Pow10Uint128 = uint128.Pow10Uint128
 
-	defaultScale = MaxScale
+	// defaultScale is the scale Div, QuoRem and Sqrt fall back to. It is a floor, not a
+	// cap: an operand with a larger scale keeps its own. It deliberately leaves headroom
+	// below MaxScale so that a quotient can still be multiplied afterwards - at MaxScale
+	// every division lands on the ceiling and the next Mul with a fractional operand
+	// overflows to NaN.
+	defaultScale = uint8(6)
 )
 
-// SetDefaultScale sets the default scale for new Dec128 instances.
+// SetDefaultScale sets the scale that Div and Sqrt fall back to. It does not affect how
+// values are parsed or constructed: FromString("1.5") has scale 1 whatever this is set
+// to, and QuoRem does not consult it either.
+//
+// The value is a floor, not a cap - an operand that already has a larger scale keeps it.
+// It must not exceed MaxScale; this is the only function in the package that panics, and
+// only here, at configuration time.
+//
+// Leaving headroom below MaxScale matters: at MaxScale every quotient lands on the
+// ceiling, and multiplying one by any operand with a fractional part then overflows to
+// NaN. Use DivAtScale or SqrtAtScale to choose the scale per call instead.
+//
+// This is process-global state. Set it once during initialisation, before any decimal is
+// used; calling it while other goroutines are calculating is a data race.
 func SetDefaultScale(scale uint8) {
 	if scale > MaxScale {
 		panic(state.ScaleOutOfRange.Error())
 	}
 	defaultScale = scale
+}
+
+// DefaultScale returns the scale that Div and Sqrt fall back to.
+func DefaultScale() uint8 {
+	return defaultScale
 }
 
 // Deprecated: Use SetDefaultScale instead.

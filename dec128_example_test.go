@@ -41,12 +41,26 @@ func ExampleDec128_Mul() {
 }
 
 func ExampleDec128_Div() {
-	SetDefaultScale(19)
+	// Div falls back to the package default scale, so pin it for the example
+	defer SetDefaultScale(DefaultScale())
+	SetDefaultScale(6)
+
 	a := FromString("1")
 	b := FromString("3")
 	fmt.Println(a.Div(b))
 	// Output:
+	// 0.333333
+}
+
+func ExampleDec128_DivAtScale() {
+	a := FromString("1")
+	b := FromString("3")
+	// the scale is chosen per call, independently of SetDefaultScale
+	fmt.Println(a.DivAtScale(b, 19))
+	fmt.Println(a.DivAtScale(b, 2))
+	// Output:
 	// 0.3333333333333333333
+	// 0.33
 }
 
 func ExampleDec128_Sqrt() {
@@ -54,6 +68,29 @@ func ExampleDec128_Sqrt() {
 	fmt.Println(a.Sqrt())
 	// Output:
 	// 2
+}
+
+func ExampleSetNullValue() {
+	// by default a SQL NULL or a JSON null decodes to zero
+	var a Dec128
+	_ = a.Scan(nil)
+	fmt.Println(a, a.IsNull())
+
+	// make NULL round-trip instead
+	SetNullValue(Null())
+	defer SetNullValue(Zero)
+
+	var b Dec128
+	_ = b.Scan(nil)
+	v, _ := b.Value()
+	fmt.Println(b.IsNull(), v)
+
+	// and it propagates the way SQL NULL does
+	fmt.Println(b.Add(FromInt64(1)).IsNull())
+	// Output:
+	// 0 false
+	// true <nil>
+	// true
 }
 
 func ExampleMax() {

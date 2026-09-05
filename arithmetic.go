@@ -126,28 +126,42 @@ func (d Dec128) MulInt64(other int64) Dec128 {
 }
 
 // Div returns d / other.
+// The scale of the result is the larger of d's scale and the package default set by
+// SetDefaultScale; use DivAtScale to choose it per call instead.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (d Dec128) Div(other Dec128) Dec128 {
+	return d.DivAtScale(other, defaultScale)
+}
+
+// DivAtScale returns d / other, using scale as the minimum scale of the result instead
+// of the package default set by SetDefaultScale. Like the default, scale is a floor and
+// not a cap: if d already has a larger scale, that one is kept.
+// If any of the Dec128 is NaN, the result will be NaN.
+// If scale is greater than MaxScale, the result will be NaN.
+// In case of overflow, underflow, or division by zero, the result will be NaN.
+func (d Dec128) DivAtScale(other Dec128, scale uint8) Dec128 {
 	switch {
 	case d.state >= state.Error:
 		return d
 	case other.state >= state.Error:
 		return other
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
 	case other.coef.IsZero():
 		return Dec128{state: state.DivisionByZero}
 	case d.coef.IsZero():
 		return Zero
 	}
 
-	r, ok := d.tryDiv(other)
+	r, ok := d.tryDivAtScale(other, scale)
 	if ok {
 		return r
 	}
 
 	a := d.Canonical()
 	b := other.Canonical()
-	r, ok = a.tryDiv(b)
+	r, ok = a.tryDivAtScale(b, scale)
 	if ok {
 		return r
 	}
@@ -214,6 +228,8 @@ func (d Dec128) ModInt64(other int64) Dec128 {
 }
 
 // QuoRem returns the quotient and remainder of the division of Dec128 by other Dec128.
+// The quotient is always an integer and the remainder takes the larger scale of the two
+// operands, so unlike Div this does not depend on SetDefaultScale.
 // If any of the Dec128 is NaN, the result will be NaN.
 // In case of overflow, underflow, or division by zero, the result will be NaN.
 func (d Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
@@ -282,13 +298,27 @@ func (d Dec128) Neg() Dec128 {
 }
 
 // Sqrt returns the square root of the Dec128.
+// The scale of the result is the package default set by SetDefaultScale; use
+// SqrtAtScale to choose it per call instead.
 // If Dec128 is NaN, the result will be NaN.
 // If Dec128 is negative, the result will be NaN.
 // In case of overflow, the result will be NaN.
 func (d Dec128) Sqrt() Dec128 {
+	return d.SqrtAtScale(defaultScale)
+}
+
+// SqrtAtScale returns the square root of the Dec128 at the given scale instead of the
+// package default set by SetDefaultScale.
+// If the Dec128 is NaN, the result will be NaN.
+// If the Dec128 is negative, the result will be NaN.
+// If scale is greater than MaxScale, the result will be NaN.
+// In case of overflow, the result will be NaN.
+func (d Dec128) SqrtAtScale(scale uint8) Dec128 {
 	switch {
 	case d.state >= state.Error:
 		return d
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
 	case d.coef.IsZero():
 		return Zero
 	case d.state == state.Neg:
@@ -297,14 +327,14 @@ func (d Dec128) Sqrt() Dec128 {
 		return One
 	}
 
-	r, ok := d.trySqrt()
+	r, ok := d.trySqrtAtScale(scale)
 	if ok {
 		return r
 	}
 
-	// Fallback is unreachable; retained only for future changes.
+	// Canonical() fallback is unreachable here; retained only for future changes.
 	//a := d.Canonical()
-	//r, ok = a.trySqrt()
+	//r, ok = a.trySqrtAtScale(scale)
 	//if ok {
 	//	return r
 	//}

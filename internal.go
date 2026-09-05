@@ -171,13 +171,13 @@ func (d Dec128) tryMul(other Dec128) (Dec128, bool) {
 	}
 }
 
-// called only when both are not NaN
-func (d Dec128) tryDiv(other Dec128) (Dec128, bool) {
+// called only when both are not NaN, and only with minScale <= MaxScale
+func (d Dec128) tryDivAtScale(other Dec128, minScale uint8) (Dec128, bool) {
 	factor := other.scale
 	scale := d.scale
-	if scale < defaultScale {
-		factor = factor + defaultScale - scale
-		scale = defaultScale
+	if scale < minScale {
+		factor = factor + minScale - scale
+		scale = minScale
 	}
 	u, c := d.coef.MulCarry(Pow10Uint128[factor])
 	q, _, s := uint128.QuoRem256By128(u, c, other.coef)
@@ -272,8 +272,7 @@ func trimTrailingZeros(sb []byte) []byte {
 }
 
 // called only when d is not NaN
-func (d Dec128) trySqrt() (Dec128, bool) {
-	scale := defaultScale
+func (d Dec128) trySqrtAtScale(scale uint8) (Dec128, bool) {
 	scale2 := scale * 2
 	t := d
 
@@ -294,11 +293,17 @@ func (d Dec128) trySqrt() (Dec128, bool) {
 		return Dec128{state: state.Overflow}, false
 	}
 
-	// 0 <= coef.bitLen() < 256, so it's safe to convert to uint
-	bitLen := uint(coef.BitLen() + carry.BitLen())
+	// the bit length of the whole 256-bit value, not the sum of the two halves: when
+	// the low half is zero coef.BitLen() is 0 and the sum collapses, which used to make
+	// the first guess far too small and the first division overflow.
+	// carry.Hi is 0 here, so bitLen <= 192 and the shift below stays in range.
+	bitLen := coef.BitLen()
+	if !carry.IsZero() {
+		bitLen = 128 + carry.BitLen()
+	}
 
 	// initial guess = 2^((bitLen + 1) / 2) ≥ √coef
-	x := uint128.One.Lsh((bitLen + 1) / 2)
+	x := uint128.One.Lsh(uint(bitLen+1) / 2)
 
 	// Newton-Raphson method
 	for {
@@ -314,7 +319,12 @@ func (d Dec128) trySqrt() (Dec128, bool) {
 		}
 
 		x1 = x1.Rsh(1)
-		if x1.Compare(x) == 0 {
+
+		// x starts at or above the true root and the iteration decreases monotonically,
+		// so the first non-decreasing step is the fixed point. Breaking only on equality
+		// would spin forever on the inputs where the sequence alternates between two
+		// neighbouring values.
+		if x1.Compare(x) >= 0 {
 			break
 		}
 

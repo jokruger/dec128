@@ -263,5 +263,10 @@ func FromFloat64(f float64) Dec128 {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return Dec128{state: state.NaN}
 	}
-	return FromString(strconv.FormatFloat(f, 'f', -1, 64))
+
+	// 'f' never emits an exponent, and every float64 that fits into a Dec128 formats
+	// within MaxStrLen bytes, so the scratch array covers every representable value.
+	// Anything longer grows the slice and then fails to fit anyway.
+	buf := [MaxStrLen]byte{}
+	return FromSafeString(strconv.AppendFloat(buf[:0], f, 'f', -1, 64))
 }

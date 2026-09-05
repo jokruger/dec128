@@ -9,6 +9,8 @@ import (
 // MarshalJSON implements the json.Marshaler interface.
 func (d Dec128) MarshalJSON() ([]byte, error) {
 	switch {
+	case d.state == state.Null:
+		return nullValue, nil
 	case d.state >= state.Error:
 		return NaNJsonStrBytes, nil
 	case d.IsZero():
@@ -21,7 +23,14 @@ func (d Dec128) MarshalJSON() ([]byte, error) {
 	if trim {
 		sb = trimTrailingZeros(sb)
 	}
-	return append(sb, '"'), nil
+	sb = append(sb, '"')
+
+	// copy into an exactly sized slice: returning a slice of buf would move the whole
+	// scratch array to the heap
+	out := make([]byte, len(sb))
+	copy(out, sb)
+
+	return out, nil
 }
 
 var nullValue = []byte("null")
@@ -33,7 +42,7 @@ func (d *Dec128) UnmarshalJSON(data []byte) error {
 	}
 
 	if len(data) == 0 || bytes.Equal(data, nullValue) {
-		*d = Zero
+		*d = nullDec
 		return nil
 	}
 

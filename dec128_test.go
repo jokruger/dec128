@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -3254,6 +3255,8 @@ func TestSymmetry(t *testing.T) {
 }
 
 func TestDeprecatedFunctions(t *testing.T) {
+	oldScale := DefaultScale()
+	defer SetDefaultScale(oldScale)
 	SetDefaultPrecision(10)
 	if defaultScale != 10 {
 		t.Errorf("expected defaultScale to be 10, got %d", defaultScale)
@@ -3669,9 +3672,16 @@ func TestOverflowPaths(t *testing.T) {
 		}
 	})
 
-	// Sqrt: coef * 10^(2*defaultScale) overflows the 256-bit intermediate.
+	// Sqrt: coef * 10^(2*defaultScale) overflows the 256-bit intermediate. This only
+	// happens at a large default scale, so pin it rather than rely on the package one.
 	t.Run("sqrt", func(t *testing.T) {
+		defer SetDefaultScale(DefaultScale())
+		SetDefaultScale(MaxScale)
+
 		if d := maxAt0.Sqrt(); !d.IsNaN() {
+			t.Errorf("expected NaN, got %v", d)
+		}
+		if d := maxAt0.SqrtAtScale(MaxScale); !d.IsNaN() {
 			t.Errorf("expected NaN, got %v", d)
 		}
 	})
@@ -4010,4 +4020,296 @@ func TestScanTypes(t *testing.T) {
 			t.Error("expected an error for float64, got none")
 		}
 	})
+}
+
+func TestSqrt5(t *testing.T) {
+	// Regression: when multiplying the coefficient up to 2*defaultScale left the low
+	// 128 bits zero, the initial guess was derived from coef.BitLen()+carry.BitLen(),
+	// which collapses to carry.BitLen() alone. The guess came out far too small and the
+	// first division of the Newton iteration overflowed, so Sqrt returned NaN for
+	// values that are perfectly representable.
+	for _, sh := range []uint{109, 110, 115, 120, 127} {
+		var c uint128.Uint128
+		if sh >= 64 {
+			c = uint128.Uint128{Hi: 1 << (sh - 64)}
+		} else {
+			c = uint128.Uint128{Lo: 1 << sh}
+		}
+
+		d := Dec128{coef: c, scale: MaxScale}
+		r := d.Sqrt()
+		if r.IsNaN() {
+			t.Errorf("Sqrt(2^%d at scale %d): unexpected NaN (%s)", sh, MaxScale, r.state.String())
+			continue
+		}
+
+		// the neighbouring value has a non-zero low half and always worked
+		n := Dec128{coef: uint128.Uint128{Hi: c.Hi, Lo: c.Lo + 1}, scale: MaxScale}
+		if q := n.Sqrt(); q.IsNaN() {
+			t.Errorf("Sqrt(2^%d+1 at scale %d): unexpected NaN", sh, MaxScale)
+		}
+	}
+}
+
+// bigOfUint128 converts a Uint128 to a big.Int for the reference comparison.
+func bigOfUint128(u uint128.Uint128) *big.Int {
+	b := new(big.Int).SetUint64(u.Hi)
+	b.Lsh(b, 64)
+	return b.Or(b, new(big.Int).SetUint64(u.Lo))
+}
+
+// TestSqrt6 checks Sqrt against math/big over a randomised sweep: the result must be
+// the exact integer square root of the coefficient scaled to 2*defaultScale, and NaN
+// is only acceptable when the 256-bit intermediate genuinely cannot hold the value.
+func TestSqrt6(t *testing.T) {
+	rnd := rand.New(rand.NewSource(7))
+	ten := big.NewInt(10)
+	checked := 0
+
+	for range 50000 {
+		var c uint128.Uint128
+		switch rnd.Intn(3) {
+		case 0:
+			c = uint128.Uint128{Lo: rnd.Uint64()}
+		case 1:
+			c = uint128.Uint128{Lo: rnd.Uint64(), Hi: rnd.Uint64() >> uint(rnd.Intn(64))}
+		default:
+			// powers of two, the shape that used to break
+			if sh := uint(rnd.Intn(128)); sh >= 64 {
+				c = uint128.Uint128{Hi: 1 << (sh - 64)}
+			} else {
+				c = uint128.Uint128{Lo: 1 << sh}
+			}
+		}
+
+		scale := uint8(rnd.Intn(int(MaxScale) + 1))
+		d := Dec128{coef: c, scale: scale}
+		if d.IsZero() {
+			continue
+		}
+
+		r := d.Sqrt()
+		scaled := new(big.Int).Mul(bigOfUint128(c), new(big.Int).Exp(ten, big.NewInt(int64(2*defaultScale-scale)), nil))
+
+		if r.IsNaN() {
+			if scaled.BitLen() <= 192 {
+				t.Fatalf("Sqrt(%s): unexpected NaN, intermediate is only %d bits", d.String(), scaled.BitLen())
+			}
+			continue
+		}
+
+		// Sqrt keeps scale 0 for exactly 1, so use the scale it actually returned
+		e := 2*int64(r.Scale()) - int64(scale)
+		if e < 0 {
+			continue
+		}
+		v := new(big.Int).Mul(bigOfUint128(c), new(big.Int).Exp(ten, big.NewInt(e), nil))
+		if got, want := bigOfUint128(r.coef), new(big.Int).Sqrt(v); got.Cmp(want) != 0 {
+			t.Fatalf("Sqrt(%s): expected coefficient %s, got %s", d.String(), want, got)
+		}
+		checked++
+	}
+
+	if checked == 0 {
+		t.Fatal("no cases exercised")
+	}
+}
+
+func TestDivAtScale(t *testing.T) {
+	type tc struct {
+		a, b  string
+		scale uint8
+		st    state.State
+		out   string
+	}
+
+	testCases := [...]tc{
+		{"5.0", "365", 0, state.Default, "0.0"}, // scale is a floor: 5.0 already has scale 1
+		{"5.0", "365", 2, state.Default, "0.01"},
+		{"5.0", "365", 6, state.Default, "0.013698"},
+		{"5.0", "365", 12, state.Default, "0.013698630136"},
+		{"5.0", "365", 19, state.Default, "0.0136986301369863013"},
+		{"1", "3", 6, state.Default, "0.333333"},
+		{"-1", "3", 6, state.Neg, "-0.333333"},
+		{"1", "0", 6, state.DivisionByZero, ""},
+		{"0", "3", 6, state.Default, "0"},
+		{"5.0", "365", MaxScale + 1, state.ScaleOutOfRange, ""},
+	}
+
+	for _, e := range testCases {
+		d := FromString(e.a).DivAtScale(FromString(e.b), e.scale)
+		if d.state != e.st {
+			t.Errorf("DivAtScale(%s, %s, %d): expected state %s, got %s", e.a, e.b, e.scale, e.st.String(), d.state.String())
+			continue
+		}
+		if e.st < state.Error && d.StringFixed() != e.out {
+			t.Errorf("DivAtScale(%s, %s, %d): expected %s, got %s", e.a, e.b, e.scale, e.out, d.StringFixed())
+		}
+	}
+
+	// NaN propagates
+	if !NaN(state.Overflow).DivAtScale(One, 6).IsNaN() {
+		t.Error("expected NaN to propagate")
+	}
+	if !One.DivAtScale(NaN(state.Overflow), 6).IsNaN() {
+		t.Error("expected NaN to propagate")
+	}
+
+	// it must agree with Div when the scale matches the package default
+	old := defaultScale
+	defer SetDefaultScale(old)
+	SetDefaultScale(12)
+	a, b := FromString("5.0"), FromString("365")
+	if a.Div(b) != a.DivAtScale(b, 12) {
+		t.Errorf("Div = %s but DivAtScale = %s", a.Div(b), a.DivAtScale(b, 12))
+	}
+}
+
+func TestSqrtAtScale(t *testing.T) {
+	type tc struct {
+		in    string
+		scale uint8
+		st    state.State
+		out   string
+	}
+
+	testCases := [...]tc{
+		{"2", 0, state.Default, "1"},
+		{"2", 2, state.Default, "1.41"},
+		{"2", 6, state.Default, "1.414213"},
+		{"2", 19, state.Default, "1.4142135623730950488"},
+		{"1", 6, state.Default, "1"}, // exactly one short-circuits
+		{"4", 6, state.Default, "4"}, // exactly 1 and exact squares keep their own form
+		{"0", 6, state.Default, "0"},
+		{"-1", 6, state.SqrtNegative, ""},
+		{"2", MaxScale + 1, state.ScaleOutOfRange, ""},
+	}
+
+	for _, e := range testCases {
+		d := FromString(e.in).SqrtAtScale(e.scale)
+		if d.state != e.st {
+			t.Errorf("SqrtAtScale(%s, %d): expected state %s, got %s", e.in, e.scale, e.st.String(), d.state.String())
+			continue
+		}
+		if e.st < state.Error && e.in != "4" && d.String() != e.out {
+			t.Errorf("SqrtAtScale(%s, %d): expected %s, got %s", e.in, e.scale, e.out, d.String())
+		}
+	}
+
+	if !NaN(state.Overflow).SqrtAtScale(6).IsNaN() {
+		t.Error("expected NaN to propagate")
+	}
+
+	old := defaultScale
+	defer SetDefaultScale(old)
+	SetDefaultScale(12)
+	two := FromString("2")
+	if two.Sqrt() != two.SqrtAtScale(12) {
+		t.Errorf("Sqrt = %s but SqrtAtScale = %s", two.Sqrt(), two.SqrtAtScale(12))
+	}
+}
+
+func TestNullValue(t *testing.T) {
+	old := NullValue()
+	defer SetNullValue(old)
+
+	t.Run("default is zero", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan(nil); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !d.IsZero() || d.IsNull() {
+			t.Errorf("expected zero and not null, got %s (null=%v)", d.String(), d.IsNull())
+		}
+		v, err := d.Value()
+		if err != nil || v != "0" {
+			t.Errorf(`expected "0", got %v (%v)`, v, err)
+		}
+	})
+
+	SetNullValue(Null())
+
+	t.Run("sql round trip", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan(nil); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !d.IsNull() || !d.IsNaN() {
+			t.Errorf("expected null NaN, got %s (null=%v nan=%v)", d.String(), d.IsNull(), d.IsNaN())
+		}
+		v, err := d.Value()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if v != nil {
+			t.Errorf("expected nil driver.Value, got %v", v)
+		}
+	})
+
+	t.Run("json round trip", func(t *testing.T) {
+		var d Dec128
+		if err := json.Unmarshal([]byte("null"), &d); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !d.IsNull() {
+			t.Errorf("expected null, got %s", d.String())
+		}
+		bs, err := json.Marshal(d)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(bs) != "null" {
+			t.Errorf("expected null, got %s", string(bs))
+		}
+	})
+
+	t.Run("propagates like sql null", func(t *testing.T) {
+		n := Null()
+		for _, d := range []Dec128{n.Add(One), n.Sub(One), n.MulInt(100), n.Div(FromInt64(3)), n.Neg(), n.Abs()} {
+			if !d.IsNull() {
+				t.Errorf("expected null to propagate, got %s (%s)", d.String(), d.state.String())
+			}
+		}
+	})
+
+	t.Run("distinct from other NaN reasons", func(t *testing.T) {
+		o := MaxAtScale(0).Add(MaxAtScale(0))
+		if !o.IsNaN() {
+			t.Fatal("expected overflow NaN")
+		}
+		if o.IsNull() {
+			t.Error("overflow must not report as null")
+		}
+		if Null().ErrorDetails() == nil {
+			t.Error("expected null to carry an error detail")
+		}
+	})
+
+	t.Run("real values untouched", func(t *testing.T) {
+		var d Dec128
+		if err := d.Scan("123.45"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if d.IsNull() || d.String() != "123.45" {
+			t.Errorf("expected 123.45, got %s (null=%v)", d.String(), d.IsNull())
+		}
+	})
+}
+
+func TestNullValueError(t *testing.T) {
+	// SetNullValue accepts any Dec128. If it is a NaN that is not marked as NULL, a
+	// NULL column is treated as an error rather than a value.
+	old := NullValue()
+	defer SetNullValue(old)
+
+	SetNullValue(NaN(state.NaN))
+
+	var d Dec128
+	err := d.Scan(nil)
+	if err == nil {
+		t.Fatal("expected an error, got none")
+	}
+	if !d.IsNaN() || d.IsNull() {
+		t.Errorf("expected a non-null NaN, got %s (null=%v)", d.String(), d.IsNull())
+	}
 }

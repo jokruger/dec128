@@ -1,4 +1,3 @@
-// Package dec128 provides 128-bit fixed-point decimal type, operations and constants.
 package dec128
 
 import (
@@ -266,6 +265,7 @@ func (d Dec128) Copy() Dec128 {
 }
 
 // Scan implements the sql.Scanner interface.
+// A NULL decodes to the value configured by SetNullValue, which defaults to Zero.
 func (d *Dec128) Scan(src any) error {
 	var err error
 	switch v := src.(type) {
@@ -288,7 +288,10 @@ func (d *Dec128) Scan(src any) error {
 	case uint64:
 		*d = DecodeFromUint64(v, 0)
 	case nil:
-		*d = Zero
+		*d = nullDec
+		if d.state >= state.Error && d.state != state.Null {
+			err = d.ErrorDetails()
+		}
 	default:
 		err = fmt.Errorf("can't scan %T to Dec128: %T is not supported", src, src)
 	}
@@ -297,7 +300,11 @@ func (d *Dec128) Scan(src any) error {
 }
 
 // Value implements the driver.Valuer interface.
+// A Dec128 marked as NULL (see SetNullValue) encodes back to a SQL NULL.
 func (d Dec128) Value() (driver.Value, error) {
+	if d.state == state.Null {
+		return nil, nil
+	}
 	return d.String(), nil
 }
 
