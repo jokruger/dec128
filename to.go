@@ -80,16 +80,14 @@ func (d Dec128) EncodeToUint128(exp uint8) (uint128.Uint128, error) {
 }
 
 // String returns the string representation of the Dec128 with the trailing zeros removed.
-// If the Dec128 is zero, the string "0" is returned.
-// If the Dec128 is NaN, the string "NaN" is returned.
+// If the Dec128 is zero, the string "0" is returned. If the Dec128 is NaN, the string "NaN" is returned.
 func (d Dec128) String() string {
 	buf := [MaxStrLen]byte{}
 	return string(d.StringToBuf(buf[:]))
 }
 
 // StringToBuf returns the string representation of the Dec128 with the trailing zeros removed.
-// If the Dec128 is zero, the string "0" is returned.
-// If the Dec128 is NaN, the string "NaN" is returned.
+// If the Dec128 is zero, the string "0" is returned. If the Dec128 is NaN, the string "NaN" is returned.
 func (d Dec128) StringToBuf(buf []byte) []byte {
 	buf = buf[:0]
 

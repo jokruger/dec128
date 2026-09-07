@@ -25,6 +25,8 @@ const (
 	ScaleOutOfRange        = State(13)
 	RescaleToLowerScale    = State(14)
 	Null                   = State(15)
+	Inexact                = State(16)
+	InvalidRoundingMode    = State(17)
 )
 
 var code2str = [...]string{
@@ -46,6 +48,8 @@ var code2str = [...]string{
 	ScaleOutOfRange:        "scale out of range",
 	RescaleToLowerScale:    "rescale to lower scale",
 	Null:                   "null",
+	Inexact:                "inexact result",
+	InvalidRoundingMode:    "invalid rounding mode",
 }
 
 var code2err = [...]error{
@@ -65,9 +69,16 @@ var code2err = [...]error{
 	ScaleOutOfRange:        errors.New("scale out of range"),
 	RescaleToLowerScale:    errors.New("rescale to lower scale"),
 	Null:                   errors.New("null"),
+	Inexact:                errors.New("inexact result"),
+	InvalidRoundingMode:    errors.New("invalid rounding mode"),
 }
 
 var OK = Default
+
+// IsValid reports whether s is one of the defined state codes.
+func (s State) IsValid() bool {
+	return int(s) < len(code2str)
+}
 
 func (s State) IsOK() bool {
 	return s < Error

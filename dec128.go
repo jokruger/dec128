@@ -98,8 +98,7 @@ func (d Dec128) Precision() uint8 {
 }
 
 // Rescale returns a new Dec128 with the given scale.
-// If the Dec128 is NaN, it returns itself.
-// In case of errors it returns NaN with the error.
+// If the Dec128 is NaN, it returns itself. In case of errors it returns NaN with the error.
 func (d Dec128) Rescale(scale uint8) Dec128 {
 	if d.state >= state.Error || d.scale == scale {
 		return d
@@ -119,16 +118,8 @@ func (d Dec128) Rescale(scale uint8) Dec128 {
 		return Dec128{coef: coef, scale: scale, state: d.state}
 	}
 
-	// scale down
-	diff := d.scale - scale
-
-	// diff > 0, so arg to Div64 will be > 0
-	coef, _ := d.coef.Div64(Pow10Uint64[diff])
-
-	// unreachable because Div64 cannot be error for arg > 0
-	//if s >= state.Error {
-	//	return Dec128{state: s}
-	//}
+	// scale down: diff is in 1..MaxScale, so QuoRemPow10 cannot fail
+	coef, _, _ := d.coef.QuoRemPow10(d.scale - scale)
 
 	return Dec128{coef: coef, scale: scale, state: d.state}
 }
@@ -147,23 +138,36 @@ func (d Dec128) Equal(other Dec128) bool {
 		return true
 	case d.scale == other.scale:
 		return d.coef.Equal(other.coef)
-	case d.coef.IsZero() && other.coef.IsZero():
-		return true
 	}
-
-	scale := max(d.scale, other.scale)
-	a := d.Rescale(scale)
-	b := other.Rescale(scale)
-	if !a.IsNaN() && !b.IsNaN() {
-		return a.coef.Equal(b.coef)
-	}
-
-	return false
+	return d.equalSlow(other)
 }
 
-// Compare returns -1 if the Dec128 is less than the other Dec128, 0 if they are equal, and 1 if the Dec128 is greater than the other Dec128.
-// NaN is considered less than any valid Dec128.
+// equalSlow compares numerically across scales by widening to 192 bits.
+func (d Dec128) equalSlow(other Dec128) bool {
+	if d.coef.IsZero() && other.coef.IsZero() {
+		return true
+	}
+	a, b, _ := alignOperands(d, other)
+	return compareWidened(a, b) == 0
+}
+
+// Compare returns -1 if the Dec128 is less than the other Dec128, 0 if they are equal, and 1 if the Dec128 is greater
+// than the other Dec128. NaN is considered less than any valid Dec128.
 func (d Dec128) Compare(other Dec128) int {
+	// Fast path: same scale and same sign, so the coefficients compare directly.
+	if d.scale == other.scale && d.state == other.state && d.state < state.Error {
+		c := d.coef.Compare(other.coef)
+		if d.state == state.Neg {
+			return -c
+		}
+		return c
+	}
+	return d.compareSlow(other)
+}
+
+// compareSlow handles NaN, zero, differing signs and differing scales. Operands are aligned by widening to 192 bits,
+// so a coefficient that would not fit 128 bits after scaling still compares correctly instead of overflowing.
+func (d Dec128) compareSlow(other Dec128) int {
 	switch {
 	case d.state >= state.Error && other.state >= state.Error:
 		return 0
@@ -183,31 +187,15 @@ func (d Dec128) Compare(other Dec128) int {
 		return -1
 	case !sneg && oneg:
 		return 1
-	// unreachable because the both-zero case is already handled by the switch above
-	//case d.coef.IsZero() && other.coef.IsZero():
-	//	return 0
-	case d.scale == other.scale:
-		if sneg {
-			return -d.coef.Compare(other.coef)
-		}
-		return d.coef.Compare(other.coef)
 	}
 
-	scale := max(d.scale, other.scale)
-	a := d.Rescale(scale)
-	if a.IsNaN() {
-		return 1
-	}
-	b := other.Rescale(scale)
-	if b.IsNaN() {
-		return -1
-	}
-
+	a, b, _ := alignOperands(d, other)
+	c := compareWidened(a, b)
 	if sneg {
-		return -a.coef.Compare(b.coef)
+		return -c
 	}
 
-	return a.coef.Compare(b.coef)
+	return c
 }
 
 // Canonical returns a new Dec128 with the canonical representation.
@@ -222,20 +210,7 @@ func (d Dec128) Canonical() Dec128 {
 		return d
 	}
 
-	coef := d.coef
-	scale := d.scale
-	for {
-		t, r, s := coef.QuoRem64(10)
-		if s >= state.Error || r > 0 {
-			break
-		}
-		coef = t
-		scale--
-		if scale == 0 {
-			break
-		}
-	}
-
+	coef, scale := stripZeros(d.coef, d.scale, 0)
 	return Dec128{coef: coef, scale: scale, state: d.state}
 }
 
@@ -264,21 +239,24 @@ func (d Dec128) Copy() Dec128 {
 	return Dec128{coef: d.coef, scale: d.scale, state: d.state}
 }
 
-// Scan implements the sql.Scanner interface.
-// A NULL decodes to the value configured by SetNullValue, which defaults to Zero.
+// Scan implements sql.Scanner. Text (string or []byte) is parsed with FromString, so the PostgreSQL spellings NaN,
+// Infinity and -Infinity scan to NaN values: only input that is not a number at all is an error. A value that a column
+// can hold but this type cannot (too many digits, too many decimals) scans to a NaN carrying the reason, without error,
+// so that IsNaN and ErrorDetails see it like any other failed value. Integers convert exactly, and a SQL NULL scans to
+// the value configured with SetNullValue.
 func (d *Dec128) Scan(src any) error {
 	var err error
 	switch v := src.(type) {
 	case string:
 		*d = FromString(v)
-		if d.IsNaN() {
+		if d.state == state.InvalidFormat {
 			err = d.ErrorDetails()
 		}
 	case []byte:
-		// most drivers hand back a numeric/decimal column as bytes; FromString is
-		// generic over string | []byte, so this costs no conversion and no allocation
+		// most drivers hand back a numeric/decimal column as bytes; FromString is generic over string | []byte, so this
+		// costs no conversion and no allocation
 		*d = FromString(v)
-		if d.IsNaN() {
+		if d.state == state.InvalidFormat {
 			err = d.ErrorDetails()
 		}
 	case int:
@@ -299,13 +277,17 @@ func (d *Dec128) Scan(src any) error {
 	return err
 }
 
-// Value implements the driver.Valuer interface.
-// A Dec128 marked as NULL (see SetNullValue) encodes back to a SQL NULL.
+// Value implements driver.Valuer. A NULL value (see SetNullValue) becomes SQL NULL; any other value is rendered as text
+// in the fixed form, so that its scale reaches the database (1.50 stays 1.50). SetTrimOutput(true) restores the trimmed
+// form. A NaN is rendered as "NaN", which PostgreSQL accepts for a numeric column.
 func (d Dec128) Value() (driver.Value, error) {
 	if d.state == state.Null {
 		return nil, nil
 	}
-	return d.String(), nil
+	if trimOutput {
+		return d.String(), nil
+	}
+	return d.StringFixed(), nil
 }
 
 // NextUp returns the next representable Dec128 greater than the current value.

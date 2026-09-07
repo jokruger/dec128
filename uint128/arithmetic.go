@@ -60,9 +60,10 @@ func (ui Uint128) Mul(other Uint128) (Uint128, state.State) {
 	p0, p1 := bits.Mul64(ui.Hi, other.Lo)
 	p2, p3 := bits.Mul64(ui.Lo, other.Hi)
 	hi, c0 := bits.Add64(hi, p1, 0)
-	hi, c1 := bits.Add64(hi, p3, c0)
+	hi, c1 := bits.Add64(hi, p3, 0)
 
-	if (ui.Hi > 0 && other.Hi > 0) || p0 > 0 || p2 > 0 || c1 > 0 {
+	// c0 and c1 are overflows out of bit 127, not carries to fold back in.
+	if (ui.Hi > 0 && other.Hi > 0) || p0 > 0 || p2 > 0 || c0 > 0 || c1 > 0 {
 		return Zero, state.Overflow
 	}
 
@@ -224,5 +225,47 @@ func (ui Uint128) QuoRem64(other uint64) (Uint128, uint64, state.State) {
 		q.Lo, r = bits.Div64(r, ui.Lo, other)
 	}
 
+	return q, r, state.OK
+}
+
+// AddCarry returns ui + other modulo 2^128 and the carry out of bit 127 (0 or 1).
+// Unlike Add it never reports an error: the caller decides what a carry means.
+func (ui Uint128) AddCarry(other Uint128) (Uint128, uint64) {
+	lo, carry := bits.Add64(ui.Lo, other.Lo, 0)
+	hi, carry := bits.Add64(ui.Hi, other.Hi, carry)
+	return Uint128{Lo: lo, Hi: hi}, carry
+}
+
+// SubBorrow returns ui - other modulo 2^128 and the borrow out of bit 127 (0 or 1).
+// A borrow of 1 means ui < other and the difference wrapped; its two's complement is other - ui.
+func (ui Uint128) SubBorrow(other Uint128) (Uint128, uint64) {
+	lo, borrow := bits.Sub64(ui.Lo, other.Lo, 0)
+	hi, borrow := bits.Sub64(ui.Hi, other.Hi, borrow)
+	return Uint128{Lo: lo, Hi: hi}, borrow
+}
+
+// Mul64Carry returns the full 192-bit product ui * other as the low 128 bits and the high 64 bits.
+// It never overflows: the product of a 128-bit and a 64-bit value fits in 192 bits.
+func (ui Uint128) Mul64Carry(other uint64) (Uint128, uint64) {
+	p1, p0 := bits.Mul64(ui.Lo, other)
+	hi, m := bits.Mul64(ui.Hi, other)
+	mid, carry := bits.Add64(p1, m, 0)
+	return Uint128{Lo: p0, Hi: mid}, hi + carry
+}
+
+// QuoRemPow10 returns ui / 10^k and ui % 10^k for 0 <= k <= 19.
+// The remainder always fits in a uint64 because 10^19 < 2^64.
+// It returns state.ScaleOutOfRange for k > 19.
+func (ui Uint128) QuoRemPow10(k uint8) (Uint128, uint64, state.State) {
+	switch {
+	case k > MaxSafeStrLen64:
+		return Zero, 0, state.ScaleOutOfRange
+	case k == 0:
+		return ui, 0, state.OK
+	case ui.Hi == 0:
+		q, r := quoRem64Pow10(ui.Lo, k)
+		return Uint128{Lo: q}, r, state.OK
+	}
+	q, r := quoRem128Pow10(ui, k)
 	return q, r, state.OK
 }

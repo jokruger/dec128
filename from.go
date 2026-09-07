@@ -9,9 +9,7 @@ import (
 )
 
 // FromString creates a new Dec128 from a string.
-// The string must be in the format of [+-][0-9]+(.[0-9]+)?
-// In case of empty string, it returns Zero.
-// In case of errors, it returns NaN with the corresponding error.
+// In case of empty string, it returns Zero. In case of errors, it returns NaN with the corresponding error.
 func FromString[S string | []byte](s S) Dec128 {
 	sz := len(s)
 
@@ -58,7 +56,9 @@ func FromString[S string | []byte](s S) Dec128 {
 				if c == 'e' || c == 'E' {
 					return fromSciString(s, i)
 				}
-				return Dec128{state: state.InvalidFormat}
+				// Only reached by input that is not a number, so valid input never pays for the check: the three
+				// spellings PostgreSQL emits for its special values are accepted here.
+				return fromSpecial(s)
 			}
 			u = u*10 + uint64(c-'0')
 		}
@@ -99,8 +99,7 @@ func FromString[S string | []byte](s S) Dec128 {
 		return Dec128{state: state.InvalidFormat}
 	}
 
-	// the exponent part, if any, is counted into the scale here, which is what pushes
-	// a scientific mantissa over the limit
+	// exponent part, if any, is counted into the scale here, which is what pushes a scientific mantissa over the limit
 	scale = sz - j - 1
 	if scale > uint128.MaxSafeStrLen64 {
 		if m := indexExp(s[j+1:]); m >= 0 {
@@ -137,10 +136,8 @@ func FromString[S string | []byte](s S) Dec128 {
 }
 
 // FromSafeString creates a new Dec128 from safe string (no format checks are applied).
-// In case of errors, it returns NaN with the corresponding error.
-//
-// Only the regular form is supported here: scientific notation is not recognised and
-// would be parsed as if the exponent marker were a digit. Use FromString for input
+// In case of errors, it returns NaN with the corresponding error. Only the regular form is supported here: scientific
+// notation is not recognized and would be parsed as if the exponent marker were a digit. Use FromString for input
 // that may carry an exponent; it accepts both forms and costs nothing extra to do so.
 func FromSafeString[S string | []byte](s S) Dec128 {
 	sz := len(s)
@@ -264,9 +261,22 @@ func FromFloat64(f float64) Dec128 {
 		return Dec128{state: state.NaN}
 	}
 
-	// 'f' never emits an exponent, and every float64 that fits into a Dec128 formats
-	// within MaxStrLen bytes, so the scratch array covers every representable value.
-	// Anything longer grows the slice and then fails to fit anyway.
+	// 'f' never emits an exponent, and every float64 that fits into a Dec128 formats within MaxStrLen bytes, so the
+	// scratch array covers every representable value. Anything longer grows the slice and then fails to fit anyway.
 	buf := [MaxStrLen]byte{}
 	return FromSafeString(strconv.AppendFloat(buf[:0], f, 'f', -1, 64))
+}
+
+// fromSpecial parses the special values PostgreSQL emits for a numeric column and nothing else: "NaN" becomes a NaN
+// carrying state.NaN, and "Infinity" and "-Infinity" become NaN(Overflow), the nearest thing a fixed-width type has to
+// an infinite magnitude. Any other input is an invalid format. Comparison is exact: no other spelling, case or sign
+// is accepted.
+func fromSpecial[S string | []byte](s S) Dec128 {
+	switch string(s) {
+	case NaNStr:
+		return Dec128{state: state.NaN}
+	case "Infinity", "-Infinity":
+		return Dec128{state: state.Overflow}
+	}
+	return Dec128{state: state.InvalidFormat}
 }

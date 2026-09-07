@@ -15,13 +15,11 @@ func indexExp[S string | []byte](s S) int {
 	return -1
 }
 
-// maxExpDigits caps the exponent accumulator. Anything at or beyond this magnitude
-// is out of range for a Dec128 regardless of the mantissa, so the value is
-// saturated instead of being allowed to overflow int.
+// maxExpDigits caps the exponent accumulator. Anything at or beyond this magnitude is out of range for a Dec128
+// regardless of the mantissa, so the value is saturated instead of being allowed to overflow int.
 const maxExpDigits = 1_000_000
 
-// parseExp parses the exponent part of a decimal in scientific notation, i.e.
-// everything following the marker.
+// parseExp parses the exponent part of a decimal in scientific notation, i.e. everything following the marker.
 func parseExp[S string | []byte](s S) (int, bool) {
 	sz := len(s)
 	if sz == 0 {
@@ -61,8 +59,8 @@ func parseExp[S string | []byte](s S) (int, bool) {
 	return exp, true
 }
 
-// fromSciString parses a decimal in scientific notation, where k is the index of the
-// exponent marker. Only FromString reaches this, so the format is always checked.
+// fromSciString parses a decimal in scientific notation, where k is the index of the exponent marker. Only FromString
+// reaches this, so the format is always checked.
 func fromSciString[S string | []byte](s S, k int) Dec128 {
 	exp, ok := parseExp(s[k+1:])
 	if !ok {
@@ -110,9 +108,9 @@ func fromSciString[S string | []byte](s S, k int) Dec128 {
 	if j < k {
 		end := k
 
-		// a mantissa padded with more fractional zeros than a coefficient can hold still
-		// names a representable value, so drop just enough of the padding to combine it.
-		// Padding within range is left alone, so 1.50e0 keeps its scale of 2.
+		// a mantissa padded with more fractional zeros than a coefficient can hold still names a representable value,
+		// so drop just enough of the padding to combine it. Padding within range is left alone, so 1.50e0 keeps its
+		// scale of 2.
 		for end-j-1 >= len(Pow10Uint128) && s[end-1] == '0' {
 			end--
 		}
@@ -142,8 +140,8 @@ func fromSciString[S string | []byte](s S, k int) Dec128 {
 	return applyExp(coef, frac, exp, st)
 }
 
-// applyExp builds a Dec128 from a mantissa coefficient, the number of fractional
-// digits the mantissa carried and the parsed exponent.
+// applyExp builds a Dec128 from a mantissa coefficient, the number of fractional digits the mantissa carried and the
+// parsed exponent.
 func applyExp(coef uint128.Uint128, frac int, exp int, st state.State) Dec128 {
 	// zero is zero at any exponent, and never negative
 	if coef.IsZero() {
@@ -177,19 +175,15 @@ func applyExp(coef uint128.Uint128, frac int, exp int, st state.State) Dec128 {
 	return Dec128{coef: coef, scale: uint8(scale), state: st}
 }
 
-// StringSci returns the scientific notation representation of the Dec128, with the
-// trailing zeros of the mantissa removed.
-// If the Dec128 is zero, the string "0e+0" is returned.
-// If the Dec128 is NaN, the string "NaN" is returned.
+// StringSci returns the scientific notation representation of the Dec128, with the trailing zeros of the mantissa
+// removed. If the Dec128 is zero, the string "0e+0" is returned. If the Dec128 is NaN, the string "NaN" is returned.
 func (d Dec128) StringSci() string {
 	buf := [MaxSciStrLen]byte{}
 	return string(d.StringSciToBuf(buf[:]))
 }
 
-// StringSciToBuf returns the scientific notation representation of the Dec128, with
-// the trailing zeros of the mantissa removed.
-// If the Dec128 is zero, the string "0e+0" is returned.
-// If the Dec128 is NaN, the string "NaN" is returned.
+// StringSciToBuf returns the scientific notation representation of the Dec128, with the trailing zeros of the mantissa
+// removed. If the Dec128 is zero, the string "0e+0" is returned. If the Dec128 is NaN, the string "NaN" is returned.
 func (d Dec128) StringSciToBuf(buf []byte) []byte {
 	buf = buf[:0]
 
@@ -203,8 +197,8 @@ func (d Dec128) StringSciToBuf(buf []byte) []byte {
 	return d.appendStringSci(buf)
 }
 
-// appendStringSci appends the scientific notation representation of the decimal to sb.
-// called only when d is not NaN and d.coef is not zero
+// appendStringSci appends the scientific notation representation of the decimal to sb. called only when d is not NaN
+// and d.coef is not zero
 func (d Dec128) appendStringSci(sb []byte) []byte {
 	buf := [uint128.MaxStrLen]byte{}
 	coef := d.coef.StringToBuf(buf[:])
@@ -213,8 +207,8 @@ func (d Dec128) appendStringSci(sb []byte) []byte {
 		sb = append(sb, '-')
 	}
 
-	// the coefficient never has leading zeros, so the exponent of its leading digit
-	// does not depend on how many trailing zeros are dropped below
+	// the coefficient never has leading zeros, so the exponent of its leading digit does not depend on how many
+	// trailing zeros are dropped below
 	exp := len(coef) - 1 - int(d.scale)
 
 	n := len(coef)
@@ -236,8 +230,8 @@ func (d Dec128) appendStringSci(sb []byte) []byte {
 		sb = append(sb, '+')
 	}
 
-	// the coefficient holds at most uint128.MaxStrLen digits and the scale is at most
-	// MaxScale, so the exponent is always in [-19, 38] and needs at most two digits
+	// the coefficient holds at most uint128.MaxStrLen digits and the scale is at most MaxScale, so the exponent is
+	// always in [-19, 38] and needs at most two digits
 	if exp >= 10 {
 		sb = append(sb, byte('0'+exp/10))
 		exp %= 10

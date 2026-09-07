@@ -4,23 +4,24 @@ import (
 	"github.com/jokruger/dec128/state"
 )
 
-// MarshalText implements the encoding.TextMarshaler interface.
+// MarshalText implements encoding.TextMarshaler: the decimal in the fixed form (see SetTrimOutput), or "NaN".
 func (d Dec128) MarshalText() ([]byte, error) {
 	switch {
 	case d.state >= state.Error:
 		return NaNStrBytes, nil
 	case d.IsZero():
-		return ZeroStrBytes, nil
+		if trimOutput || d.scale == 0 {
+			return ZeroStrBytes, nil
+		}
 	}
 
 	buf := [MaxStrLen]byte{}
 	sb, trim := d.appendString(buf[:0])
-	if trim {
+	if trim && trimOutput {
 		sb = trimTrailingZeros(sb)
 	}
 
-	// copy into an exactly sized slice: returning a slice of buf would move the whole
-	// scratch array to the heap
+	// copy into an exactly sized slice: returning a slice of buf would move the whole scratch array to the heap
 	out := make([]byte, len(sb))
 	copy(out, sb)
 
@@ -35,7 +36,7 @@ func (d *Dec128) UnmarshalText(data []byte) error {
 	}
 
 	t := FromString(data[:])
-	if t.IsNaN() {
+	if t.state == state.InvalidFormat {
 		return t.ErrorDetails()
 	}
 	*d = t

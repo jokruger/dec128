@@ -1043,6 +1043,8 @@ func TestDiv2(t *testing.T) {
 		t.Errorf("expected NaN, got: %s", a.String())
 	}
 
+	// Each division multiplies by 1e7; at 1e35 the quotient no longer fits at scale 10
+	// and Div lowers the scale instead of failing.
 	a = Decimal1
 	b := FromString("0.0000001")
 	a = a.Div(b)
@@ -1050,8 +1052,11 @@ func TestDiv2(t *testing.T) {
 	a = a.Div(b)
 	a = a.Div(b)
 	a = a.Div(b)
-	if !a.IsNaN() {
-		t.Errorf("expected NaN, got: %s", a.String())
+	if a.IsNaN() || a.String() != "100000000000000000000000000000000000" {
+		t.Errorf("expected 1e35, got: %s", a.String())
+	}
+	if !a.Div(b).Div(b).IsNaN() {
+		t.Error("1e49 has no integer part that fits: expected NaN")
 	}
 }
 
@@ -1290,7 +1295,7 @@ func TestPowInt(t *testing.T) {
 		{"0.000001", 0, "1", ""},
 		{"0.000001", 1, "0.000001", ""},
 		{"0.000001", 2, "0.000000000001", ""},
-		{"0.000001", 10, "NaN", "overflow"},
+		{"0.000001", 10, "0", ""}, // 1e-60 is below the quantum of MaxScale and rounds to zero
 		{"0.000001", -1, "1000000", ""},
 		{"0.000001", -2, "1000000000000", ""},
 		{"0.000001", -10, "NaN", "overflow"},
@@ -3050,8 +3055,12 @@ func TestCopy(t *testing.T) {
 func TestScan(t *testing.T) {
 	var a Dec128
 
-	if err := a.Scan("NaN"); err == nil {
-		t.Errorf("expected error for NaN, got nil")
+	// "NaN" is what PostgreSQL sends for a NaN numeric: it scans to a NaN value.
+	if err := a.Scan("NaN"); err != nil || !a.IsNaN() {
+		t.Errorf("Scan(NaN): err %v, value %v", err, a)
+	}
+	if err := a.Scan("not a number"); err == nil {
+		t.Errorf("expected error for a non-numeric string, got nil")
 	}
 
 	if err := a.Scan("123.456"); err != nil {
@@ -3495,13 +3504,19 @@ func TestNegZero(t *testing.T) {
 }
 
 func TestJson3(t *testing.T) {
-	// UnmarshalJSON must surface the parse error rather than silently yielding NaN.
-	for _, s := range []string{`"abc"`, `"1.2.3"`, `"+"`, `"9999999999999999999999999999999999999999999"`} {
+	// UnmarshalJSON surfaces a format error rather than silently yielding NaN.
+	for _, s := range []string{`"abc"`, `"1.2.3"`, `"+"`} {
 		var d Dec128
 		err := json.Unmarshal([]byte(s), &d)
 		if err == nil {
 			t.Errorf("expected error unmarshalling %s, got none (value %v)", s, d)
 		}
+	}
+	// A number the type cannot hold is a value the sender could legitimately produce:
+	// it decodes to a NaN carrying the reason, without error, like a scanned column.
+	var d Dec128
+	if err := json.Unmarshal([]byte(`"9999999999999999999999999999999999999999999"`), &d); err != nil || d.state != state.Overflow {
+		t.Errorf("expected NaN(Overflow) without error, got %v, %v", d, err)
 	}
 }
 
@@ -3618,46 +3633,56 @@ func TestOverflowPaths(t *testing.T) {
 	minAt0 := MinAtScale(0)
 	quantum := QuantumAtScale(MaxScale)
 
-	// Add/Sub: rescaling the second operand up to scale 19 overflows, and the
-	// Canonical() retry cannot rescue it either.
+	// Add/Sub: the exact sum has 39 integer digits and 19 places, which does not fit;
+	// the scale is reduced until it does and the quantum is truncated toward zero
+	// (default mode). Moving away from zero leaves the maximum; moving toward zero
+	// lands one below it, because ...454.9999999999999999999 truncates to ...454.
 	t.Run("add rescale", func(t *testing.T) {
-		for _, d := range []Dec128{maxAt0.Add(quantum), quantum.Add(maxAt0), minAt0.Add(quantum)} {
-			if !d.IsNaN() {
-				t.Errorf("expected NaN, got %v", d)
+		maxLess1 := FromString("340282366920938463463374607431768211454")
+		minLess1 := maxLess1.Neg()
+		for _, c := range []struct{ got, want Dec128 }{
+			{maxAt0.Add(quantum), maxAt0}, {quantum.Add(maxAt0), maxAt0}, {minAt0.Add(quantum), minLess1},
+			{maxAt0.Sub(quantum), maxLess1}, {quantum.Sub(maxAt0), minLess1}, {minAt0.Sub(quantum), minAt0},
+		} {
+			if c.got != c.want {
+				t.Errorf("expected %v, got %v", c.want, c.got)
 			}
+		}
+		// Under ROUND_NAN the same operations refuse to lose the quantum.
+		defer SetArithmeticRounding(ArithmeticRounding())
+		SetArithmeticRounding(ROUND_NAN)
+		if d := maxAt0.Add(quantum); d.state != state.Inexact {
+			t.Errorf("expected NaN(Inexact), got %v", d)
 		}
 	})
 
-	t.Run("sub rescale", func(t *testing.T) {
-		for _, d := range []Dec128{maxAt0.Sub(quantum), quantum.Sub(maxAt0), minAt0.Sub(quantum)} {
-			if !d.IsNaN() {
-				t.Errorf("expected NaN, got %v", d)
-			}
-		}
-	})
-
-	// Add of two same-sign maxima overflows the coefficient directly.
+	// Add of two same-sign maxima overflows the integer part: NaN in every mode.
 	t.Run("add coefficient", func(t *testing.T) {
 		if d := maxAt0.Add(maxAt0); !d.IsNaN() {
 			t.Errorf("expected NaN, got %v", d)
 		}
 	})
 
-	// Mul: the 256-bit product cannot be scaled back into 128 bits.
+	// Mul: NaN only when the integer part of the product does not fit at scale 0.
 	t.Run("mul", func(t *testing.T) {
-		// 10.0000000000000000001 squared keeps producing a non-zero remainder, so
-		// the loop walks the scale down until scale-i exceeds MaxScale.
-		wide := FromString("10.0000000000000000001")
 		for _, d := range []Dec128{
-			maxAt0.Mul(maxAt0),               // scale 0: no room to divide the carry away
-			MaxAtScale(1).Mul(MaxAtScale(1)), // scale 2: the quotient never fits
-			MaxAtScale(MaxScale).Mul(MaxAtScale(MaxScale)),
-			wide.Mul(wide),
-			FromString("10000000000.0000000001").Mul(FromString("10000000000.0000000001")),
+			maxAt0.Mul(maxAt0),                             // integer part has 78 digits
+			MaxAtScale(1).Mul(MaxAtScale(1)),               // integer part has 76 digits
+			MaxAtScale(MaxScale).Mul(MaxAtScale(MaxScale)), // integer part has 39 digits, above 2^128
 		} {
 			if !d.IsNaN() {
 				t.Errorf("expected NaN, got %v", d)
 			}
+		}
+		// The integer part fits, so the product is reduced to the scale that fits and
+		// the discarded digits are truncated (the default mode).
+		wide := FromString("10.0000000000000000001")
+		if d := wide.Mul(wide); d.StringFixed() != "100.0000000000000000020" {
+			t.Errorf("expected 100.0000000000000000020, got %s", d.StringFixed())
+		}
+		if d := FromString("10000000000.0000000001").Mul(FromString("10000000000.0000000001")); d.StringFixed() != "100000000000000000002.000000000000000000" {
+			// 21 integer digits leave room for 18 places, not 19
+			t.Errorf("expected 100000000000000000002.000000000000000000, got %s", d.StringFixed())
 		}
 	})
 
@@ -3672,17 +3697,21 @@ func TestOverflowPaths(t *testing.T) {
 		}
 	})
 
-	// Sqrt: coef * 10^(2*defaultScale) overflows the 256-bit intermediate. This only
-	// happens at a large default scale, so pin it rather than rely on the package one.
+	// Sqrt: the root of the largest value at the largest scale still fits, because
+	// sqrt(2^128) * 10^19 < 2^128.
 	t.Run("sqrt", func(t *testing.T) {
 		defer SetDefaultScale(DefaultScale())
 		SetDefaultScale(MaxScale)
 
-		if d := maxAt0.Sqrt(); !d.IsNaN() {
-			t.Errorf("expected NaN, got %v", d)
+		want := "18446744073709551615.9999999999999999999"
+		if d := maxAt0.Sqrt(); d.StringFixed() != want {
+			t.Errorf("expected %s, got %v", want, d)
 		}
-		if d := maxAt0.SqrtAtScale(MaxScale); !d.IsNaN() {
-			t.Errorf("expected NaN, got %v", d)
+		if d := maxAt0.SqrtRound(MaxScale, ROUND_TOWARD_ZERO); d.StringFixed() != want {
+			t.Errorf("expected %s, got %v", want, d)
+		}
+		if d := maxAt0.SqrtRound(MaxScale, ROUND_HALF_AWAY_FROM_ZERO); d.StringFixed() != "18446744073709551616.0000000000000000000" {
+			t.Errorf("expected 18446744073709551616.0000000000000000000, got %v", d)
 		}
 	})
 }
@@ -4115,97 +4144,145 @@ func TestSqrt6(t *testing.T) {
 	}
 }
 
-func TestDivAtScale(t *testing.T) {
+func TestDivRound(t *testing.T) {
 	type tc struct {
 		a, b  string
 		scale uint8
+		mode  RoundingMode
 		st    state.State
 		out   string
 	}
-
 	testCases := [...]tc{
-		{"5.0", "365", 0, state.Default, "0.0"}, // scale is a floor: 5.0 already has scale 1
-		{"5.0", "365", 2, state.Default, "0.01"},
-		{"5.0", "365", 6, state.Default, "0.013698"},
-		{"5.0", "365", 12, state.Default, "0.013698630136"},
-		{"5.0", "365", 19, state.Default, "0.0136986301369863013"},
-		{"1", "3", 6, state.Default, "0.333333"},
-		{"-1", "3", 6, state.Neg, "-0.333333"},
-		{"1", "0", 6, state.DivisionByZero, ""},
-		{"0", "3", 6, state.Default, "0"},
-		{"5.0", "365", MaxScale + 1, state.ScaleOutOfRange, ""},
+		{"5.0", "365", 0, ROUND_TOWARD_ZERO, state.Default, "0"}, // scale is exact, not a floor
+		{"5.0", "365", 2, ROUND_TOWARD_ZERO, state.Default, "0.01"},
+		{"5.0", "365", 6, ROUND_TOWARD_ZERO, state.Default, "0.013698"},
+		{"5.0", "365", 6, ROUND_HALF_AWAY_FROM_ZERO, state.Default, "0.013699"},
+		{"5.0", "365", 12, ROUND_TOWARD_ZERO, state.Default, "0.013698630136"},
+		{"5.0", "365", 19, ROUND_TOWARD_ZERO, state.Default, "0.0136986301369863013"},
+		{"5.0", "365", 19, ROUND_BANK, state.Default, "0.0136986301369863014"},
+		{"200", "3", 2, ROUND_TOWARD_ZERO, state.Default, "66.66"},
+		{"200", "3", 2, ROUND_HALF_AWAY_FROM_ZERO, state.Default, "66.67"}, // PostgreSQL: round(200::numeric/3, 2)
+		{"-200", "3", 2, ROUND_DOWN, state.Neg, "-66.67"},
+		{"-200", "3", 2, ROUND_UP, state.Neg, "-66.66"},
+		{"1", "8", 2, ROUND_BANK, state.Default, "0.12"}, // 0.125 -> even
+		{"3", "8", 2, ROUND_BANK, state.Default, "0.38"}, // 0.375 -> even
+		{"1", "8", 2, ROUND_HALF_TOWARD_ZERO, state.Default, "0.12"},
+		{"1", "8", 2, ROUND_HALF_AWAY_FROM_ZERO, state.Default, "0.13"},
+		{"1", "8", 3, ROUND_NAN, state.Default, "0.125"}, // exact, so no NaN
+		{"1", "3", 6, ROUND_TOWARD_ZERO, state.Default, "0.333333"},
+		{"-1", "3", 6, ROUND_TOWARD_ZERO, state.Neg, "-0.333333"},
+		{"1", "2", 5, ROUND_BANK, state.Default, "0.50000"},                                     // exact results are padded to the scale
+		{"123.456", "0.001", 0, ROUND_BANK, state.Default, "123456"},                            // scaled divisor path
+		{"1", "3000000000000000000000000", 2, ROUND_HALF_AWAY_FROM_ZERO, state.Default, "0.00"}, // divisor above 128 bits after scaling
+		{"2", "3000000000000000000000000", 0, ROUND_UP, state.Default, "1"},
+		{"1", "0", 6, ROUND_BANK, state.DivisionByZero, ""},
+		{"0", "3", 6, ROUND_BANK, state.Default, "0.000000"},
+		{"1", "3", 2, ROUND_NAN, state.Inexact, ""},
+		{"5.0", "365", MaxScale + 1, ROUND_BANK, state.ScaleOutOfRange, ""},
+		{"5.0", "365", 2, RoundingMode(99), state.InvalidRoundingMode, ""},
+		{"340282366920938463463374607431768211455", "0.5", 0, ROUND_BANK, state.Overflow, ""},
+		{"340282366920938463463374607431768211455", "1", 1, ROUND_BANK, state.Overflow, ""}, // padding overflows
 	}
-
 	for _, e := range testCases {
-		d := FromString(e.a).DivAtScale(FromString(e.b), e.scale)
+		d := FromString(e.a).DivRound(FromString(e.b), e.scale, e.mode)
 		if d.state != e.st {
-			t.Errorf("DivAtScale(%s, %s, %d): expected state %s, got %s", e.a, e.b, e.scale, e.st.String(), d.state.String())
+			t.Errorf("DivRound(%s, %s, %d, %s): expected state %s, got %s", e.a, e.b, e.scale, e.mode, e.st.String(), d.state.String())
 			continue
 		}
-		if e.st < state.Error && d.StringFixed() != e.out {
-			t.Errorf("DivAtScale(%s, %s, %d): expected %s, got %s", e.a, e.b, e.scale, e.out, d.StringFixed())
+		if e.st < state.Error && (d.StringFixed() != e.out || d.Scale() != e.scale) {
+			t.Errorf("DivRound(%s, %s, %d, %s): expected %s, got %s (scale %d)", e.a, e.b, e.scale, e.mode, e.out, d.StringFixed(), d.Scale())
 		}
 	}
-
-	// NaN propagates
-	if !NaN(state.Overflow).DivAtScale(One, 6).IsNaN() {
+	if !NaN(state.Overflow).DivRound(One, 6, ROUND_BANK).IsNaN() || !One.DivRound(NaN(state.Overflow), 6, ROUND_BANK).IsNaN() {
 		t.Error("expected NaN to propagate")
 	}
-	if !One.DivAtScale(NaN(state.Overflow), 6).IsNaN() {
-		t.Error("expected NaN to propagate")
-	}
-
-	// it must agree with Div when the scale matches the package default
+	// Div agrees with DivRound at the default scale whenever the quotient fits there.
 	old := defaultScale
 	defer SetDefaultScale(old)
 	SetDefaultScale(12)
 	a, b := FromString("5.0"), FromString("365")
-	if a.Div(b) != a.DivAtScale(b, 12) {
-		t.Errorf("Div = %s but DivAtScale = %s", a.Div(b), a.DivAtScale(b, 12))
+	if a.Div(b) != a.DivRound(b, 12, ArithmeticRounding()) {
+		t.Errorf("Div = %s but DivRound = %s", a.Div(b), a.DivRound(b, 12, ArithmeticRounding()))
 	}
 }
 
-func TestSqrtAtScale(t *testing.T) {
+func TestDivReducesScale(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
+	SetDefaultScale(MaxScale)
+	// 1e35 does not fit at scale 19; Div lowers the scale until it does.
+	d := FromString("1e28").Div(FromString("0.0000001"))
+	if d.IsNaN() || d.String() != "100000000000000000000000000000000000" {
+		t.Errorf("expected 1e35, got %v", d)
+	}
+	if d.Scale() != 0 {
+		t.Errorf("exact quotient takes its ideal scale 0, got %d", d.Scale())
+	}
+	// The integer part alone does not fit: NaN in every mode.
+	if d := MaxAtScale(0).Div(FromString("0.5")); !d.IsNaN() {
+		t.Errorf("expected NaN, got %v", d)
+	}
+	// ROUND_NAN refuses the digits that had to go.
+	defer SetArithmeticRounding(ArithmeticRounding())
+	SetArithmeticRounding(ROUND_NAN)
+	if d := FromString("1").Div(FromString("3")); d.state != state.Inexact {
+		t.Errorf("expected NaN(Inexact), got %v", d)
+	}
+	if d := FromString("1").Div(FromString("4")); d.StringFixed() != "0.25" {
+		t.Errorf("exact quotient under ROUND_NAN: got %v", d)
+	}
+}
+
+func TestSqrtRound(t *testing.T) {
 	type tc struct {
 		in    string
 		scale uint8
+		mode  RoundingMode
 		st    state.State
 		out   string
 	}
-
 	testCases := [...]tc{
-		{"2", 0, state.Default, "1"},
-		{"2", 2, state.Default, "1.41"},
-		{"2", 6, state.Default, "1.414213"},
-		{"2", 19, state.Default, "1.4142135623730950488"},
-		{"1", 6, state.Default, "1"}, // exactly one short-circuits
-		{"4", 6, state.Default, "4"}, // exactly 1 and exact squares keep their own form
-		{"0", 6, state.Default, "0"},
-		{"-1", 6, state.SqrtNegative, ""},
-		{"2", MaxScale + 1, state.ScaleOutOfRange, ""},
+		{"2", 0, ROUND_TOWARD_ZERO, state.Default, "1"},
+		{"2", 2, ROUND_TOWARD_ZERO, state.Default, "1.41"},
+		{"2", 6, ROUND_TOWARD_ZERO, state.Default, "1.414213"},
+		{"2", 6, ROUND_HALF_AWAY_FROM_ZERO, state.Default, "1.414214"},
+		{"2", 19, ROUND_TOWARD_ZERO, state.Default, "1.4142135623730950488"},
+		{"2", 19, ROUND_BANK, state.Default, "1.4142135623730950488"},
+		{"3", 19, ROUND_BANK, state.Default, "1.7320508075688772935"},
+		{"1", 6, ROUND_BANK, state.Default, "1.000000"},
+		{"4", 6, ROUND_BANK, state.Default, "2.000000"},
+		{"4.000000000000000000", 2, ROUND_BANK, state.Default, "2.00"}, // working scale above the requested one, exact
+		{"2.000000000000000000", 2, ROUND_BANK, state.Default, "1.41"}, // working scale above, inexact
+		{"2.000000000000000000", 2, ROUND_UP, state.Default, "1.42"},
+		{"0.25", 0, ROUND_BANK, state.Default, "0"}, // 0.5 is a tie: to even
+		{"0.25", 0, ROUND_HALF_AWAY_FROM_ZERO, state.Default, "1"},
+		{"0.0000000000000000004", 9, ROUND_TOWARD_ZERO, state.Default, "0.000000000"},
+		{"0.0000000000000000004", 19, ROUND_TOWARD_ZERO, state.Default, "0.0000000006324555320"},
+		{"0", 6, ROUND_BANK, state.Default, "0.000000"},
+		{"1", 3, ROUND_NAN, state.Default, "1.000"},
+		{"2", 3, ROUND_NAN, state.Inexact, ""},
+		{"-1", 6, ROUND_BANK, state.SqrtNegative, ""},
+		{"2", MaxScale + 1, ROUND_BANK, state.ScaleOutOfRange, ""},
+		{"2", 2, RoundingMode(99), state.InvalidRoundingMode, ""},
 	}
-
 	for _, e := range testCases {
-		d := FromString(e.in).SqrtAtScale(e.scale)
+		d := FromString(e.in).SqrtRound(e.scale, e.mode)
 		if d.state != e.st {
-			t.Errorf("SqrtAtScale(%s, %d): expected state %s, got %s", e.in, e.scale, e.st.String(), d.state.String())
+			t.Errorf("SqrtRound(%s, %d, %s): expected state %s, got %s", e.in, e.scale, e.mode, e.st.String(), d.state.String())
 			continue
 		}
-		if e.st < state.Error && e.in != "4" && d.String() != e.out {
-			t.Errorf("SqrtAtScale(%s, %d): expected %s, got %s", e.in, e.scale, e.out, d.String())
+		if e.st < state.Error && (d.StringFixed() != e.out || d.Scale() != e.scale) {
+			t.Errorf("SqrtRound(%s, %d, %s): expected %s, got %s (scale %d)", e.in, e.scale, e.mode, e.out, d.StringFixed(), d.Scale())
 		}
 	}
-
-	if !NaN(state.Overflow).SqrtAtScale(6).IsNaN() {
+	if !NaN(state.Overflow).SqrtRound(6, ROUND_BANK).IsNaN() {
 		t.Error("expected NaN to propagate")
 	}
-
 	old := defaultScale
 	defer SetDefaultScale(old)
 	SetDefaultScale(12)
 	two := FromString("2")
-	if two.Sqrt() != two.SqrtAtScale(12) {
-		t.Errorf("Sqrt = %s but SqrtAtScale = %s", two.Sqrt(), two.SqrtAtScale(12))
+	if two.Sqrt() != two.SqrtRound(12, ArithmeticRounding()) {
+		t.Errorf("Sqrt = %s but SqrtRound = %s", two.Sqrt(), two.SqrtRound(12, ArithmeticRounding()))
 	}
 }
 

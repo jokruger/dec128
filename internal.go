@@ -34,162 +34,28 @@ var (
 	zeros = [...]byte{'0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'}
 )
 
-// called only when both are not NaN
-func (d Dec128) tryAdd(other Dec128) (Dec128, bool) {
-	scale := max(d.scale, other.scale)
-
-	a := d.Rescale(scale)
-	if a.state >= state.Error {
-		return a, false
+// mulSlow is the general case of Mul: NaN propagation, two-limb coefficients and products that must be reduced to fit.
+// Kept out of Mul so that the fast path stays lean.
+func (d Dec128) mulSlow(other Dec128) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case other.state >= state.Error:
+		return other
 	}
 
-	b := other.Rescale(scale)
-	if b.state >= state.Error {
-		return b, false
-	}
-
-	if a.state == b.state {
-		coef, s := a.coef.Add(b.coef)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
-		return Dec128{coef: coef, scale: scale, state: a.state}, true
-	}
-
-	switch a.coef.Compare(b.coef) {
-	case 1:
-		// a.coef > b.coef
-		coef, _ := a.coef.Sub(b.coef)
-
-		// unreachable because Sub cannot be error for a.coef > b.coef
-		//if s >= state.Error {
-		//	return Dec128{state: s}, false
-		//}
-
-		return Dec128{coef: coef, scale: scale, state: a.state}, true
-	case 0:
-		return Zero, true
-	default:
-		// b.coef > a.coef
-		coef, _ := b.coef.Sub(a.coef)
-
-		// unreachable because Sub cannot be error for b.coef > a.coef
-		//if s >= state.Error {
-		//	return Dec128{state: s}, false
-		//}
-
-		return Dec128{coef: coef, scale: scale, state: b.state}, true
-	}
-}
-
-// called only when both are not NaN
-func (d Dec128) trySub(other Dec128) (Dec128, bool) {
-	scale := max(d.scale, other.scale)
-
-	a := d.Rescale(scale)
-	if a.IsNaN() {
-		return a, false
-	}
-
-	b := other.Rescale(scale)
-	if b.IsNaN() {
-		return b, false
-	}
-
-	if a.state != b.state {
-		coef, s := a.coef.Add(b.coef)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
-		return Dec128{coef: coef, scale: scale, state: a.state}, true
-	}
-
-	switch a.coef.Compare(b.coef) {
-	case 1:
-		// a.coef > b.coef
-		coef, _ := a.coef.Sub(b.coef)
-
-		// unreachable because Sub cannot be error for a.coef > b.coef
-		//if s >= state.Error {
-		//	return Dec128{state: s}, false
-		//}
-
-		return Dec128{coef: coef, scale: scale, state: a.state}, true
-	case 0:
-		return Zero, true
-	default:
-		// b.coef > a.coef
-		coef, _ := b.coef.Sub(a.coef)
-
-		// unreachable because Sub cannot be error for b.coef > a.coef
-		//if s >= state.Error {
-		//	return Dec128{state: s}, false
-		//}
-
-		if a.state == state.Neg {
-			return Dec128{coef: coef, scale: scale}, true
-		}
-		return Dec128{coef: coef, scale: scale, state: state.Neg}, true
-	}
-}
-
-// called only when both are not NaN
-func (d Dec128) tryMul(other Dec128) (Dec128, bool) {
-	var st state.State
-	if d.state != other.state {
-		st = state.Neg
-	}
-
+	lo, hi := d.coef.MulCarry(other.coef)
 	scale := d.scale + other.scale
-	rcoef, rcarry := d.coef.MulCarry(other.coef)
-
-	if rcarry.IsZero() {
-		r := Dec128{coef: rcoef, scale: scale, state: st}
-		if scale <= MaxScale {
-			return r, true
+	st := signOf(d.state, other.state)
+	if hi.IsZero() && scale <= MaxScale {
+		// exact and in range
+		if lo.IsZero() {
+			st = state.Default
 		}
-		r = r.Canonical()
-		return r, r.scale <= MaxScale
+		return Dec128{coef: lo, scale: scale, state: st}
 	}
 
-	i := scale
-	for {
-		if i == 0 {
-			return Dec128{state: state.Overflow}, false
-		}
-		q, r, s := uint128.QuoRem256By128(rcoef, rcarry, Pow10Uint128[i])
-		if s < state.Error && r.IsZero() {
-			return Dec128{coef: q, scale: scale - i, state: st}, true
-		}
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
-		i--
-		if scale-i > MaxScale {
-			return Dec128{state: state.Overflow}, false
-		}
-	}
-}
-
-// called only when both are not NaN, and only with minScale <= MaxScale
-func (d Dec128) tryDivAtScale(other Dec128, minScale uint8) (Dec128, bool) {
-	factor := other.scale
-	scale := d.scale
-	if scale < minScale {
-		factor = factor + minScale - scale
-		scale = minScale
-	}
-	u, c := d.coef.MulCarry(Pow10Uint128[factor])
-	q, _, s := uint128.QuoRem256By128(u, c, other.coef)
-	if s >= state.Error {
-		return Dec128{state: s}, false
-	}
-
-	if d.state == other.state {
-		return Dec128{coef: q, scale: scale}, true
-	}
-
-	return Dec128{coef: q, scale: scale, state: state.Neg}, true
+	return fitWide(lo, hi, scale, st, arithmeticRounding)
 }
 
 // called only when both are not NaN
@@ -225,8 +91,8 @@ func (d Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 	return Dec128{coef: q1, scale: 0, state: state.Neg}, Dec128{coef: r1, scale: factor, state: d.state}, true
 }
 
-// appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal contains a decimal point.
-// called only when d is not NaN
+// appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal
+// contains a decimal point. Called only when d is not NaN.
 func (d Dec128) appendString(sb []byte) ([]byte, bool) {
 	buf := [uint128.MaxStrLen]byte{}
 	coef := d.coef.StringToBuf(buf[:])
@@ -271,65 +137,215 @@ func trimTrailingZeros(sb []byte) []byte {
 	return sb[:i]
 }
 
-// called only when d is not NaN
-func (d Dec128) trySqrtAtScale(scale uint8) (Dec128, bool) {
-	scale2 := scale * 2
-	t := d
-
-	if t.scale > scale2 {
-		// scale down to prec2, arg to Div will be > 0
-		coef, _ := t.coef.Div(Pow10Uint128[t.scale-scale2])
-
-		// unreachable because Div cannot be error for arg > 0
-		//if s >= state.Error {
-		//	return Dec128{state: s}, false
-		//}
-
-		t = Dec128{coef: coef, scale: scale2, state: t.state}
+// addSlow is the general case of Add: NaN propagation, differing scales, opposite signs and results that must be
+// reduced to fit. It is kept out of Add so that Add's fast path inlines.
+func (d Dec128) addSlow(other Dec128) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case other.state >= state.Error:
+		return other
 	}
 
-	coef, carry := t.coef.MulCarry(Pow10Uint128[scale2-t.scale])
-	if carry.Hi > 0 {
-		return Dec128{state: state.Overflow}, false
+	sum, scale, st := d.addExact(other)
+	if sum.hi == 0 {
+		// exact and in range: the common case for two-limb or unaligned operands
+		if sum.lo.IsZero() {
+			st = state.Default
+		}
+		return Dec128{coef: sum.lo, scale: scale, state: st}
 	}
 
-	// the bit length of the whole 256-bit value, not the sum of the two halves: when
-	// the low half is zero coef.BitLen() is 0 and the sum collapses, which used to make
-	// the first guess far too small and the first division overflow.
-	// carry.Hi is 0 here, so bitLen <= 192 and the shift below stays in range.
-	bitLen := coef.BitLen()
-	if !carry.IsZero() {
-		bitLen = 128 + carry.BitLen()
+	return fitWide(sum.lo, uint128.Uint128{Lo: sum.hi}, scale, st, arithmeticRounding)
+}
+
+// subSlow is the general case of Sub. d - other == d + (-other); Neg of a NaN is the same NaN and Neg of zero is zero,
+// so the identity holds for every input.
+func (d Dec128) subSlow(other Dec128) Dec128 {
+	return d.addSlow(other.Neg())
+}
+
+// widened is an operand aligned to a common scale without the risk of overflowing:
+// the coefficient is held in 192 bits as (lo, hi) with hi the bits above 2^128.
+type widened struct {
+	lo uint128.Uint128
+	hi uint64
+}
+
+// alignOperands brings d and other to their common scale max(d.scale, other.scale), widening the one that needs scaling
+// to 192 bits. Alignment therefore never fails; only a result that does not fit back into 128 bits does.
+func alignOperands(d, other Dec128) (a, b widened, scale uint8) {
+	switch {
+	case d.scale == other.scale:
+		return widened{lo: d.coef}, widened{lo: other.coef}, d.scale
+	case d.scale < other.scale:
+		lo, hi := d.coef.Mul64Carry(Pow10Uint64[other.scale-d.scale])
+		return widened{lo: lo, hi: hi}, widened{lo: other.coef}, other.scale
+	default:
+		lo, hi := other.coef.Mul64Carry(Pow10Uint64[d.scale-other.scale])
+		return widened{lo: d.coef}, widened{lo: lo, hi: hi}, d.scale
+	}
+}
+
+// compareWidened compares two 192-bit magnitudes.
+func compareWidened(a, b widened) int {
+	switch {
+	case a.hi < b.hi:
+		return -1
+	case a.hi > b.hi:
+		return 1
+	}
+	return a.lo.Compare(b.lo)
+}
+
+// addExact returns the exact sum of d and other as a 192-bit magnitude at their common scale, with the sign of the
+// result. Called only when neither operand is NaN. A widened operand is below 2^128 * 10^19 < 2^192, so neither the sum
+// nor the difference of two such magnitudes can exceed 192 bits.
+func (d Dec128) addExact(other Dec128) (sum widened, scale uint8, st state.State) {
+	a, b, scale := alignOperands(d, other)
+
+	if d.state == other.state {
+		lo, carry := a.lo.AddCarry(b.lo)
+		return widened{lo: lo, hi: a.hi + b.hi + carry}, scale, d.state
 	}
 
-	// initial guess = 2^((bitLen + 1) / 2) ≥ √coef
-	x := uint128.One.Lsh(uint(bitLen+1) / 2)
+	// Opposite signs: the difference of the magnitudes, signed by the larger one.
+	switch compareWidened(a, b) {
+	case 0:
+		return widened{}, scale, state.Default
+	case 1:
+		lo, borrow := a.lo.SubBorrow(b.lo)
+		return widened{lo: lo, hi: a.hi - b.hi - borrow}, scale, d.state
+	default:
+		lo, borrow := b.lo.SubBorrow(a.lo)
+		return widened{lo: lo, hi: b.hi - a.hi - borrow}, scale, other.state
+	}
+}
 
-	// Newton-Raphson method
+// divAt returns |d| / |other| scaled to exactly the given scale and rounded with mode, for a result of sign
+// st. overflow reports that the quotient does not fit in 128 bits; inexact that a nonzero remainder was discarded.
+// Requires d.coef != 0, other.coef != 0 and scale <= MaxScale.
+func (d Dec128) divAt(other Dec128, scale uint8, st state.State, mode RoundingMode) (q uint128.Uint128, overflow bool, inexact bool) {
+	// The quotient is d.coef * 10^f / other.coef with f = scale + other.scale - d.scale.
+	f := int(scale) + int(other.scale) - int(d.scale)
+
+	if f >= 0 {
+		// f <= 2*MaxScale, so the numerator fits in 256 bits.
+		lo, hi := d.coef.MulCarry(Pow10Uint128[f])
+		q, r, s := uint128.QuoRem256By128(lo, hi, other.coef)
+		if s >= state.Error {
+			return uint128.Zero, true, false
+		}
+		up, inexact := roundUp(q, r, other.coef, st, mode)
+		if up {
+			var carry uint64
+			if q, carry = q.AddCarry(uint128.One); carry != 0 {
+				return uint128.Zero, true, inexact
+			}
+		}
+		return q, false, inexact
+	}
+
+	// f < 0: scale the divisor up instead (-f <= d.scale <= MaxScale). The quotient is then at most d.coef / 10 and can
+	// neither overflow nor carry when rounded up.
+	dlo, dhi := other.coef.Mul64Carry(Pow10Uint64[-f])
+	if dhi == 0 {
+		q, r, _ := d.coef.QuoRem(dlo)
+		up, inexact := roundUp(q, r, dlo, st, mode)
+		if up {
+			q, _ = q.AddCarry(uint128.One)
+		}
+		return q, false, inexact
+	}
+
+	// The scaled divisor exceeds 128 bits, so the quotient is 0 and the remainder is |d| itself
+	// (nonzero by precondition); only the rounding decision remains, against a 192-bit half.
+	half := widened{lo: dlo.Rsh(1), hi: dhi >> 1}
+	half.lo.Hi |= dhi << 63
+	c := compareWidened(widened{lo: d.coef}, half)
+	if roundDecision(c > 0, c == 0 && dlo.Lo&1 == 0, false, st, mode) {
+		return uint128.One, false, true
+	}
+
+	return uint128.Zero, false, true
+}
+
+// isqrt256 returns floor(sqrt(n)) for the 256-bit value n = hi*2^128 + lo, by Newton-Raphson from an initial guess that
+// is at or above the root.
+func isqrt256(lo, hi uint128.Uint128) uint128.Uint128 {
+	// unreachable for a zero radicand: sqrtAt requires d > 0
+	//if lo.IsZero() && hi.IsZero() {
+	//	return uint128.Zero
+	//}
+
+	// initial guess x = 2^ceil(bitLen/2) >= sqrt(n); for a radicand of 255 or more bits that power is 2^128, which
+	// does not fit, so the largest coefficient is used instead - still at or above the root, since n < 2^256.
+	x := uint128.Uint128{Lo: ^uint64(0), Hi: ^uint64(0)}
+	if shift := uint(bitLen256(lo, hi)+1) / 2; shift < 128 {
+		x = uint128.One.Lsh(shift)
+	}
+
 	for {
-		// calculate x1 = (x + coef/x) / 2
-		y, _, s := uint128.QuoRem256By128(coef, carry, x)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
+		// n / x fits in 128 bits because x >= sqrt(n) > hi for every n below 2^256.
+		y, _, _ := uint128.QuoRem256By128(lo, hi, x)
 
-		x1, s := x.Add(y)
-		if s >= state.Error {
-			return Dec128{state: s}, false
-		}
-
+		// x1 = (x + y) / 2, computed without overflowing 128 bits
+		x1, carry := x.AddCarry(y)
 		x1 = x1.Rsh(1)
+		x1.Hi |= carry << 63
 
-		// x starts at or above the true root and the iteration decreases monotonically,
-		// so the first non-decreasing step is the fixed point. Breaking only on equality
-		// would spin forever on the inputs where the sequence alternates between two
-		// neighbouring values.
+		// x starts at or above the root and decreases monotonically -> first non-decreasing step is the fixed point
 		if x1.Compare(x) >= 0 {
-			break
+			return x
 		}
-
 		x = x1
 	}
+}
 
-	return Dec128{coef: x, scale: scale}, true
+// sqrtAt returns sqrt(d) scaled to exactly the given scale and rounded with mode, and whether the result is inexact.
+// Requires d > 0, not NaN, scale <= MaxScale. The root is taken at a working scale w with 2w >= d.scale, so that the
+// radicand coef * 10^(2w - d.scale) is an integer (below 2^255, so it fits in 256 bits and its root fits in 128).
+// floor(sqrt(n)) never overflows. When w is above the requested scale the result is reduced with the exactness of the
+// root as the sticky bit, which keeps the rounding decision correct: the true value is q + e with 0 <= e < 1 and
+// e > 0 iff the root was inexact.
+func (d Dec128) sqrtAt(scale uint8, mode RoundingMode) (q uint128.Uint128, inexact bool) {
+	work := scale
+	if int(work)*2 < int(d.scale) {
+		work = (d.scale + 1) / 2
+	}
+	lo, hi := d.coef.MulCarry(Pow10Uint128[int(work)*2-int(d.scale)])
+
+	r := isqrt256(lo, hi)
+	sqLo, sqHi := r.MulCarry(r)
+	sticky := sqLo != lo || sqHi != hi
+
+	if work == scale {
+		if !sticky {
+			return r, false
+		}
+		// Above half iff n > r*r + r (an exact tie would need n = r*r + r + 1/4).
+		tLo, c := sqLo.AddCarry(r)
+		tHi, _ := sqHi.AddCarry(uint128.Uint128{Lo: c})
+		above := compare256(lo, hi, tLo, tHi) > 0
+		if roundDecision(above, false, r.Lo&1 == 1, state.Default, mode) {
+			r, _ = r.AddCarry(uint128.One) // r < 2^128, since n < 2^255
+		}
+		return r, true
+	}
+
+	// Reduce from the working scale to the requested one; k <= (MaxScale+1)/2.
+	k := work - scale
+	q, rem, _ := r.QuoRemPow10(k)
+	half := Pow10Uint64[k] / 2
+	inexact = rem != 0 || sticky
+	if !inexact {
+		return q, false
+	}
+	above := rem > half || (rem == half && sticky)
+	tie := rem == half && !sticky
+	if roundDecision(above, tie, q.Lo&1 == 1, state.Default, mode) {
+		q, _ = q.AddCarry(uint128.One)
+	}
+
+	return q, true
 }

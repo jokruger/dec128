@@ -6,7 +6,8 @@ import (
 	"github.com/jokruger/dec128/state"
 )
 
-// MarshalJSON implements the json.Marshaler interface.
+// MarshalJSON implements json.Marshaler: a quoted decimal in the fixed form (see SetTrimOutput), "NaN" for a NaN, and
+// null for a NULL value.
 func (d Dec128) MarshalJSON() ([]byte, error) {
 	switch {
 	case d.state == state.Null:
@@ -14,19 +15,20 @@ func (d Dec128) MarshalJSON() ([]byte, error) {
 	case d.state >= state.Error:
 		return NaNJsonStrBytes, nil
 	case d.IsZero():
-		return ZeroJsonStrBytes, nil
+		if trimOutput || d.scale == 0 {
+			return ZeroJsonStrBytes, nil
+		}
 	}
 
 	buf := [MaxStrLen + 2]byte{}
 	buf[0] = '"'
 	sb, trim := d.appendString(buf[:1])
-	if trim {
+	if trim && trimOutput {
 		sb = trimTrailingZeros(sb)
 	}
 	sb = append(sb, '"')
 
-	// copy into an exactly sized slice: returning a slice of buf would move the whole
-	// scratch array to the heap
+	// copy into an exactly sized slice: returning a slice of buf would move the whole scratch array to the heap
 	out := make([]byte, len(sb))
 	copy(out, sb)
 
@@ -47,7 +49,7 @@ func (d *Dec128) UnmarshalJSON(data []byte) error {
 	}
 
 	t := FromString(data[:])
-	if t.IsNaN() {
+	if t.state == state.InvalidFormat {
 		return t.ErrorDetails()
 	}
 	*d = t

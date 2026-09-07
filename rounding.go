@@ -2,7 +2,8 @@ package dec128
 
 import "github.com/jokruger/dec128/state"
 
-// RoundDown (or Floor) rounds the decimal to the specified scale using Round Down method (https://en.wikipedia.org/wiki/Rounding#Rounding_down).
+// RoundDown (or Floor) rounds the decimal to the specified scale using Round Down method
+// (https://en.wikipedia.org/wiki/Rounding#Rounding_down).
 //
 // Examples:
 //
@@ -17,10 +18,10 @@ func (d Dec128) RoundDown(scale uint8) Dec128 {
 		return d
 	}
 
-	// arg to QuoRem64 will be > 0
-	q, r, _ := d.coef.QuoRem64(Pow10Uint64[d.scale-scale])
+	// the scale difference is in 1..MaxScale
+	q, r, _ := d.coef.QuoRemPow10(d.scale - scale)
 
-	// unreachable because QuoRem64 cannot be error for arg > 0
+	// unreachable because QuoRemPow10 cannot be error for a scale difference in 1..MaxScale
 	//if s >= state.Error {
 	//	return Dec128{state: s}
 	//}
@@ -36,7 +37,8 @@ func (d Dec128) RoundDown(scale uint8) Dec128 {
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
-// RoundUp (or Ceil) rounds the decimal to the specified scale using Round Up method (https://en.wikipedia.org/wiki/Rounding#Rounding_up).
+// RoundUp (or Ceil) rounds the decimal to the specified scale using Round Up method
+// (https://en.wikipedia.org/wiki/Rounding#Rounding_up).
 //
 // Examples:
 //
@@ -51,10 +53,10 @@ func (d Dec128) RoundUp(scale uint8) Dec128 {
 		return d
 	}
 
-	// arg to QuoRem64 will be > 0
-	q, r, _ := d.coef.QuoRem64(Pow10Uint64[d.scale-scale])
+	// the scale difference is in 1..MaxScale
+	q, r, _ := d.coef.QuoRemPow10(d.scale - scale)
 
-	// unreachable because QuoRem64 cannot be error for arg > 0
+	// unreachable because QuoRemPow10 cannot be error for a scale difference in 1..MaxScale
 	//if s >= state.Error {
 	//	return Dec128{state: s}
 	//}
@@ -70,7 +72,8 @@ func (d Dec128) RoundUp(scale uint8) Dec128 {
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
-// RoundTowardZero rounds the decimal to the specified scale using Toward Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_toward_zero).
+// RoundTowardZero rounds the decimal to the specified scale using Toward Zero method
+// (https://en.wikipedia.org/wiki/Rounding#Rounding_toward_zero).
 //
 // Examples:
 //
@@ -84,7 +87,8 @@ func (d Dec128) RoundTowardZero(scale uint8) Dec128 {
 	return d.Trunc(scale)
 }
 
-// RoundAwayFromZero rounds the decimal to the specified scale using Away From Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_away_from_zero).
+// RoundAwayFromZero rounds the decimal to the specified scale using Away From Zero method
+// (https://en.wikipedia.org/wiki/Rounding#Rounding_away_from_zero).
 //
 // Examples:
 //
@@ -99,10 +103,10 @@ func (d Dec128) RoundAwayFromZero(scale uint8) Dec128 {
 		return d
 	}
 
-	// arg to QuoRem64 will be > 0
-	q, r, _ := d.coef.QuoRem64(Pow10Uint64[d.scale-scale])
+	// the scale difference is in 1..MaxScale
+	q, r, _ := d.coef.QuoRemPow10(d.scale - scale)
 
-	// unreachable because QuoRem64 cannot be error for arg > 0
+	// unreachable because QuoRemPow10 cannot be error for a scale difference in 1..MaxScale
 	//if s >= state.Error {
 	//	return Dec128{state: s}
 	//}
@@ -118,7 +122,8 @@ func (d Dec128) RoundAwayFromZero(scale uint8) Dec128 {
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
-// RoundHalfTowardZero rounds the decimal to the specified scale using Half Toward Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_half_toward_zero).
+// RoundHalfTowardZero rounds the decimal to the specified scale using Half Toward Zero method
+// (https://en.wikipedia.org/wiki/Rounding#Rounding_half_toward_zero).
 //
 // Examples:
 //
@@ -137,9 +142,9 @@ func (d Dec128) RoundHalfTowardZero(scale uint8) Dec128 {
 	factor := Pow10Uint64[d.scale-scale]
 	half := factor / 2
 
-	q, r, _ := d.coef.QuoRem64(factor)
+	q, r, _ := d.coef.QuoRemPow10(d.scale - scale)
 
-	// unreachable because QuoRem64 cannot be error for arg > 0
+	// unreachable because QuoRemPow10 cannot be error for a scale difference in 1..MaxScale
 	//if s >= state.Error {
 	//	return Dec128{state: s}
 	//}
@@ -155,7 +160,8 @@ func (d Dec128) RoundHalfTowardZero(scale uint8) Dec128 {
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
-// RoundHalfAwayFromZero rounds the decimal to the specified scale using Half Away from Zero method (https://en.wikipedia.org/wiki/Rounding#Rounding_half_away_from_zero).
+// RoundHalfAwayFromZero rounds the decimal to the specified scale using Half Away from Zero method
+// (https://en.wikipedia.org/wiki/Rounding#Rounding_half_away_from_zero).
 //
 // Examples:
 //
@@ -174,9 +180,9 @@ func (d Dec128) RoundHalfAwayFromZero(scale uint8) Dec128 {
 	factor := Pow10Uint64[d.scale-scale]
 	half := factor / 2
 
-	q, r, _ := d.coef.QuoRem64(factor)
+	q, r, _ := d.coef.QuoRemPow10(d.scale - scale)
 
-	// unreachable because QuoRem64 cannot be error for arg > 0
+	// unreachable because QuoRemPow10 cannot be error for a scale difference in 1..MaxScale
 	//if s >= state.Error {
 	//	return Dec128{state: s}
 	//}
@@ -210,9 +216,9 @@ func (d Dec128) RoundBank(scale uint8) Dec128 {
 	factor := Pow10Uint64[d.scale-scale]
 	half := factor / 2
 
-	q, r, _ := d.coef.QuoRem64(factor)
+	q, r, _ := d.coef.QuoRemPow10(d.scale - scale)
 
-	// unreachable because QuoRem64 cannot be error for arg > 0
+	// unreachable because QuoRemPow10 cannot be error for a scale difference in 1..MaxScale
 	//if s >= state.Error {
 	//	return Dec128{state: s}
 	//}
@@ -239,10 +245,10 @@ func (d Dec128) Trunc(scale uint8) Dec128 {
 		return d
 	}
 
-	// arg to QuoRem will be > 0
-	q, _, _ := d.coef.QuoRem64(Pow10Uint64[d.scale-scale])
+	// the scale difference is in 1..MaxScale
+	q, _, _ := d.coef.QuoRemPow10(d.scale - scale)
 
-	// unreachable because QuoRem64 cannot be error for arg > 0
+	// unreachable because QuoRemPow10 cannot be error for a scale difference in 1..MaxScale
 	//if s >= state.Error {
 	//	return Dec128{state: s}
 	//}
