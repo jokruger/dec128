@@ -229,16 +229,16 @@ of fixed-scale amounts. `dec128` fixes the layout at 24 bytes, keeps arithmetic 
 
 ## Benchmarks
 
-Measured on a MacBook Pro (2019), 2.6 GHz 6-core Intel Core i7, 16 GB RAM. Reproduce
-with https://github.com/jokruger/go-decimal-benchmark.
+Measured on Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz. Reproduce with https://github.com/jokruger/go-decimal-benchmark.
 
 ```
                                  parse (ns/op)  string (ns/op)     add (ns/op)     mul (ns/op)     div (ns/op)
 
-dec128.Dec128                           14.024          33.683           9.975           6.569          35.116
-udecimal.Decimal                        23.302          41.854          12.226          11.346          40.877
-alpacadecimal.Decimal                   89.528          78.884         206.393          60.364         451.828
-shopspring.Decimal                     152.263         169.300         218.909          65.241         428.002
+float64 (baseline)                      28.945          52.996           0.344           0.347           0.331
+dec128.Dec128                           10.993          20.880           5.838           3.620          42.331
+udecimal.Decimal                        20.528          40.315          11.183          10.557          39.269
+alpacadecimal.Decimal                   72.436          70.440         173.147          45.693         383.035
+shopspring.Decimal                     122.441         156.636         179.389          49.194         357.307
 ```
 
 ## Notes on Terminology
