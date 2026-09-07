@@ -13,6 +13,8 @@ var trimOutput = false
 
 // SetTrimOutput selects whether Value, MarshalJSON and MarshalText remove trailing zeros from the fraction. The default
 // is false: the scale is preserved. Pass true to restore the output of versions up to v1.0.20.
+// This is process-global configuration: set it once during initialization, because changing it while other
+// goroutines format values is a data race.
 func SetTrimOutput(trim bool) {
 	trimOutput = trim
 }

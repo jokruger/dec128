@@ -114,8 +114,9 @@ Four things that surprise people:
 
 - **`IsZero`, `IsNegative` and `IsPositive` all return `false` for NaN.** A guard written as `if !d.IsZero()` does *not*
   catch a failed calculation. Test `IsNaN` first when the difference matters.
-- **`MarshalJSON` encodes NaN as the string `"NaN"`.** A consumer that accepts strings takes it without complaint.
-  `Value` is safer by construction — a numeric column rejects it.
+- **`MarshalJSON` and `Value` both encode NaN as the string `"NaN"`.** A JSON consumer that accepts strings takes it
+  without complaint, and PostgreSQL accepts `'NaN'` for a `numeric` column. Check `IsNaN` before a failed calculation
+  reaches storage.
 - **A result that does not fit is rounded, not NaN.** The scale is reduced to the largest at which the integer part fits
   and the dropped digits are rounded with the configured mode (truncation by default). NaN means the integer part itself
   does not fit. `SetArithmeticRounding(ROUND_NAN)` turns any loss of digits back into a NaN.
@@ -190,8 +191,9 @@ v, _ := amount.Value()   // nil, so it writes back as NULL
 ```
 
 A NULL-marked value is a NaN, so it propagates through arithmetic, but `IsNull` distinguishes it from an overflow or a
-parse failure. `MarshalJSON` emits `null` for it and `UnmarshalJSON` accepts `null` symmetrically. The default stays
-`Zero`, so nothing changes unless you opt in.
+parse failure. `MarshalJSON` emits `null` for it and `UnmarshalJSON` accepts `null` symmetrically; `MarshalText` emits
+empty text and `UnmarshalText` maps empty text back the same way. The default stays `Zero`, so nothing changes unless
+you opt in.
 
 ## Scientific notation
 

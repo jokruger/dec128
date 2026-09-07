@@ -34,6 +34,9 @@ func (d Dec128) RoundDown(scale uint8) Dec128 {
 		//}
 	}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
@@ -69,6 +72,9 @@ func (d Dec128) RoundUp(scale uint8) Dec128 {
 		//}
 	}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
@@ -119,6 +125,9 @@ func (d Dec128) RoundAwayFromZero(scale uint8) Dec128 {
 		//}
 	}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
@@ -157,6 +166,9 @@ func (d Dec128) RoundHalfTowardZero(scale uint8) Dec128 {
 		//}
 	}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
@@ -195,6 +207,9 @@ func (d Dec128) RoundHalfAwayFromZero(scale uint8) Dec128 {
 		//}
 	}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
@@ -231,6 +246,9 @@ func (d Dec128) RoundBank(scale uint8) Dec128 {
 		//}
 	}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 
@@ -253,5 +271,8 @@ func (d Dec128) Trunc(scale uint8) Dec128 {
 	//	return Dec128{state: s}
 	//}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }

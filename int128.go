@@ -3,6 +3,7 @@ package dec128
 import (
 	"encoding/binary"
 	"io"
+	"slices"
 
 	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
@@ -69,6 +70,19 @@ func (d Dec128) EncodeInt128(buf []byte, scale uint8, order binary.ByteOrder) (i
 	}
 
 	return Int128Bytes, nil
+}
+
+// AppendInt128 appends the two's-complement encoding of d at the given scale to buf, as EncodeInt128 writes it into a
+// caller buffer, and returns the extended slice. It does not allocate when buf has room. On error buf is returned
+// unchanged.
+func (d Dec128) AppendInt128(buf []byte, scale uint8, order binary.ByteOrder) ([]byte, error) {
+	// encode in place: a scratch array would escape through the ByteOrder interface and cost an allocation
+	n := len(buf)
+	out := slices.Grow(buf, Int128Bytes)[:n+Int128Bytes]
+	if _, err := d.EncodeInt128(out[n:], scale, order); err != nil {
+		return buf, err
+	}
+	return out, nil
 }
 
 // DecodeInt128 decodes a two's-complement int128 at the given scale from buf, which must hold exactly Int128Bytes,

@@ -90,6 +90,17 @@ func (d Dec128) EncodeIEEE(buf []byte) (int, error) {
 	return IEEEBytes, nil
 }
 
+// AppendIEEE appends the IEEE 754 decimal128 encoding of d to buf, as EncodeIEEE writes it into a caller buffer, and
+// returns the extended slice. On error buf is returned unchanged.
+func (d Dec128) AppendIEEE(buf []byte) ([]byte, error) {
+	var tmp [IEEEBytes]byte
+	n, err := d.EncodeIEEE(tmp[:])
+	if err != nil {
+		return buf, err
+	}
+	return append(buf, tmp[:n]...), nil
+}
+
 // DecodeIEEE decodes a decimal128 (BID) from buf, which must hold exactly IEEEBytes. Infinities become NaN(Overflow);
 // a NaN keeps the state code from its payload when it is one this package produced, and is a NaN carrying state.NaN
 // otherwise; a negative zero becomes zero. A value whose exponent is above 0 is multiplied out and must fit in 128 bits

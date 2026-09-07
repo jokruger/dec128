@@ -70,7 +70,7 @@ func (ui Uint128) Mul(other Uint128) (Uint128, state.State) {
 	return Uint128{lo, hi}, state.OK
 }
 
-// MulCarry returns ui * other and carry.
+// MulCarry returns the 256-bit product ui * other as its low and high 128-bit halves (lo, hi).
 func (ui Uint128) MulCarry(other Uint128) (Uint128, Uint128) {
 	if ui.Hi == 0 && other.Hi == 0 {
 		hi, lo := bits.Mul64(ui.Lo, other.Lo)

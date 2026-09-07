@@ -3578,7 +3578,7 @@ func TestFromStringLongForms(t *testing.T) {
 	tcs := [...]tc{
 		{"00000000000000000000", state.Default, "0"},                                                          // 20 digits, all zero, no dot
 		{"0000000000000000000000000.00000", state.Default, "0.00000"},                                         // zero with a fractional part
-		{"1234567890123456789.", state.InvalidFormat, ""},                                                     // 20 chars ending in a dot
+		{"1234567890123456789.", state.Default, "1234567890123456789"},                                        // 20 chars ending in a dot: an integer, as on the short path
 		{"999999999999999999999999999999999999999999.5", state.Overflow, ""},                                  // integer part > 2^128
 		{"12345678901234567890.ab", state.InvalidFormat, ""},                                                  // non-digit fractional part
 		{"1234567890123456789012345678901234567890", state.Overflow, ""},                                      // 40 digits, no dot

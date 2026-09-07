@@ -4,9 +4,12 @@ import (
 	"github.com/jokruger/dec128/state"
 )
 
-// MarshalText implements encoding.TextMarshaler: the decimal in the fixed form (see SetTrimOutput), or "NaN".
+// MarshalText implements encoding.TextMarshaler: the decimal in the fixed form (see SetTrimOutput), "NaN" for a NaN,
+// and empty text for a NULL-marked value (see SetNullValue), which UnmarshalText maps back so the value round-trips.
 func (d Dec128) MarshalText() ([]byte, error) {
 	switch {
+	case d.state == state.Null:
+		return []byte{}, nil
 	case d.state >= state.Error:
 		return NaNStrBytes, nil
 	case d.IsZero():
@@ -28,10 +31,27 @@ func (d Dec128) MarshalText() ([]byte, error) {
 	return out, nil
 }
 
-// UnmarshalText implements the encoding.TextUnmarshaler interface.
+// AppendText implements encoding.TextAppender: it appends the text MarshalText would produce to b and returns the
+// extended slice, without allocating when b has room. It never returns an error.
+func (d Dec128) AppendText(b []byte) ([]byte, error) {
+	if d.state == state.Null {
+		return b, nil
+	}
+
+	buf := [MaxStrLen]byte{}
+	if trimOutput {
+		return append(b, d.StringToBuf(buf[:])...), nil
+	}
+
+	return append(b, d.StringFixedToBuf(buf[:])...), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. Empty text decodes to the NULL value configured with
+// SetNullValue (Zero by default), as an empty or null JSON value does. Only an invalid format is an error; "NaN",
+// "Infinity" and "-Infinity" decode to NaN values.
 func (d *Dec128) UnmarshalText(data []byte) error {
 	if len(data) == 0 {
-		*d = Zero
+		*d = nullDec
 		return nil
 	}
 

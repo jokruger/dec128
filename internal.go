@@ -3,6 +3,8 @@ package dec128
 import (
 	"github.com/jokruger/dec128/state"
 	"github.com/jokruger/dec128/uint128"
+	"math"
+	"math/bits"
 )
 
 var (
@@ -75,7 +77,9 @@ func (d Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 		u, c = d.coef.MulCarry(Pow10Uint128[factor-d.scale])
 		dv, s = other.coef.Mul(Pow10Uint128[factor-other.scale])
 		if s >= state.Error {
-			return Dec128{state: s}, Dec128{state: s}, false
+			// the aligned divisor exceeds 128 bits, so it exceeds |d| (aligned, factor == d.scale here): the quotient
+			// is zero and the remainder is d itself
+			return Zero, Dec128{coef: d.coef, scale: factor, state: d.state}, true
 		}
 	}
 
@@ -84,11 +88,15 @@ func (d Dec128) tryQuoRem(other Dec128) (Dec128, Dec128, bool) {
 		return Dec128{state: s}, Dec128{state: s}, false
 	}
 
-	if d.state == other.state {
-		return Dec128{coef: q1, scale: 0}, Dec128{coef: r1, scale: factor, state: d.state}, true
+	q := Dec128{coef: q1}
+	if d.state != other.state && !q1.IsZero() {
+		q.state = state.Neg
 	}
-
-	return Dec128{coef: q1, scale: 0, state: state.Neg}, Dec128{coef: r1, scale: factor, state: d.state}, true
+	r := Dec128{coef: r1, scale: factor}
+	if !r1.IsZero() {
+		r.state = d.state // the remainder takes the sign of the dividend; a zero is never negative
+	}
+	return q, r, true
 }
 
 // appendString appends the string representation of the decimal to sb. Returns the new slice and whether the decimal
@@ -138,7 +146,8 @@ func trimTrailingZeros(sb []byte) []byte {
 }
 
 // addSlow is the general case of Add: NaN propagation, differing scales, opposite signs and results that must be
-// reduced to fit. It is kept out of Add so that Add's fast path inlines.
+// reduced to fit. It is kept out of Add so that Add's fast path stays a few instructions (it is still above the
+// compiler's inlining budget, so the split buys a smaller, better-predicted body rather than inlining).
 func (d Dec128) addSlow(other Dec128) Dec128 {
 	switch {
 	case d.state >= state.Error:
@@ -270,6 +279,27 @@ func (d Dec128) divAt(other Dec128, scale uint8, st state.State, mode RoundingMo
 	return uint128.Zero, false, true
 }
 
+// top64 returns the 64 bits of the 256-bit value (lo, hi) starting at bit e, for an even e in 0..192 chosen so that
+// the value's highest set bit is within them.
+func top64(lo, hi uint128.Uint128, e int) uint64 {
+	switch {
+	case e == 0:
+		return lo.Lo
+	case e < 64:
+		return lo.Lo>>e | lo.Hi<<(64-e)
+	case e == 64:
+		return lo.Hi
+	case e < 128:
+		return lo.Hi>>(e-64) | hi.Lo<<(128-e)
+	case e == 128:
+		return hi.Lo
+	case e < 192:
+		return hi.Lo>>(e-128) | hi.Hi<<(192-e)
+	default:
+		return hi.Hi
+	}
+}
+
 // isqrt256 returns floor(sqrt(n)) for the 256-bit value n = hi*2^128 + lo, by Newton-Raphson from an initial guess that
 // is at or above the root.
 func isqrt256(lo, hi uint128.Uint128) uint128.Uint128 {
@@ -278,16 +308,30 @@ func isqrt256(lo, hi uint128.Uint128) uint128.Uint128 {
 	//	return uint128.Zero
 	//}
 
-	// initial guess x = 2^ceil(bitLen/2) >= sqrt(n); for a radicand of 255 or more bits that power is 2^128, which
-	// does not fit, so the largest coefficient is used instead - still at or above the root, since n < 2^256.
+	// Initial guess from the floating-point root of the top 64 bits: n = top * 2^e + rest with e even, so
+	// sqrt(n) < sqrt(top+1) * 2^(e/2). float64 loses at most 2^10 of top (below 2^64) and math.Sqrt is correctly rounded,
+	// which together move the root by less than one, so floor(s)+2 is above sqrt(top+1). The guess is then correct to
+	// about 52 bits and Newton-Raphson needs three steps instead of the eight or so from a power of two.
+	bl := bitLen256(lo, hi)
+	e := 0
+	if bl > 64 {
+		e = (bl - 64 + 1) &^ 1 // round up to even
+	}
+	x0 := uint64(math.Sqrt(float64(top64(lo, hi, e)))) + 2
 	x := uint128.Uint128{Lo: ^uint64(0), Hi: ^uint64(0)}
-	if shift := uint(bitLen256(lo, hi)+1) / 2; shift < 128 {
-		x = uint128.One.Lsh(shift)
+	if bits.Len64(x0)+e/2 <= 128 {
+		// otherwise the shifted guess would not fit; the largest coefficient is still at or above the root, n < 2^256
+		x = uint128.Uint128{Lo: x0}.Lsh(uint(e / 2))
 	}
 
 	for {
-		// n / x fits in 128 bits because x >= sqrt(n) > hi for every n below 2^256.
-		y, _, _ := uint128.QuoRem256By128(lo, hi, x)
+		// n / x fits in 128 bits whenever x >= sqrt(n). The one exception is a radicand above (2^128-1)^2, whose root
+		// is the largest coefficient itself: x already holds it and the division reports overflow. sqrtAt never gets
+		// there (its radicands are below 2^255), so this only makes the function total.
+		y, _, s := uint128.QuoRem256By128(lo, hi, x)
+		if s >= state.Error {
+			return x
+		}
 
 		// x1 = (x + y) / 2, computed without overflowing 128 bits
 		x1, carry := x.AddCarry(y)

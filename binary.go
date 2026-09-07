@@ -7,20 +7,22 @@ import (
 	"github.com/jokruger/dec128/state"
 )
 
-// BinarySize returns the number of bytes required to encode this instance of Dec128 in binary form.
+// BinarySize returns the number of bytes EncodeBinary writes for this instance of Dec128: one for a NaN or a zero
+// (whose scale the format does not record), otherwise the flag byte plus the present coefficient limbs and scale.
 func (d Dec128) BinarySize() int {
-	sz := 1
+	if d.state >= state.Error || d.coef.IsZero() {
+		return 1
+	}
 
-	if d.state <= state.Error {
-		if d.coef.Hi > 0 {
-			sz += 8
-		}
-		if d.coef.Lo > 0 {
-			sz += 8
-		}
-		if d.scale > 0 {
-			sz++
-		}
+	sz := 1
+	if d.coef.Hi > 0 {
+		sz += 8
+	}
+	if d.coef.Lo > 0 {
+		sz += 8
+	}
+	if d.scale > 0 {
+		sz++
 	}
 
 	return sz
@@ -75,7 +77,9 @@ func (d Dec128) EncodeBinary(buf []byte) (int, error) {
 	return pos, nil
 }
 
-// DecodeBinary decodes binary representation of Dec128 from buf. It returns an error if buf is too small, otherwise the number of bytes consumed from buf.
+// DecodeBinary decodes binary representation of Dec128 from buf. It returns an error if buf is too small or does not
+// hold a valid encoding (an unknown state code or a scale above MaxScale), otherwise the number of bytes consumed from
+// buf. On error d is left unchanged.
 func (d *Dec128) DecodeBinary(buf []byte) (int, error) {
 	sz := len(buf)
 	if sz == 0 {
@@ -112,7 +116,15 @@ func (d *Dec128) DecodeBinary(buf []byte) (int, error) {
 		idx++
 	}
 
-	d.state = state.State(flags & 0b00011111)
+	st := state.State(flags & 0b00011111)
+	if !st.IsValid() || e > MaxScale {
+		return idx, state.InvalidFormat.Error()
+	}
+	if st < state.Error && h == 0 && l == 0 {
+		st = state.Default // a zero is never negative
+	}
+
+	d.state = st
 	d.coef.Hi = h
 	d.coef.Lo = l
 	d.scale = e
@@ -157,7 +169,8 @@ func (d *Dec128) GobDecode(data []byte) error {
 	return d.UnmarshalBinary(data)
 }
 
-// AppendBinary appends the binary representation of Dec128 to the end of b (allocating a larger slice if necessary) and returns the updated slice.
+// AppendBinary appends the binary representation of Dec128 to buf (allocating a larger slice if necessary) and returns
+// the updated slice.
 func (d Dec128) AppendBinary(buf []byte) ([]byte, error) {
 	var tmp [MaxBytes]byte
 
@@ -230,7 +243,15 @@ func (d *Dec128) ReadBinary(r io.Reader) error {
 		// idx++ is not needed since no further byte is used.
 	}
 
-	d.state = state.State(flags & 0b00011111)
+	st := state.State(flags & 0b00011111)
+	if !st.IsValid() || e > MaxScale {
+		return state.InvalidFormat.Error()
+	}
+	if st < state.Error && h == 0 && l == 0 {
+		st = state.Default // a zero is never negative
+	}
+
+	d.state = st
 	d.coef.Hi = h
 	d.coef.Lo = l
 	d.scale = e

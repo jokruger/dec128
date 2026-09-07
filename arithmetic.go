@@ -1,6 +1,7 @@
 package dec128
 
 import (
+	"math"
 	"math/bits"
 
 	"github.com/jokruger/dec128/state"
@@ -29,7 +30,7 @@ func (d Dec128) AddInt(other int) Dec128 {
 	return d.AddInt64(int64(other))
 }
 
-// AddInt64 returns the sum of the Dec128 and the int.
+// AddInt64 returns the sum of the Dec128 and the int64.
 // If Dec128 is NaN, the result will be NaN. In case of overflow, the result will be NaN.
 func (d Dec128) AddInt64(other int64) Dec128 {
 	return d.Add(FromInt64(other))
@@ -58,13 +59,13 @@ func (d Dec128) Sub(other Dec128) Dec128 {
 }
 
 // SubInt returns the difference of the Dec128 and the int.
-// If Dec128 is NaN, the result will be NaN. In case of overflow/underflow, the result will be NaN.
+// If Dec128 is NaN, the result will be NaN. In case of overflow the result will be NaN.
 func (d Dec128) SubInt(other int) Dec128 {
 	return d.SubInt64(int64(other))
 }
 
-// SubInt64 returns the difference of the Dec128 and the int.
-// If Dec128 is NaN, the result will be NaN. In case of overflow/underflow, the result will be NaN.
+// SubInt64 returns the difference of the Dec128 and the int64.
+// If Dec128 is NaN, the result will be NaN. In case of overflow the result will be NaN.
 func (d Dec128) SubInt64(other int64) Dec128 {
 	return d.Sub(FromInt64(other))
 }
@@ -256,20 +257,20 @@ func (d Dec128) DivRound(other Dec128, scale uint8, mode RoundingMode) Dec128 {
 }
 
 // DivInt returns d / other.
-// If Dec128 is NaN, the result will be NaN. In case of overflow, underflow, or division by zero the result will be NaN.
+// If Dec128 is NaN, the result will be NaN. In case of overflow or division by zero the result will be NaN.
 func (d Dec128) DivInt(other int) Dec128 {
 	return d.DivInt64(int64(other))
 }
 
 // DivInt64 returns d / other.
-// If Dec128 is NaN, the result will be NaN. In case of overflow, underflow, or division by zero the result will be NaN.
+// If Dec128 is NaN, the result will be NaN. In case of overflow or division by zero the result will be NaN.
 func (d Dec128) DivInt64(other int64) Dec128 {
 	return d.Div(FromInt64(other))
 }
 
-// Mod returns d % other.
-// If any of the Dec128 is NaN, the result will be NaN. In case of overflow, underflow, or division by zero the result
-// will be NaN.
+// Mod returns d % other: the remainder of the truncated division, with the sign of d and the larger scale of the two
+// operands (see QuoRem). If any of the Dec128 is NaN, the result will be NaN. Division by zero yields
+// NaN(DivisionByZero) and a quotient that does not fit in 128 bits NaN(Overflow).
 func (d Dec128) Mod(other Dec128) Dec128 {
 	switch {
 	case d.state >= state.Error:
@@ -279,17 +280,10 @@ func (d Dec128) Mod(other Dec128) Dec128 {
 	case other.coef.IsZero():
 		return Dec128{state: state.DivisionByZero}
 	case d.coef.IsZero():
-		return Zero
+		return Dec128{scale: max(d.scale, other.scale)}
 	}
 
 	_, r, ok := d.tryQuoRem(other)
-	if ok {
-		return r
-	}
-
-	a := d.Canonical()
-	b := other.Canonical()
-	_, r, ok = a.tryQuoRem(b)
 	if ok {
 		return r
 	}
@@ -298,20 +292,21 @@ func (d Dec128) Mod(other Dec128) Dec128 {
 }
 
 // ModInt returns d % other.
-// If Dec128 is NaN, the result will be NaN. In case of overflow, underflow, or division by zero the result will be NaN.
+// If Dec128 is NaN, the result will be NaN. In case of overflow or division by zero the result will be NaN.
 func (d Dec128) ModInt(other int) Dec128 {
 	return d.ModInt64(int64(other))
 }
 
 // ModInt64 returns d % other.
-// If Dec128 is NaN, the result will be NaN. In case of overflow, underflow, or division by zero the result will be NaN.
+// If Dec128 is NaN, the result will be NaN. In case of overflow or division by zero the result will be NaN.
 func (d Dec128) ModInt64(other int64) Dec128 {
 	return d.Mod(FromInt64(other))
 }
 
-// QuoRem returns the quotient and remainder of the division of Dec128 by other Dec128.
-// The quotient is always an integer and the remainder takes the larger scale of the two operands. If any of the Dec128
-// is NaN, the result will be NaN. In case of overflow, underflow, or division by zero, the result will be NaN.
+// QuoRem returns the quotient and remainder of the division of Dec128 by other Dec128. The quotient is the integer
+// part of d / other, truncated toward zero, and the remainder d - q*other carries the sign of d and the larger scale of
+// the two operands; both are exact. If any of the Dec128 is NaN, the result will be NaN. Division by zero yields
+// NaN(DivisionByZero) and a quotient that does not fit in 128 bits NaN(Overflow).
 func (d Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
 	switch {
 	case d.state >= state.Error:
@@ -321,17 +316,11 @@ func (d Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
 	case other.coef.IsZero():
 		return Dec128{state: state.DivisionByZero}, Dec128{state: state.DivisionByZero}
 	case d.coef.IsZero():
-		return Zero, Zero
+		return Zero, Dec128{scale: max(d.scale, other.scale)}
 	}
 
+	// tryQuoRem fails only when the quotient itself has 129 or more bits, which no rescaling of the operands changes
 	q, r, ok := d.tryQuoRem(other)
-	if ok {
-		return q, r
-	}
-
-	a := d.Canonical()
-	b := other.Canonical()
-	q, r, ok = a.tryQuoRem(b)
 	if ok {
 		return q, r
 	}
@@ -340,18 +329,18 @@ func (d Dec128) QuoRem(other Dec128) (Dec128, Dec128) {
 }
 
 // QuoRemInt returns the quotient and remainder of the division of Dec128 by int.
-// If Dec128 is NaN, the result will be NaN. In case of overflow, underflow, or division by zero the result will be NaN.
+// If Dec128 is NaN, the result will be NaN. In case of overflow or division by zero the result will be NaN.
 func (d Dec128) QuoRemInt(other int) (Dec128, Dec128) {
 	return d.QuoRemInt64(int64(other))
 }
 
-// QuoRemInt64 returns the quotient and remainder of the division of Dec128 by int.
-// If Dec128 is NaN, the result will be NaN. In case of overflow, underflow, or division by zero the result will be NaN.
+// QuoRemInt64 returns the quotient and remainder of the division of Dec128 by int64.
+// If Dec128 is NaN, the result will be NaN. In case of overflow or division by zero the result will be NaN.
 func (d Dec128) QuoRemInt64(other int64) (Dec128, Dec128) {
 	return d.QuoRem(FromInt64(other))
 }
 
-// Abs returns |d|
+// Abs returns |d|.
 // If Dec128 is NaN, the result will be NaN.
 func (d Dec128) Abs() Dec128 {
 	if d.state >= state.Error {
@@ -360,7 +349,7 @@ func (d Dec128) Abs() Dec128 {
 	return Dec128{coef: d.coef, scale: d.scale}
 }
 
-// Neg returns -d
+// Neg returns -d.
 // If Dec128 is NaN, the result will be NaN.
 func (d Dec128) Neg() Dec128 {
 	switch {
@@ -427,18 +416,27 @@ func (d Dec128) SqrtRound(scale uint8, mode RoundingMode) Dec128 {
 	return Dec128{coef: q, scale: scale}
 }
 
-// PowInt returns Dec128 raised to the power of n.
+// PowInt returns Dec128 raised to the power of n; see PowInt64.
 func (d Dec128) PowInt(n int) Dec128 {
 	return d.PowInt64(int64(n))
 }
 
-// PowInt64 returns Dec128 raised to the power of n.
+// PowInt64 returns Dec128 raised to the power of n, by repeated squaring with each product rounded to fit like Mul.
+// d^0 is 1 for every d including 0. A negative n yields 1 / d^-n at the default scale, so it is inexact and rounded
+// like Div; 0 to a negative power is NaN(DivisionByZero), and a power whose reciprocal does not fit is NaN(Overflow).
+// NaN propagates.
 func (d Dec128) PowInt64(n int64) Dec128 {
 	switch {
 	case d.state >= state.Error:
 		return d
 	case n < 0:
-		r := d.PowInt64(-n)
+		var r Dec128
+		if n == math.MinInt64 {
+			// -n does not fit an int64; d^(2^63) is d^(2^63-1) * d
+			r = d.PowInt64(math.MaxInt64).Mul(d)
+		} else {
+			r = d.PowInt64(-n)
+		}
 		if r.IsZero() && !d.IsZero() {
 			// the positive power rounded to zero, so its reciprocal does not fit
 			return Dec128{state: state.Overflow}

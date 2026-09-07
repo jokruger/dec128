@@ -11,16 +11,17 @@ import (
 //
 //	dec128.SetNullValue(dec128.NaN(state.Null))
 //
-// With that set, a NULL scans to a NaN carrying state.Null, IsNull reports it, and Value and MarshalJSON turn it back
-// into NULL and null respectively, so the value round-trips. Because it is a NaN it also propagates through arithmetic
+// With that set, a NULL scans to a NaN carrying state.Null, IsNull reports it, and Value, MarshalJSON and MarshalText
+// turn it back into NULL, null and empty text respectively, so the value round-trips. Because it is a NaN it also propagates through arithmetic
 // the way SQL NULL does.
 //
 // This is process-global configuration in the same spirit as SetDefaultScale: set it once during initialization,
 // before any decimal is used.
 var nullDec = Zero
 
-// SetNullValue sets the Dec128 that a SQL NULL or a JSON null decodes to.
-// The default is Zero. Pass NaN(state.Null) to have NULL round-trip instead.
+// SetNullValue sets the Dec128 that a SQL NULL, a JSON null and empty text (UnmarshalText) decode to.
+// The default is Zero. Pass NaN(state.Null) to have NULL round-trip instead. This is process-global configuration: set
+// it once during initialization, because changing it while other goroutines decode is a data race.
 func SetNullValue(d Dec128) {
 	nullDec = d
 }
@@ -30,8 +31,8 @@ func NullValue() Dec128 {
 	return nullDec
 }
 
-// Null returns a Dec128 marked as NULL. It is a NaN, so it propagates through arithmetic, and Value and MarshalJSON
-// encode it back as NULL and null.
+// Null returns a Dec128 marked as NULL. It is a NaN, so it propagates through arithmetic, and Value, MarshalJSON and
+// MarshalText encode it back as NULL, null and empty text.
 func Null() Dec128 {
 	return Dec128{state: state.Null}
 }

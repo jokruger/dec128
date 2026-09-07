@@ -84,8 +84,9 @@ func FromString[S string | []byte](s S) Dec128 {
 		}
 	}
 
-	if j == sz {
-		coef, e := uint128.FromString(s[i:])
+	if j >= sz-1 {
+		// an integer, with or without a trailing point ("123." is accepted, as PostgreSQL and the short path accept it)
+		coef, e := uint128.FromString(s[i:j])
 		if e >= state.Error {
 			return Dec128{state: e}
 		}
@@ -93,10 +94,6 @@ func FromString[S string | []byte](s S) Dec128 {
 			return Zero
 		}
 		return Dec128{coef: coef, scale: 0, state: st}
-	}
-
-	if j == sz-1 {
-		return Dec128{state: state.InvalidFormat}
 	}
 
 	// exponent part, if any, is counted into the scale here, which is what pushes a scientific mantissa over the limit
@@ -221,19 +218,30 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 	return Dec128{coef: coef, scale: uint8(scale), state: st}
 }
 
-// DecodeFromUint128 decodes a Dec128 from a Uint128 and an exponent.
+// DecodeFromUint128 decodes a Dec128 from an unsigned coefficient and an exponent: the value is coef * 10^-exp. An
+// exponent above MaxScale yields NaN(ScaleOutOfRange).
 func DecodeFromUint128(coef uint128.Uint128, exp uint8) Dec128 {
+	if exp > MaxScale {
+		return Dec128{state: state.ScaleOutOfRange}
+	}
 	return Dec128{coef: coef, scale: exp}
 }
 
-// DecodeFromUint64 decodes a Dec128 from a uint64 and an exponent.
+// DecodeFromUint64 decodes a Dec128 from a uint64 coefficient and an exponent: the value is coef * 10^-exp. An
+// exponent above MaxScale yields NaN(ScaleOutOfRange).
 func DecodeFromUint64(coef uint64, exp uint8) Dec128 {
+	if exp > MaxScale {
+		return Dec128{state: state.ScaleOutOfRange}
+	}
 	return Dec128{coef: uint128.FromUint64(coef), scale: exp}
 }
 
-// DecodeFromInt64 decodes a Dec128 from a int64 and an exponent.
+// DecodeFromInt64 decodes a Dec128 from an int64 coefficient and an exponent: the value is coef * 10^-exp. An
+// exponent above MaxScale yields NaN(ScaleOutOfRange).
 func DecodeFromInt64(coef int64, exp uint8) Dec128 {
 	switch {
+	case exp > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
 	case coef == 0:
 		return Dec128{coef: uint128.Zero, scale: exp}
 	case coef == -9223372036854775808:
@@ -255,7 +263,9 @@ func FromInt64(i int64) Dec128 {
 	return DecodeFromInt64(i, 0)
 }
 
-// FromFloat64 returns a decimal from float64.
+// FromFloat64 returns a decimal from float64, using the shortest decimal string that round-trips the float (1.0/3 is
+// 0.3333333333333333). NaN and the infinities yield NaN(state.NaN); a magnitude with more than 39 digits yields
+// NaN(Overflow), and one that needs more than MaxScale fractional digits, such as 1e-20, yields NaN(ScaleOutOfRange).
 func FromFloat64(f float64) Dec128 {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return Dec128{state: state.NaN}

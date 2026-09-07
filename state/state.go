@@ -1,8 +1,15 @@
-// Package state provides custom type to encode state and error codes for uint128 and dec128 packages.
+// Package state provides the State type that encodes the sign and the error condition of a uint128 or dec128 value
+// in a single byte.
+//
+// The ordering is load-bearing: codes below Error (Default and Neg) are valid values, Error and everything above are
+// error conditions, which dec128 reports as NaN. Code numbers are persisted by the binary format and are therefore
+// never renumbered; new codes are appended.
 package state
 
 import "errors"
 
+// State encodes the sign of a valid value (Default or Neg) or, for a code of Error and above, the reason a value is
+// invalid.
 type State uint8
 
 // State codes are hard-coded for binary compatibility.
@@ -12,22 +19,30 @@ const (
 
 	Error = State(2)
 
-	NaN                    = State(3)
-	DivisionByZero         = State(4)
-	Overflow               = State(5)
-	Underflow              = State(6)
-	NegativeInUnsignedOp   = State(7)
-	NotEnoughBytes         = State(8)
-	InvalidFormat          = State(9)
-	PrecisionOutOfRange    = State(10) // Deprecated
-	RescaleToLessPrecision = State(11) // Deprecated
-	SqrtNegative           = State(12)
-	ScaleOutOfRange        = State(13)
-	RescaleToLowerScale    = State(14)
-	Null                   = State(15)
-	Inexact                = State(16)
-	InvalidRoundingMode    = State(17)
+	NaN                  = State(3)
+	DivisionByZero       = State(4)
+	Overflow             = State(5)
+	Underflow            = State(6)
+	NegativeInUnsignedOp = State(7)
+	NotEnoughBytes       = State(8)
+	InvalidFormat        = State(9)
+	SqrtNegative         = State(12)
+	ScaleOutOfRange      = State(13)
+	RescaleToLowerScale  = State(14)
+	Null                 = State(15)
+	Inexact              = State(16)
+	InvalidRoundingMode  = State(17)
 )
+
+// PrecisionOutOfRange is the former name of ScaleOutOfRange; the code stays reserved so it is never reused.
+//
+// Deprecated: Use ScaleOutOfRange instead.
+const PrecisionOutOfRange = State(10)
+
+// RescaleToLessPrecision is the former name of RescaleToLowerScale; the code stays reserved so it is never reused.
+//
+// Deprecated: Use RescaleToLowerScale instead.
+const RescaleToLessPrecision = State(11)
 
 var code2str = [...]string{
 	Default: "default",
@@ -73,25 +88,41 @@ var code2err = [...]error{
 	InvalidRoundingMode:    errors.New("invalid rounding mode"),
 }
 
-var OK = Default
+// OK is the state of a valid, non-negative value; it is another name for Default.
+const OK = Default
+
+var errInvalidState = errors.New("invalid state code")
 
 // IsValid reports whether s is one of the defined state codes.
 func (s State) IsValid() bool {
 	return int(s) < len(code2str)
 }
 
+// IsOK reports whether s denotes a valid value (Default or Neg).
 func (s State) IsOK() bool {
 	return s < Error
 }
 
+// IsError reports whether s denotes an error condition (Error or above).
 func (s State) IsError() bool {
 	return s >= Error
 }
 
+// String returns a short description of the state. A code that is not defined is described as invalid rather than
+// indexing out of range.
 func (s State) String() string {
+	if !s.IsValid() {
+		return "invalid state code"
+	}
 	return code2str[s]
 }
 
+// Error returns the error value for the state: nil for a valid value, otherwise a sentinel that is the same for every
+// occurrence of the code, so callers can compare with == or errors.Is. A code that is not defined yields a generic
+// invalid-state error.
 func (s State) Error() error {
+	if !s.IsValid() {
+		return errInvalidState
+	}
 	return code2err[s]
 }

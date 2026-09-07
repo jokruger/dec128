@@ -37,7 +37,10 @@ func (d Dec128) MarshalJSON() ([]byte, error) {
 
 var nullValue = []byte("null")
 
-// UnmarshalJSON implements the json.Unmarshaler interface.
+// UnmarshalJSON implements json.Unmarshaler. It accepts the value as a JSON string or as a bare JSON number; null, an
+// empty string and the string "null" decode to the NULL value configured with SetNullValue (Zero by default). Only an
+// invalid format is an error: "NaN", "Infinity" and "-Infinity" decode to NaN values, and the reason a NaN carried
+// before marshaling does not survive the round trip (it comes back as state.NaN).
 func (d *Dec128) UnmarshalJSON(data []byte) error {
 	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
 		data = data[1 : len(data)-1]

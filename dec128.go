@@ -15,8 +15,9 @@ type Dec128 struct {
 	state state.State
 }
 
-// New creates a new Dec128 from a uint64 coefficient, uint8 scale, and negative flag.
-// In case of errors it returns NaN with the error.
+// New creates a new Dec128 from an unsigned 128-bit coefficient, a scale and a negative flag: the value is
+// coef * 10^-scale, negated when neg is set. A scale above MaxScale yields NaN(ScaleOutOfRange); a zero is never
+// negative.
 func New(coef uint128.Uint128, scale uint8, neg bool) Dec128 {
 	if scale > MaxScale {
 		return NaN(state.ScaleOutOfRange)
@@ -57,7 +58,8 @@ func (d Dec128) IsNaN() bool {
 }
 
 // ErrorDetails returns the error details of the Dec128.
-// If the Dec128 is not NaN, it returns nil.
+// If the Dec128 is not NaN, it returns nil. The error is the sentinel state.State.Error() returns for the reason, the
+// same value every time, so it can be classified with == or errors.Is against state.Overflow.Error() and the like.
 func (d Dec128) ErrorDetails() error {
 	if d.state < state.Error {
 		return nil
@@ -65,7 +67,8 @@ func (d Dec128) ErrorDetails() error {
 	return d.state.Error()
 }
 
-// Sign returns -1 if the Dec128 is negative, 0 if it is zero, and 1 if it is positive.
+// Sign returns -1 if the Dec128 is negative, 0 if it is zero, and 1 if it is positive. A NaN also yields 0, so check
+// IsNaN first when the distinction matters.
 func (d Dec128) Sign() int {
 	switch {
 	case d.state >= state.Error || d.coef.IsZero():
@@ -77,7 +80,8 @@ func (d Dec128) Sign() int {
 	}
 }
 
-// Coefficient returns the coefficient of the Dec128.
+// Coefficient returns the unsigned coefficient (the magnitude scaled by 10^scale) of the Dec128; the sign lives in Sign
+// and IsNegative, so FromString("-1.5").Coefficient() is 15.
 func (d Dec128) Coefficient() uint128.Uint128 {
 	return d.coef
 }
@@ -92,13 +96,16 @@ func (d Dec128) Exponent() uint8 {
 	return d.scale
 }
 
+// Precision is the former name of Scale.
+//
 // Deprecated: Use Scale() instead.
 func (d Dec128) Precision() uint8 {
 	return d.scale
 }
 
-// Rescale returns a new Dec128 with the given scale.
-// If the Dec128 is NaN, it returns itself. In case of errors it returns NaN with the error.
+// Rescale returns a new Dec128 with the given scale. Raising the scale is exact; lowering it truncates toward zero
+// (see RescaleRound for the rounding form). If the Dec128 is NaN, it returns itself. A scale above MaxScale yields
+// NaN(ScaleOutOfRange) and a coefficient that no longer fits yields NaN(Overflow).
 func (d Dec128) Rescale(scale uint8) Dec128 {
 	if d.state >= state.Error || d.scale == scale {
 		return d
@@ -120,6 +127,9 @@ func (d Dec128) Rescale(scale uint8) Dec128 {
 
 	// scale down: diff is in 1..MaxScale, so QuoRemPow10 cannot fail
 	coef, _, _ := d.coef.QuoRemPow10(d.scale - scale)
+	if coef.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 
 	return Dec128{coef: coef, scale: scale, state: d.state}
 }
@@ -129,13 +139,15 @@ func (d Dec128) ToScale(scale uint8) Dec128 {
 	return d.Rescale(scale)
 }
 
-// Equal returns true if the Dec128 is equal to the other Dec128.
+// Equal returns true if the Dec128 is numerically equal to the other Dec128, whatever their scales: 1.5 equals 1.50.
+// Any two NaN values are equal to each other regardless of the reason they carry, and a NaN never equals a valid
+// value, which is consistent with Compare.
 func (d Dec128) Equal(other Dec128) bool {
 	switch {
+	case d.state >= state.Error || other.state >= state.Error:
+		return d.state >= state.Error && other.state >= state.Error
 	case d.state != other.state:
 		return false
-	case d.state >= state.Error:
-		return true
 	case d.scale == other.scale:
 		return d.coef.Equal(other.coef)
 	}
@@ -152,7 +164,8 @@ func (d Dec128) equalSlow(other Dec128) bool {
 }
 
 // Compare returns -1 if the Dec128 is less than the other Dec128, 0 if they are equal, and 1 if the Dec128 is greater
-// than the other Dec128. NaN is considered less than any valid Dec128.
+// than the other Dec128. Values are compared numerically, whatever their scales. NaN is considered less than any valid
+// Dec128, and any two NaN values compare equal regardless of the reason they carry.
 func (d Dec128) Compare(other Dec128) int {
 	// Fast path: same scale and same sign, so the coefficients compare directly.
 	if d.scale == other.scale && d.state == other.state && d.state < state.Error {
@@ -234,7 +247,9 @@ func (d Dec128) GreaterThanOrEqual(other Dec128) bool {
 	return d.Compare(other) >= 0
 }
 
-// Copy returns a copy of the Dec128.
+// Copy returns a copy of the Dec128. Dec128 is a value type, so plain assignment does the same.
+//
+// Deprecated: assign the value instead.
 func (d Dec128) Copy() Dec128 {
 	return Dec128{coef: d.coef, scale: d.scale, state: d.state}
 }
@@ -290,12 +305,44 @@ func (d Dec128) Value() (driver.Value, error) {
 	return d.StringFixed(), nil
 }
 
-// NextUp returns the next representable Dec128 greater than the current value.
+// NextUp returns the next representable Dec128 greater than the current value at its scale, that is d + 10^-scale.
+// NaN propagates, and stepping past MaxAtScale yields NaN(Overflow) rather than a rounded value.
 func (d Dec128) NextUp() Dec128 {
-	return d.Add(QuantumAtScale(d.scale))
+	switch {
+	case d.state >= state.Error:
+		return d
+	case d.state == state.Neg && !d.coef.IsZero():
+		// toward zero: the magnitude shrinks by one quantum and may reach zero
+		coef, _ := d.coef.Sub64(1)
+		if coef.IsZero() {
+			return Dec128{scale: d.scale}
+		}
+		return Dec128{coef: coef, scale: d.scale, state: state.Neg}
+	}
+	coef, s := d.coef.Add64(1)
+	if s >= state.Error {
+		return Dec128{state: state.Overflow}
+	}
+	return Dec128{coef: coef, scale: d.scale}
 }
 
-// NextDown returns the next representable Dec128 less than the current value.
+// NextDown returns the next representable Dec128 less than the current value at its scale, that is d - 10^-scale.
+// NaN propagates, and stepping past MinAtScale yields NaN(Overflow) rather than a rounded value.
 func (d Dec128) NextDown() Dec128 {
-	return d.Sub(QuantumAtScale(d.scale))
+	switch {
+	case d.state >= state.Error:
+		return d
+	case d.state != state.Neg && !d.coef.IsZero():
+		// toward zero: the magnitude shrinks by one quantum and may reach zero
+		coef, _ := d.coef.Sub64(1)
+		if coef.IsZero() {
+			return Dec128{scale: d.scale}
+		}
+		return Dec128{coef: coef, scale: d.scale}
+	}
+	coef, s := d.coef.Add64(1)
+	if s >= state.Error {
+		return Dec128{state: state.Overflow}
+	}
+	return Dec128{coef: coef, scale: d.scale, state: state.Neg}
 }

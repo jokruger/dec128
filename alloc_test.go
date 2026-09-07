@@ -47,6 +47,7 @@ func TestAllocationGates(t *testing.T) {
 	pgBytes := pgBuf[:pgN]
 	var ieeeBuf [IEEEBytes]byte
 	_, _ = a.EncodeIEEE(ieeeBuf[:])
+	appendBuf := make([]byte, 0, 64)
 
 	zero := []struct {
 		name string
@@ -87,6 +88,15 @@ func TestAllocationGates(t *testing.T) {
 		{"Canonical", func() { allocSinkDec = FromString("1.500000").Canonical() }},
 		{"StringToBuf", func() { allocSinkBytes = large.StringToBuf(strBuf[:]) }},
 		{"StringSciToBuf", func() { allocSinkBytes = large.StringSciToBuf(sciBuf[:]) }},
+		{"StringFixedToBuf", func() { allocSinkBytes = large.StringFixedToBuf(strBuf[:]) }},
+		{"AppendText", func() { allocSinkBytes, allocSinkErr = large.AppendText(appendBuf[:0]) }},
+		{"AppendBinary", func() { allocSinkBytes, allocSinkErr = large.AppendBinary(appendBuf[:0]) }},
+		{"AppendPgNumeric", func() { allocSinkBytes, allocSinkErr = large.AppendPgNumeric(appendBuf[:0]) }},
+		{"AppendIEEE", func() { allocSinkBytes, allocSinkErr = large.AppendIEEE(appendBuf[:0]) }},
+		{"AppendInt128", func() { allocSinkBytes, allocSinkErr = a.AppendInt128(appendBuf[:0], 4, binary.LittleEndian) }},
+		{"NextUp", func() { allocSinkDec = a.NextUp() }},
+		{"QuoRem", func() { allocSinkDec, allocSinkDec = large.QuoRem(a) }},
+		{"Sqrt", func() { allocSinkDec = large.Sqrt() }},
 		{"EncodeBinary", func() { allocSinkInt, allocSinkErr = a.EncodeBinary(bin[:]) }},
 		{"EncodePgNumeric", func() { allocSinkInt, allocSinkErr = large.EncodePgNumeric(pgBuf[:]) }},
 		{"DecodePgNumeric", func() { allocSinkErr = allocSinkDec.DecodePgNumeric(pgBytes) }},

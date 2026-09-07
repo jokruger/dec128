@@ -21,6 +21,10 @@
 // values with ==: 1.5 and 1.50 are different representations of one number, and Equal
 // and Compare are the comparison operations.
 //
+// A Dec128 is comparable and can be a map key, but == is not a numeric comparison: 1.5
+// and 1.50 differ in scale and are different keys. Use Equal or Compare for values and
+// Canonical to normalise a key.
+//
 // # Failures are values, not returns
 //
 // Arithmetic never panics and never returns an error. A failed operation returns a NaN

@@ -50,7 +50,8 @@ func (ui Uint128) ReverseBytes() Uint128 {
 	return Uint128{bits.ReverseBytes64(ui.Hi), bits.ReverseBytes64(ui.Lo)}
 }
 
-// QuoRem256By128 returns quotient, remainder and error.
+// QuoRem256By128 divides the 256-bit value carry*2^128 + u by v and returns the quotient, the remainder and a state:
+// state.DivisionByZero when v is zero and state.Overflow when the quotient does not fit in 128 bits (carry >= v).
 func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, state.State) {
 	switch {
 	case carry.IsZero():
@@ -80,9 +81,10 @@ func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, stat
 	a[2] = u.Hi>>(64-n) | carry.Lo<<n
 	a[3] = carry.Lo>>(64-n) | carry.Hi<<n
 
-	// q = a / v
+	// q = a / v. The window [a3,a2] is below v because carry < v, so a3 <= v.Hi; when a3 is zero and a2 is still at least
+	// v.Hi the top digit can be nonzero and the four-limb form is needed as well.
 	aLen := 3
-	if a[3] > 0 || (a[3] == 0 && a[2] > v.Hi) {
+	if a[3] > 0 || a[2] >= v.Hi {
 		aLen = 4
 	}
 
@@ -91,51 +93,32 @@ func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, stat
 	for i := aLen - 3; i >= 0; i-- {
 		u2, u1, u0 := a[i+2], a[i+1], a[i]
 
-		// trial quotient tq = [u2,u1,u0] / v ~= [u2,u1] / v.hi
-		// tq <= q + 2
-		tq, r := bits.Div64(u2, u1, v.Hi)
-
-		c1h, c1l := bits.Mul64(tq, v.Lo)
-		c1 := Uint128{Lo: c1l, Hi: c1h}
-		c2 := Uint128{Lo: u0, Hi: r}
-
-		// adjust tq
-		var k uint64
-		if c1.Compare(c2) > 0 {
-			k = 1
-
-			// d = c1 - c2
-			if SubUnsafe(c1, c2).Compare(v) > 0 {
-				k = 2
-			}
+		// Trial quotient tq = [u2,u1] / v.Hi, at most two above the true digit (Knuth, Algorithm D, step D3). When u2
+		// equals v.Hi that division would overflow a limb, and the trial digit is the largest one instead; u2 > v.Hi
+		// cannot happen because the window is below v * 2^64.
+		var tq uint64
+		if u2 >= v.Hi {
+			tq = ^uint64(0)
+		} else {
+			tq, _ = bits.Div64(u2, u1, v.Hi)
 		}
 
-		q[i] = tq - k
-
-		// true remainder rem = [u2,u1,u0] - q*v = c2 - c1 + k*v (k <= 2)
-		var rem Uint128
-		switch k {
-		case 0:
-			// rem = c2 - c1
-			rem = SubUnsafe(c2, c1)
-		case 1:
-			// rem = c2 - c1 + v = v - (c1 - c2) with c1 > c2
-			rem = SubUnsafe(c1, c2)
-			rem = SubUnsafe(v, rem)
-		case 2:
-			// rem = c2 - c1 + 2*v = v + v - (c1 - c2) with c1 > c2
-			// v = max(u128) - not(v)
-			// --> rem = v - not(v) + max(u128) - (c1 - c2)
-			//  v >= not(v) because v is normalized. Hence, we can safely calculate rem without checking overflow
-			c12 := SubUnsafe(c1, c2)
-			c12 = SubUnsafe(Max, c12)
-			rem = SubUnsafe(v, Uint128{Lo: ^v.Lo, Hi: ^v.Hi})
-
-			// this also can't overflow because rem < v <= max(u128)
-			rem, _ = rem.Add(c12)
+		// p = tq * v as the 192-bit value [pHi, pLo]; while it exceeds the window the digit is one too large.
+		// The loop runs at most twice.
+		pLo, pHi := v.Mul64Carry(tq)
+		for pHi > u2 || (pHi == u2 && (pLo.Hi > u1 || (pLo.Hi == u1 && pLo.Lo > u0))) {
+			tq--
+			var borrow uint64
+			pLo, borrow = pLo.SubBorrow(v)
+			pHi -= borrow
 		}
 
-		a[i+1], a[i] = rem.Hi, rem.Lo
+		q[i] = tq
+
+		// remainder [u2,u1,u0] - p, which fits in 128 bits now that tq is the true digit
+		r0, borrow := bits.Sub64(u0, pLo.Lo, 0)
+		r1, _ := bits.Sub64(u1, pLo.Hi, borrow)
+		a[i+1], a[i] = r1, r0
 	}
 
 	// 0 <= n <= 63, so it's safe to convert to uint
@@ -144,10 +127,8 @@ func QuoRem256By128(u Uint128, carry Uint128, v Uint128) (Uint128, Uint128, stat
 	return Uint128{Lo: q[0], Hi: q[1]}, r, state.OK
 }
 
-// QuoRem192By64 return q, r which:
-// q must be a u128
-// u = q*v + r
-// Returns error if u.carry >= v, because the result can't fit into u128
+// QuoRem192By64 divides the 192-bit value carry*2^128 + u by the 64-bit v and returns the 128-bit quotient q and the
+// remainder r with u = q*v + r. It returns state.Overflow when carry >= v, because the quotient would not fit.
 func QuoRem192By64(u Uint128, carry uint64, v uint64) (Uint128, uint64, state.State) {
 	if carry >= v {
 		return Zero, 0, state.Overflow
@@ -162,8 +143,8 @@ func QuoRem192By64(u Uint128, carry uint64, v uint64) (Uint128, uint64, state.St
 	return Uint128{Lo: lo, Hi: hi}, r, state.OK
 }
 
-// SubUnsafe returns u - v with u >= v
-// must be called only when u >= v or the result will be incorrect
+// SubUnsafe returns u - v assuming u >= v; the result wraps and is incorrect otherwise. It exists for callers that
+// have already established the ordering and want to skip the check.
 func SubUnsafe(u Uint128, v Uint128) Uint128 {
 	lo, borrow := bits.Sub64(u.Lo, v.Lo, 0)
 	hi, _ := bits.Sub64(u.Hi, v.Hi, borrow)

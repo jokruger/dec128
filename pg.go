@@ -187,7 +187,11 @@ func (d *Dec128) DecodePgNumeric(buf []byte) error {
 			return nil
 		}
 	case shift < 0:
-		// digits below dscale are padding within the last group and must be zero
+		// digits below dscale are padding within the last group and must be zero. A stripped encoding has at most three
+		// of them; more than 38 cannot come from any numeric PostgreSQL sends and would index past the power table.
+		if -shift > 38 {
+			return state.InvalidFormat.Error()
+		}
 		q, r, s := uint128.QuoRem256By128(n.lo, uint128.Uint128{Lo: n.hi}, Pow10Uint128[-shift])
 		if s >= state.Error {
 			*d = Dec128{state: state.Overflow}

@@ -87,8 +87,11 @@ func ArithmeticRounding() RoundingMode {
 
 // Round rounds d to the given scale using the given mode. It dispatches to the Round* method that implements the mode;
 // ROUND_NAN returns a NaN carrying state.Inexact if any discarded digit is nonzero. A scale not lower than d's returns
-// d unchanged, and an undefined mode returns a NaN carrying state.InvalidRoundingMode.
+// d unchanged, a NaN operand propagates, and an undefined mode returns a NaN carrying state.InvalidRoundingMode.
 func (d Dec128) Round(scale uint8, mode RoundingMode) Dec128 {
+	if d.state >= state.Error {
+		return d
+	}
 	switch mode {
 	case ROUND_TOWARD_ZERO:
 		return d.RoundTowardZero(scale)
@@ -124,6 +127,9 @@ func (d Dec128) roundNaN(scale uint8) Dec128 {
 		return Dec128{state: state.Inexact}
 	}
 
+	if q.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
 	return Dec128{coef: q, scale: scale, state: d.state}
 }
 

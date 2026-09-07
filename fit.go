@@ -172,11 +172,15 @@ func fitWide(lo, hi uint128.Uint128, scale uint8, st state.State, mode RoundingM
 
 // stripZeros removes trailing zeros from an exact result, lowering its scale from scale down to, but not below, ideal.
 // This is the GDA "ideal exponent" rule for the results of inexact operations: 1/2 is 0.5 and 1.00/2 is 0.50,
-// while 1/3 keeps every digit it was given. Divisibility is tested in chunks of up to eight digits so that a quotient
-// computed at scale 19 needs only a few divisions to come back to a short form.
+// while 1/3 keeps every digit it was given. 10^k divides q only if 2^k does, so the number of trailing zero bits bounds
+// the digits to try: a quotient with no zero bits is returned without a division, and a 25.00 computed at scale 19 comes
+// back in one.
 func stripZeros(q uint128.Uint128, scale, ideal uint8) (uint128.Uint128, uint8) {
 	for scale > ideal {
-		k := min(scale-ideal, 8)
+		k := min(scale-ideal, MaxScale, uint8(q.TrailingZeroBitsCount()))
+		if k == 0 {
+			return q, scale
+		}
 		for {
 			q2, r, _ := q.QuoRemPow10(k)
 			if r == 0 {
