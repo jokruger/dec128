@@ -7,10 +7,10 @@ import (
 	"github.com/jokruger/dec128/state"
 )
 
-// BinarySize returns the number of bytes EncodeBinary writes for this instance of Dec128: one for a NaN or a zero
-// (whose scale the format does not record), otherwise the flag byte plus the present coefficient limbs and scale.
+// BinarySize returns the number of bytes EncodeBinary writes for this instance of Dec128: one for a NaN or for a zero
+// at scale 0, otherwise the flag byte plus the present coefficient limbs and scale.
 func (d Dec128) BinarySize() int {
-	if d.state >= state.Error || d.coef.IsZero() {
+	if d.state >= state.Error || (d.coef.IsZero() && d.scale == 0) {
 		return 1
 	}
 
@@ -28,12 +28,15 @@ func (d Dec128) BinarySize() int {
 	return sz
 }
 
-// EncodeBinary encodes the binary representation of Dec128 into buf. It returns an error if buf is too small, otherwise the number of bytes written into buf.
+// EncodeBinary encodes the binary representation of Dec128 into buf. It returns an error if buf is too small,
+// otherwise the number of bytes written into buf. A zero keeps its scale, so 0.00 survives the round trip as it does
+// through Value, MarshalJSON and the interchange codecs; it costs a second byte, and a decoder of any version reads it,
+// because the scale is carried in the presence bit the format already has.
 func (d Dec128) EncodeBinary(buf []byte) (int, error) {
 	sz := len(buf)
 
-	// Fast path for error state or zero coefficient
-	if d.state >= state.Error || d.coef.IsZero() {
+	// Fast path for a NaN, whose scale the format does not record, and for a zero at scale 0: the flag byte alone.
+	if d.state >= state.Error || (d.coef.IsZero() && d.scale == 0) {
 		if sz == 0 {
 			return 0, io.ErrShortBuffer
 		}

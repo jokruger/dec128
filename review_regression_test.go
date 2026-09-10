@@ -533,6 +533,7 @@ func TestStripZerosAgainstNaive(t *testing.T) {
 }
 
 func TestAppendAndFixedBufForms(t *testing.T) {
+	defer SetTrimOutput(TrimOutput())
 	defer SetTrimOutput(false)
 	values := []Dec128{Zero, FromString("0.00"), One, FromString("-1.50"), FromString("1234.5678"), MaxAtScale(7), MinAtScale(MaxScale), NaN(state.Overflow), Null()}
 	for _, v := range values {

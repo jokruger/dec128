@@ -161,7 +161,6 @@ func (ui Uint128) QuoRem(other Uint128) (Uint128, Uint128, state.State) {
 
 	var q Uint128
 	var r Uint128
-	var s state.State
 
 	if other.Hi == 0 {
 		// other is not zero and other.Hi == 0, so other.Lo will be > 0
@@ -177,6 +176,10 @@ func (ui Uint128) QuoRem(other Uint128) (Uint128, Uint128, state.State) {
 		return q, r, state.OK
 	}
 
+	// Two-limb divisor, by the trial digit of Hacker's Delight / Knuth's Algorithm D: normalize the divisor so that
+	// its top bit is set, divide the halved dividend by its leading limb, and step the digit back by one. The result
+	// is the classical bound tq <= ui/other <= tq+1, which is what makes the four error branches below unreachable and
+	// leaves a single correction step.
 	n := uint(bits.LeadingZeros64(other.Hi))
 	v1 := other.Lsh(n)
 	u1 := ui.Rsh(1)
@@ -186,24 +189,27 @@ func (ui Uint128) QuoRem(other Uint128) (Uint128, Uint128, state.State) {
 		tq--
 	}
 	q = FromUint64(tq)
-	var m Uint128
-	m, s = other.Mul64(tq)
-	if s >= state.Error {
-		return Zero, Zero, s
-	}
-	r, s = ui.Sub(m)
-	if s >= state.Error {
-		return Zero, Zero, s
-	}
+
+	// tq <= ui/other, so other*tq <= ui < 2^128 and the product cannot overflow.
+	m, _ := other.Mul64(tq)
+
+	// and therefore ui - other*tq cannot borrow.
+	r, _ = ui.Sub(m)
+
+	//if s >= state.Error {
+	//	return Zero, Zero, s
+	//}
+
 	if r.Compare(other) >= 0 {
-		q, s = q.Add64(1)
-		if s >= state.Error {
-			return Zero, Zero, s
-		}
-		r, s = r.Sub(other)
-		if s >= state.Error {
-			return Zero, Zero, s
-		}
+		// q holds tq, a uint64, so q.Hi is zero and q+1 cannot carry out of 128 bits.
+		q, _ = q.Add64(1)
+
+		// and r >= other was just tested, so this cannot borrow either.
+		r, _ = r.Sub(other)
+
+		//if s >= state.Error {
+		//	return Zero, Zero, s
+		//}
 	}
 
 	return q, r, state.OK

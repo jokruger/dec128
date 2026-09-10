@@ -74,6 +74,7 @@ func assertDecimalAbsNeg(s string, abs string, neg string) error {
 }
 
 func TestDefaultScale(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(7)
 	if defaultScale != 7 {
 		t.Errorf("expected defaultScale to be 7, got %d", defaultScale)
@@ -81,6 +82,7 @@ func TestDefaultScale(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	if FromString("0").IsNaN() {
@@ -109,6 +111,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestParseSpecialCases(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	tcs := map[string]string{
@@ -145,6 +148,7 @@ func TestParseSpecialCases(t *testing.T) {
 }
 
 func TestBasics1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type dt struct {
@@ -172,6 +176,7 @@ func TestBasics1(t *testing.T) {
 }
 
 func TestBasics2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type dt struct {
@@ -193,6 +198,7 @@ func TestBasics2(t *testing.T) {
 }
 
 func TestBasics3(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("NaN").Abs()
@@ -217,6 +223,7 @@ func TestBasics3(t *testing.T) {
 }
 
 func TestBasics4(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("NaN").Mod(FromInt64(1))
@@ -230,6 +237,7 @@ func TestBasics4(t *testing.T) {
 }
 
 func TestBasics5(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	for i := range 1000 {
@@ -242,6 +250,7 @@ func TestBasics5(t *testing.T) {
 }
 
 func TestBasics6(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("123.456")
@@ -350,6 +359,7 @@ func TestNextDown(t *testing.T) {
 }
 
 func TestModQuoRem1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("4").ModInt(3)
@@ -367,6 +377,7 @@ func TestModQuoRem1(t *testing.T) {
 }
 
 func TestModQuoRem2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("4").Rescale(19)
@@ -385,6 +396,7 @@ func TestModQuoRem2(t *testing.T) {
 }
 
 func TestModQuoRem3(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("4000000000000000000").Rescale(19)
@@ -403,6 +415,7 @@ func TestModQuoRem3(t *testing.T) {
 }
 
 func TestModQuoRem4(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromInt(1).Rescale(19)
@@ -421,6 +434,7 @@ func TestModQuoRem4(t *testing.T) {
 }
 
 func TestModQuoRem5(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromInt(1).Rescale(19)
@@ -439,6 +453,7 @@ func TestModQuoRem5(t *testing.T) {
 }
 
 func TestModQuoRem6(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("4").Rescale(10)
@@ -523,6 +538,7 @@ func TestRescale(t *testing.T) {
 }
 
 func TestSign(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -566,6 +582,7 @@ func TestSign(t *testing.T) {
 }
 
 func TestAdd1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -613,6 +630,7 @@ func TestAdd1(t *testing.T) {
 }
 
 func TestAdd2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("340282366920938463463374607431768211454")
@@ -636,6 +654,7 @@ func TestAdd2(t *testing.T) {
 }
 
 func TestSub1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -683,6 +702,7 @@ func TestSub1(t *testing.T) {
 }
 
 func TestSub2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("-340282366920938463463374607431768211454")
@@ -706,6 +726,7 @@ func TestSub2(t *testing.T) {
 }
 
 func TestCompare1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	var a, b Dec128
@@ -733,6 +754,7 @@ func TestCompare1(t *testing.T) {
 }
 
 func TestCompare2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	var a, b Dec128
@@ -760,6 +782,7 @@ func TestCompare2(t *testing.T) {
 }
 
 func TestCompare3(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	var a, b Dec128
@@ -781,6 +804,7 @@ func TestCompare3(t *testing.T) {
 }
 
 func TestCompare4(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	var a, b Dec128
@@ -802,6 +826,7 @@ func TestCompare4(t *testing.T) {
 }
 
 func TestEqual1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	var a, b Dec128
@@ -826,6 +851,7 @@ func TestEqual1(t *testing.T) {
 }
 
 func TestEqual2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	var a, b Dec128
@@ -850,6 +876,7 @@ func TestEqual2(t *testing.T) {
 }
 
 func TestEqual3(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	var a, b Dec128
@@ -874,6 +901,7 @@ func TestEqual3(t *testing.T) {
 }
 
 func TestMul1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromInt(1).Rescale(19)
@@ -894,6 +922,7 @@ func TestMul1(t *testing.T) {
 }
 
 func TestMul2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -950,6 +979,7 @@ func TestMul2(t *testing.T) {
 }
 
 func TestMul3(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("1.2").MulInt64(2)
@@ -968,6 +998,7 @@ func TestMul3(t *testing.T) {
 }
 
 func TestDiv1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(10)
 
 	type testCase struct {
@@ -1032,6 +1063,7 @@ func TestDiv1(t *testing.T) {
 }
 
 func TestDiv2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(10)
 
 	a := FromString("NaN").Div(FromInt64(1))
@@ -1061,6 +1093,7 @@ func TestDiv2(t *testing.T) {
 }
 
 func TestDiv3(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1099,6 +1132,7 @@ func TestDiv3(t *testing.T) {
 }
 
 func TestDiv4(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(6)
 
 	type testCase struct {
@@ -1137,6 +1171,7 @@ func TestDiv4(t *testing.T) {
 }
 
 func TestMod1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1263,6 +1298,7 @@ func TestQuoRem(t *testing.T) {
 }
 
 func TestPowInt(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1324,6 +1360,7 @@ func TestPowInt(t *testing.T) {
 }
 
 func TestSqrt1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1371,6 +1408,7 @@ func TestSqrt1(t *testing.T) {
 }
 
 func TestSqrt2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromInt(4).Rescale(19)
@@ -1380,6 +1418,7 @@ func TestSqrt2(t *testing.T) {
 }
 
 func TestSqrt3(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(6)
 
 	type testCase struct {
@@ -1421,6 +1460,7 @@ func TestSqrt3(t *testing.T) {
 }
 
 func TestCanonical(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1474,6 +1514,7 @@ func TestCanonical(t *testing.T) {
 }
 
 func TestToInt64(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1506,6 +1547,7 @@ func TestToInt64(t *testing.T) {
 }
 
 func TestInt64Encoding(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1566,6 +1608,7 @@ func TestInt64Encoding(t *testing.T) {
 }
 
 func TestFromUint64Encoding(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1603,6 +1646,7 @@ func TestFromUint64Encoding(t *testing.T) {
 }
 
 func TestUint64Encoding(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1650,6 +1694,7 @@ func TestUint64Encoding(t *testing.T) {
 }
 
 func TestUint64Encoding2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1681,6 +1726,7 @@ func TestUint64Encoding2(t *testing.T) {
 }
 
 func TestUint128Encoding(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1714,6 +1760,7 @@ func TestUint128Encoding(t *testing.T) {
 }
 
 func TestRoundDown(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1769,6 +1816,7 @@ func TestRoundDown(t *testing.T) {
 }
 
 func TestRoundUp(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1823,6 +1871,7 @@ func TestRoundUp(t *testing.T) {
 }
 
 func TestRoundTowardZero(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1859,6 +1908,7 @@ func TestRoundTowardZero(t *testing.T) {
 }
 
 func TestRoundAwayFromZero(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -1907,6 +1957,7 @@ func TestRoundAwayFromZero(t *testing.T) {
 }
 
 func TestRoundHalfTowardZero(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2014,6 +2065,7 @@ func TestRoundHalfTowardZero(t *testing.T) {
 }
 
 func TestRoundHalfAwayFromZero(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2121,6 +2173,7 @@ func TestRoundHalfAwayFromZero(t *testing.T) {
 }
 
 func TestRoundBank(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2233,6 +2286,7 @@ func TestRoundBank(t *testing.T) {
 }
 
 func TestTrunc(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2324,6 +2378,7 @@ func TestTrunc(t *testing.T) {
 }
 
 func TestParseStringHLE(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2379,6 +2434,7 @@ func TestParseStringHLE(t *testing.T) {
 }
 
 func TestConvString(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2512,6 +2568,7 @@ func TestConvString(t *testing.T) {
 }
 
 func TestToStringFixed(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2550,6 +2607,7 @@ func TestToStringFixed(t *testing.T) {
 }
 
 func TestToStringFixed2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testCase struct {
@@ -2589,6 +2647,7 @@ func TestToStringFixed2(t *testing.T) {
 }
 
 func TestJson1(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	type testStruct struct {
@@ -2631,6 +2690,7 @@ func TestJson1(t *testing.T) {
 }
 
 func TestJson2(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(19)
 
 	a := FromString("NaN")
@@ -2861,8 +2921,8 @@ func TestBinary(t *testing.T) {
 		}
 
 		bs := buf.Bytes()
-		if len(bs) != 161 {
-			t.Errorf("expected 161 bytes, got %d", len(bs))
+		if len(bs) != 178 {
+			t.Errorf("expected 178 bytes, got %d", len(bs))
 		}
 
 		var tc2 GobTestStruct
@@ -3023,6 +3083,7 @@ func TestFloat(t *testing.T) {
 }
 
 func TestSetDefaultScale(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	t.Run("panic", func(t *testing.T) {
 		var f bool
 		defer func() {
@@ -3182,6 +3243,7 @@ func TestTo4(t *testing.T) {
 }
 
 func TestSymmetry(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(6)
 
 	var a, b, c Dec128
@@ -3264,6 +3326,7 @@ func TestSymmetry(t *testing.T) {
 }
 
 func TestDeprecatedFunctions(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	oldScale := DefaultScale()
 	defer SetDefaultScale(oldScale)
 	SetDefaultPrecision(10)
@@ -3576,14 +3639,18 @@ func TestFromStringLongForms(t *testing.T) {
 	}
 
 	tcs := [...]tc{
-		{"00000000000000000000", state.Default, "0"},                                                          // 20 digits, all zero, no dot
-		{"0000000000000000000000000.00000", state.Default, "0.00000"},                                         // zero with a fractional part
-		{"1234567890123456789.", state.Default, "1234567890123456789"},                                        // 20 chars ending in a dot: an integer, as on the short path
-		{"999999999999999999999999999999999999999999.5", state.Overflow, ""},                                  // integer part > 2^128
-		{"12345678901234567890.ab", state.InvalidFormat, ""},                                                  // non-digit fractional part
-		{"1234567890123456789012345678901234567890", state.Overflow, ""},                                      // 40 digits, no dot
-		{"340282366920938463463374607431768211455.5", state.Overflow, ""},                                     // coefficient overflows on scaling
-		{"340282366920938463463374607431768211455", state.Default, "340282366920938463463374607431768211455"}, // exactly max
+		{"00000000000000000000", state.Default, "0"},                                                             // 20 digits, all zero, no dot
+		{"0000000000000000000000000.00000", state.Default, "0.00000"},                                            // zero with a fractional part
+		{"1234567890123456789.", state.Default, "1234567890123456789"},                                           // 20 chars ending in a dot: an integer, as on the short path
+		{"999999999999999999999999999999999999999999.5", state.Overflow, ""},                                     // integer part > 2^128
+		{"12345678901234567890.ab", state.InvalidFormat, ""},                                                     // non-digit fractional part
+		{"1234567890123456789012345678901234567890", state.Overflow, ""},                                         // 40 digits, no dot
+		{"340282366920938463463374607431768211455.5", state.Overflow, ""},                                        // coefficient overflows on scaling
+		{"340282366920938463463374607431768211455", state.Default, "340282366920938463463374607431768211455"},    // exactly max
+		{"1.50000000000000000000", state.Default, "1.5000000000000000000"},                                       // scale 20, the last place is padding
+		{"1.50000000000000000001", state.ScaleOutOfRange, ""},                                                    // scale 20 with a digit in it
+		{"340282366920938463463.3746074317682114550", state.Default, "340282366920938463463.374607431768211455"}, // MaxAtScale(18) with one zero of padding
+		{"123456789012345678901234567890.1234567890", state.Default, "123456789012345678901234567890.123456789"}, // 40 digits, the last one padding
 	}
 
 	for _, e := range tcs {
@@ -3610,10 +3677,12 @@ func TestFromSafeStringLongForms(t *testing.T) {
 	tcs := [...]tc{
 		{"00000000000000000000", state.Default, "0"},
 		{"00000000000000000000.0000", state.Default, "0.0000"},
-		{"9999999999999999999999999999999999999999", state.Overflow, ""},     // 40 digits, no dot
-		{"1.00000000000000000000", state.ScaleOutOfRange, ""},                // scale 20 > MaxScale
-		{"999999999999999999999999999999999999999999.5", state.Overflow, ""}, // integer part > 2^128
-		{"340282366920938463463374607431768211455.5", state.Overflow, ""},    // coefficient overflows on scaling
+		{"9999999999999999999999999999999999999999", state.Overflow, ""},                                        // 40 digits, no dot
+		{"1.00000000000000000000", state.Default, "1.0000000000000000000"},                                      // scale 20: the last zero is padding
+		{"1.00000000000000000001", state.ScaleOutOfRange, ""},                                                   // scale 20 with a digit there, so it cannot come down
+		{"999999999999999999999999999999999999999999.5", state.Overflow, ""},                                    // integer part > 2^128
+		{"340282366920938463463374607431768211455.5", state.Overflow, ""},                                       // coefficient overflows on scaling
+		{"340282366920938463463374607431768211455.0", state.Default, "340282366920938463463374607431768211455"}, // and fits once the padding goes
 	}
 
 	for _, e := range tcs {
@@ -3717,6 +3786,7 @@ func TestOverflowPaths(t *testing.T) {
 }
 
 func TestSqrt4(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	// With a small default scale the operand has to be scaled down to
 	// 2*defaultScale before the Newton-Raphson iteration starts.
 	old := defaultScale
@@ -3798,15 +3868,18 @@ var sciParseCases = [...]sciCase{
 	{"12345678901234567890.12345e2", state.Default, "1234567890123456789012.345"},
 	{"12345678901234567890123456789012345678e-19", state.Default, "1234567890123456789.0123456789012345678"},
 	{"0.0000000000000000000000000000000000000001e40", state.Default, "1"},
-	{"1234567890123456789012345678901234567890e-2", state.Overflow, ""},
 
 	// the full range of the coefficient
 	{"3.40282366920938463463374607431768211455e38", state.Default, "340282366920938463463374607431768211455"},
 
-	// a mantissa padded past the width of a coefficient still names a real value
+	// a mantissa padded past the width of a coefficient still names a real value: the surplus trailing zeros are
+	// given up one at a time, from the fraction first and then from the integer part, which the exponent absorbs
 	{"1.000000000000000000000000000000000000000e5", state.Default, "100000.0000000000000000000"},
 	{"1.5000000000000000000000000000000000000000e5", state.Default, "150000.0000000000000000000"},
 	{"1.50e0", state.Default, "1.50"}, // padding within range keeps its scale
+	{"1234567890123456789012345678901234567890e-2", state.Default, "12345678901234567890123456789012345678.9"},
+	{"9510064090660540200010051006500084882000e-2", state.Default, "95100640906605402000100510065000848820"},
+	{"516050697300749091019000860024085230210.0e-3", state.Default, "516050697300749091019000860024085230.21"},
 
 	// every way the coefficient can fail to fit
 	{"1.99999999999999999999999999999999999999999e5", state.Overflow, ""}, // fractional part alone
@@ -4145,6 +4218,7 @@ func TestSqrt6(t *testing.T) {
 }
 
 func TestDivRound(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	type tc struct {
 		a, b  string
 		scale uint8
@@ -4233,6 +4307,7 @@ func TestDivReducesScale(t *testing.T) {
 }
 
 func TestSqrtRound(t *testing.T) {
+	defer SetDefaultScale(DefaultScale())
 	type tc struct {
 		in    string
 		scale uint8
@@ -4287,6 +4362,7 @@ func TestSqrtRound(t *testing.T) {
 }
 
 func TestNullValue(t *testing.T) {
+	defer SetNullValue(NullValue())
 	old := NullValue()
 	defer SetNullValue(old)
 
@@ -4374,6 +4450,7 @@ func TestNullValue(t *testing.T) {
 }
 
 func TestNullValueError(t *testing.T) {
+	defer SetNullValue(NullValue())
 	// SetNullValue accepts any Dec128. If it is a NaN that is not marked as NULL, a
 	// NULL column is treated as an error rather than a value.
 	old := NullValue()

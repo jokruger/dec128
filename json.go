@@ -7,16 +7,17 @@ import (
 )
 
 // MarshalJSON implements json.Marshaler: a quoted decimal in the fixed form (see SetTrimOutput), "NaN" for a NaN, and
-// null for a NULL value.
+// null for a NULL value. The returned slice belongs to the caller and shares nothing with the package: the shortcut
+// cases copy their constant rather than handing it out, so a caller that writes into the result cannot corrupt it.
 func (d Dec128) MarshalJSON() ([]byte, error) {
 	switch {
 	case d.state == state.Null:
-		return nullValue, nil
+		return bytes.Clone(nullValue), nil
 	case d.state >= state.Error:
-		return NaNJsonStrBytes, nil
+		return bytes.Clone(NaNJsonStrBytes), nil
 	case d.IsZero():
 		if trimOutput || d.scale == 0 {
-			return ZeroJsonStrBytes, nil
+			return bytes.Clone(ZeroJsonStrBytes), nil
 		}
 	}
 

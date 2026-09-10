@@ -3,6 +3,8 @@ package dec128
 import (
 	"encoding/binary"
 	"testing"
+
+	"github.com/jokruger/dec128/state"
 )
 
 // Allocation gates. These lock the allocation behavior the library advertises: the numeric core, parsing, comparison,
@@ -134,6 +136,30 @@ func TestAllocationGates(t *testing.T) {
 	for _, c := range one {
 		if got := testing.AllocsPerRun(100, c.fn); got != 1 {
 			t.Errorf("%s: %v allocs/op, want 1 (the returned value)", c.name, got)
+		}
+	}
+
+	// The shortcut cases - a zero at scale 0, a NaN, a NULL - allocate the same single owned slice as any other
+	// value. They used to return the package's own constant, which cost nothing but let a caller corrupt it
+	// (see TestMarshalResultIsPrivate); one allocation is the price of the ownership the contract above states.
+	zeroVal, nanVal, nullVal := Zero, NaN(state.Overflow), Null()
+	shortcut := []struct {
+		name string
+		fn   func()
+		want float64
+	}{
+		{"MarshalText/zero", func() { allocSinkBytes, allocSinkErr = zeroVal.MarshalText() }, 1},
+		{"MarshalJSON/zero", func() { allocSinkBytes, allocSinkErr = zeroVal.MarshalJSON() }, 1},
+		{"MarshalText/NaN", func() { allocSinkBytes, allocSinkErr = nanVal.MarshalText() }, 1},
+		{"MarshalJSON/NaN", func() { allocSinkBytes, allocSinkErr = nanVal.MarshalJSON() }, 1},
+		{"MarshalJSON/NULL", func() { allocSinkBytes, allocSinkErr = nullVal.MarshalJSON() }, 1},
+		// AppendText and AppendBinary write into the caller's buffer, so they stay free of allocation
+		{"AppendText/zero", func() { allocSinkBytes, allocSinkErr = zeroVal.AppendText(appendBuf[:0]) }, 0},
+		{"AppendText/NaN", func() { allocSinkBytes, allocSinkErr = nanVal.AppendText(appendBuf[:0]) }, 0},
+	}
+	for _, c := range shortcut {
+		if got := testing.AllocsPerRun(100, c.fn); got != c.want {
+			t.Errorf("%s: %v allocs/op, want %v", c.name, got, c.want)
 		}
 	}
 

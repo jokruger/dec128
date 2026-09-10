@@ -102,11 +102,16 @@ func FromString[S string | []byte](s S) Dec128 {
 		if m := indexExp(s[j+1:]); m >= 0 {
 			return fromSciString(s, j+1+m)
 		}
-		return Dec128{state: state.ScaleOutOfRange}
+		return trimFraction(s, i, j, st)
 	}
 
 	ipart, ei := uint128.FromString(s[i:j])
 	if ei >= state.Error {
+		// The integer part does not fit on its own, so no reduction of the fraction can help - but a negative
+		// exponent still can, and the marker is not a digit, so it lands here rather than parsing.
+		if m := indexExp(s[j+1:]); m >= 0 {
+			return fromSciString(s, j+1+m)
+		}
 		return Dec128{state: ei}
 	}
 
@@ -122,7 +127,7 @@ func FromString[S string | []byte](s S) Dec128 {
 	// max scale is 19, so the fpart.Hi is always 0 and scale is always <= len(pow10)
 	coef, e := ipart.MulAdd64(Pow10Uint64[scale], fpart.Lo)
 	if e >= state.Error {
-		return Dec128{state: e}
+		return trimFraction(s, i, j, st)
 	}
 
 	if coef.IsZero() {
@@ -189,7 +194,7 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 
 	scale = sz - j - 1
 	if scale > uint128.MaxSafeStrLen64 {
-		return Dec128{state: state.ScaleOutOfRange}
+		return trimFraction(s, i, j, st)
 	}
 
 	ipart, ei := uint128.FromSafeString(s[i:j])
@@ -208,7 +213,7 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 	// max scale is 19, so the fpart.Hi is always 0 and scale is always <= len(pow10)
 	coef, e := ipart.MulAdd64(Pow10Uint64[scale], fpart.Lo)
 	if e >= state.Error {
-		return Dec128{state: e}
+		return trimFraction(s, i, j, st)
 	}
 
 	if coef.IsZero() {
@@ -216,6 +221,56 @@ func FromSafeString[S string | []byte](s S) Dec128 {
 	}
 
 	return Dec128{coef: coef, scale: uint8(scale), state: st}
+}
+
+// trimFraction re-parses a regular-form decimal that cannot be held at its written scale, dropping the smallest number
+// of trailing zeros from the fraction that makes it fit: the scale has to come down to MaxScale, and the coefficient
+// has to fit in 128 bits. s[i:j] is the integer part and s[j+1:] the fraction, and there is at least one fractional
+// digit. It returns NaN(ScaleOutOfRange) when the scale cannot come down and NaN(Overflow) when the coefficient still
+// does not fit.
+//
+// Trailing zeros are padding, not information, so a value that is exactly representable at a lower scale is accepted
+// rather than rejected - the same reduction DecodePgNumeric, DecodeInt128, DecodeIEEE and applyExp all perform. Only
+// input that would otherwise have failed reaches this, so valid input pays nothing for it.
+func trimFraction[S string | []byte](s S, i, j int, st state.State) Dec128 {
+	frac := s[j+1:]
+	scale := len(frac)
+
+	// Digits beyond MaxScale have to go, so they all have to be zeros.
+	drop := 0
+	if scale > int(MaxScale) {
+		drop = scale - int(MaxScale)
+	}
+	for d := 1; d <= drop; d++ {
+		if frac[scale-d] != '0' {
+			return Dec128{state: state.ScaleOutOfRange}
+		}
+	}
+
+	ipart, e := uint128.FromString(s[i:j])
+	if e >= state.Error {
+		return Dec128{state: e}
+	}
+
+	// Widen the drop one zero at a time until the coefficient fits. The kept fraction is at most MaxScale digits from
+	// here on, so it always fits a uint64 and one parse per attempt is cheap; the loop runs at most MaxScale+1 times.
+	for {
+		f, e := uint128.FromString(frac[:scale-drop])
+		if e >= state.Error {
+			return Dec128{state: e}
+		}
+		coef, e := ipart.MulAdd64(Pow10Uint64[scale-drop], f.Lo)
+		if e < state.Error {
+			if coef.IsZero() {
+				return Dec128{coef: uint128.Zero, scale: uint8(scale - drop)}
+			}
+			return Dec128{coef: coef, scale: uint8(scale - drop), state: st}
+		}
+		if drop == scale || frac[scale-drop-1] != '0' {
+			return Dec128{state: state.Overflow}
+		}
+		drop++
+	}
 }
 
 // DecodeFromUint128 decodes a Dec128 from an unsigned coefficient and an exponent: the value is coef * 10^-exp. An

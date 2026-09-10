@@ -1,20 +1,24 @@
 package dec128
 
 import (
+	"bytes"
+
 	"github.com/jokruger/dec128/state"
 )
 
 // MarshalText implements encoding.TextMarshaler: the decimal in the fixed form (see SetTrimOutput), "NaN" for a NaN,
 // and empty text for a NULL-marked value (see SetNullValue), which UnmarshalText maps back so the value round-trips.
+// The returned slice belongs to the caller and shares nothing with the package: the shortcut cases copy ZeroStrBytes
+// and NaNStrBytes rather than handing them out, so a caller that writes into the result cannot corrupt them.
 func (d Dec128) MarshalText() ([]byte, error) {
 	switch {
 	case d.state == state.Null:
 		return []byte{}, nil
 	case d.state >= state.Error:
-		return NaNStrBytes, nil
+		return bytes.Clone(NaNStrBytes), nil
 	case d.IsZero():
 		if trimOutput || d.scale == 0 {
-			return ZeroStrBytes, nil
+			return bytes.Clone(ZeroStrBytes), nil
 		}
 	}
 

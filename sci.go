@@ -97,47 +97,73 @@ func fromSciString[S string | []byte](s S, k int) Dec128 {
 		return Dec128{state: state.InvalidFormat}
 	}
 
-	ipart, e := uint128.FromString(s[i:j])
-	if e >= state.Error {
-		return Dec128{state: e}
-	}
-
-	var fpart uint128.Uint128
-
-	frac := 0
-	if j < k {
-		end := k
-
-		// a mantissa padded with more fractional zeros than a coefficient can hold still names a representable value,
-		// so drop just enough of the padding to combine it. Padding within range is left alone, so 1.50e0 keeps its
-		// scale of 2.
-		for end-j-1 >= len(Pow10Uint128) && s[end-1] == '0' {
-			end--
+	// Assemble the mantissa's coefficient. A mantissa may be written with more digits than a coefficient holds, the
+	// surplus being trailing zeros that the exponent absorbs: 1e0, 10.0e-1 and 100e-2 all name 1. Give up the smallest
+	// number of those zeros that lets the digits fit, so such a mantissa still names its value rather than being
+	// rejected; padding that already fits is left alone, so 1.50e0 keeps its scale of 2. This is the reduction
+	// applyExp performs below for a scale above MaxScale, and the one DecodePgNumeric, DecodeInt128 and DecodeIEEE
+	// perform on import.
+	//
+	// iEnd and fEnd bound the integer and fractional digits still in play. Dropping a fractional zero lowers the
+	// number of decimal places the mantissa carries; once the fraction is gone, dropping an integer zero raises the
+	// exponent instead.
+	iEnd, fEnd := j, k
+	for {
+		coef, frac, e := sciCoef(s, i, iEnd, j, fEnd)
+		if e < state.Error {
+			return applyExp(coef, frac, exp, st)
 		}
-
-		frac = end - j - 1
-		fpart, e = uint128.FromString(s[j+1 : end])
-		if e >= state.Error {
+		if e != state.Overflow {
 			return Dec128{state: e}
 		}
-	}
-
-	coef := fpart
-	if !ipart.IsZero() {
-		if frac >= len(Pow10Uint128) {
+		switch {
+		case fEnd > j+1 && s[fEnd-1] == '0':
+			fEnd--
+		case fEnd <= j+1 && iEnd > i && s[iEnd-1] == '0':
+			iEnd--
+			exp++
+		default:
 			return Dec128{state: state.Overflow}
 		}
-		coef, e = ipart.Mul(Pow10Uint128[frac])
-		if e >= state.Error {
-			return Dec128{state: e}
-		}
-		coef, e = coef.Add(fpart)
-		if e >= state.Error {
-			return Dec128{state: e}
+	}
+}
+
+// sciCoef assembles the coefficient of a mantissa whose integer digits are s[i:iEnd] and whose fractional digits are
+// s[j+1:fEnd], the decimal point sitting at j; there is no fraction when fEnd is not past j+1. It returns the
+// coefficient and the number of decimal places it carries.
+func sciCoef[S string | []byte](s S, i, iEnd, j, fEnd int) (uint128.Uint128, int, state.State) {
+	var fpart uint128.Uint128
+	frac := 0
+	if fEnd > j+1 {
+		frac = fEnd - j - 1
+		var e state.State
+		if fpart, e = uint128.FromString(s[j+1 : fEnd]); e >= state.Error {
+			return uint128.Zero, 0, e
 		}
 	}
 
-	return applyExp(coef, frac, exp, st)
+	ipart, e := uint128.FromString(s[i:iEnd])
+	if e >= state.Error {
+		return uint128.Zero, 0, e
+	}
+	if ipart.IsZero() {
+		// no integer digits to shift the fraction past, so the fraction is the whole coefficient however long it is
+		return fpart, frac, state.OK
+	}
+	if frac >= len(Pow10Uint128) {
+		// shifting a nonzero integer part by this many places cannot fit whatever the digits are
+		return uint128.Zero, 0, state.Overflow
+	}
+
+	coef, e := ipart.Mul(Pow10Uint128[frac])
+	if e >= state.Error {
+		return uint128.Zero, 0, e
+	}
+	if coef, e = coef.Add(fpart); e >= state.Error {
+		return uint128.Zero, 0, e
+	}
+
+	return coef, frac, state.OK
 }
 
 // applyExp builds a Dec128 from a mantissa coefficient, the number of fractional digits the mantissa carried and the

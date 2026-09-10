@@ -73,6 +73,7 @@ func ExampleDec128_Sqrt() {
 }
 
 func ExampleSetNullValue() {
+	defer SetNullValue(NullValue())
 	// by default a SQL NULL or a JSON null decodes to zero
 	var a Dec128
 	_ = a.Scan(nil)
@@ -209,6 +210,7 @@ func ExampleDec128_RescaleRound() {
 }
 
 func ExampleDec128_Div_idealScale() {
+	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(MaxScale)
 
 	// an exact quotient takes its ideal scale; an inexact one keeps the default scale
