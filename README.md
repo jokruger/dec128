@@ -236,11 +236,11 @@ Measured on Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz. Reproduce with https://git
 ```
                                  parse (ns/op)  string (ns/op)     add (ns/op)     mul (ns/op)     div (ns/op)
 
-float64 (baseline)                      28.945          52.996           0.344           0.347           0.331
-dec128.Dec128                           10.993          20.880           5.838           3.620          42.331
-udecimal.Decimal                        20.528          40.315          11.183          10.557          39.269
-alpacadecimal.Decimal                   72.436          70.440         173.147          45.693         383.035
-shopspring.Decimal                     122.441         156.636         179.389          49.194         357.307
+float64 (baseline)                      27.772          51.262           0.349           0.335           0.356
+dec128.Dec128                           11.294          20.596           5.769           3.449          35.308
+udecimal.Decimal                        19.254          37.570          10.124           9.776          35.752
+alpacadecimal.Decimal                   69.491          67.468         164.113          43.652         362.512
+shopspring.Decimal                     123.957         155.077         173.023          47.777         344.075
 ```
 
 ## Notes on Terminology
