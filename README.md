@@ -233,10 +233,10 @@ without allocating.
 
 ## Why not use other libraries?
 
-Most Go decimal packages are built on `math/big`, which means a pointer, a heap allocation per value and a variable
-memory footprint. That is the right trade for arbitrary precision; it is the wrong one for a ledger that moves millions
-of fixed-scale amounts. `dec128` fixes the layout at 24 bytes, keeps arithmetic allocation-free, and accepts a 19-place,
-128-bit budget in exchange, rounding to fit when a result exceeds it. The numbers below are the result.
+The Go default, `shopspring/decimal`, is built on `math/big`: a pointer, a heap allocation on every operation and a
+variable memory footprint. That is the right trade for arbitrary precision; it is the wrong one for a ledger that moves
+millions of fixed-scale amounts. `dec128` fixes the layout at 24 bytes, keeps arithmetic allocation-free, and accepts a
+19-place, 128-bit budget in exchange, rounding to fit when a result exceeds it. The numbers below are the result.
 
 | | representation | size | range | allocs per `Mul` | failure model |
 |---|---|---|---|---|---|
@@ -410,4 +410,4 @@ This project includes code derived from:
 - A project licensed under the BSD 3-Clause License (Copyright © 2025 Quang).
 - A project licensed under the MIT License (Copyright © 2019 Luke Champine).
 
-See the `LICENSE` file for full license texts.
+See the `NOTICE` file for the full third-party license texts, and `LICENSE` for this project's.
