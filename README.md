@@ -50,6 +50,8 @@ This library requires Go version `>=1.24` (as declared in `go.mod`).
 - [**pgxdec128**](https://github.com/jokruger/pgxdec128) — a [pgx](https://github.com/jackc/pgx) v5 `pgtype.Codec`
   that reads and writes PostgreSQL `numeric` and `numeric[]` columns as `Dec128` straight from the binary protocol,
   with no `pgtype.Numeric`, no `math/big.Int`, no text round trip and no allocation.
+- [**kavun**](https://github.com/jokruger/kavun) — an embeddable scripting language for Go whose `decimal` type is a
+  `Dec128`, giving rules and decisioning scripts exact money arithmetic instead of a float workaround.
 - [**go-decimal-benchmark**](https://github.com/jokruger/go-decimal-benchmark) — the comparative harness the numbers
   in [Benchmarks](#benchmarks) come from.
 

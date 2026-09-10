@@ -69,8 +69,10 @@
 // RoundingMode names the eight ways to discard digits: ROUND_TOWARD_ZERO (the default),
 // ROUND_DOWN, ROUND_UP, ROUND_AWAY_FROM_ZERO, ROUND_HALF_TOWARD_ZERO,
 // ROUND_HALF_AWAY_FROM_ZERO, ROUND_BANK, and ROUND_NAN, which refuses to lose digits and
-// returns NaN(Inexact) instead. SetArithmeticRounding(ROUND_NAN) restores the behavior
-// of versions up to v1.0.20, in which an operation that could not be exact returned NaN.
+// returns NaN(Inexact) instead. SetArithmeticRounding(ROUND_NAN) brings back the
+// NaN-on-loss behavior that Add, Sub and Mul had up to v1.0.20, and is stricter than that
+// release in one respect: it applies to Div and Sqrt too, so 1/3 and Sqrt(2) become
+// NaN(Inexact) where v1.0.20 truncated them at the default scale.
 //
 // # Text and interchange
 //
