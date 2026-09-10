@@ -5,7 +5,8 @@
 [![codecov](https://codecov.io/gh/jokruger/dec128/graph/badge.svg?token=TQWE8PA4AN)](https://codecov.io/gh/jokruger/dec128)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
-High performance 128-bit fixed-point decimal numbers in Go, built for financial and banking arithmetic.
+Zero-dependency 128-bit fixed-point decimal numbers in Go, built for money, ledgers and banking arithmetic:
+exact SQL `NUMERIC` semantics, no heap allocation, no panics and no returned errors.
 
 `dec128` is named for its coefficient: a 128-bit integer with a decimal scale, the same fixed-point model as
 Apache Arrow's and Parquet's `Decimal128`. It is not IEEE 754 `decimal128`, which is a floating-point format; that is
@@ -43,6 +44,14 @@ Run `go get github.com/jokruger/dec128`
 ## Requirements
 
 This library requires Go version `>=1.24` (as declared in `go.mod`).
+
+## Ecosystem
+
+- [**pgxdec128**](https://github.com/jokruger/pgxdec128) — a [pgx](https://github.com/jackc/pgx) v5 `pgtype.Codec`
+  that reads and writes PostgreSQL `numeric` and `numeric[]` columns as `Dec128` straight from the binary protocol,
+  with no `pgtype.Numeric`, no `math/big.Int`, no text round trip and no allocation.
+- [**go-decimal-benchmark**](https://github.com/jokruger/go-decimal-benchmark) — the comparative harness the numbers
+  in [Benchmarks](#benchmarks) come from.
 
 ## Development
 
@@ -165,8 +174,8 @@ Besides its own compact binary form (`EncodeBinary`, at most 18 bytes), `dec128`
 formats, all into caller-supplied buffers without allocating:
 
 - **PostgreSQL `numeric` binary** (`EncodePgNumeric`, `DecodePgNumeric`): the wire format of the binary protocol, dscale
-  preserved. With `pgx` this allows a custom codec for OID 1700 that skips the `big.Int` and text round trip pgx
-  performs for a `sql.Scanner` target.
+  preserved. [pgxdec128](https://github.com/jokruger/pgxdec128) builds a pgx v5 codec for OID 1700 on this pair,
+  skipping the `big.Int` and text round trip pgx performs for a `sql.Scanner` target.
 - **IEEE 754 decimal128, BID encoding** (`EncodeIEEE`, `DecodeIEEE`): 16 bytes, as used by MongoDB's BSON Decimal128.
   A coefficient wider than 34 digits is rounded on export with the configured mode (`ROUND_NAN` refuses); `FitsIEEE`
   tells in advance.
@@ -229,6 +238,18 @@ memory footprint. That is the right trade for arbitrary precision; it is the wro
 of fixed-scale amounts. `dec128` fixes the layout at 24 bytes, keeps arithmetic allocation-free, and accepts a 19-place,
 128-bit budget in exchange, rounding to fit when a result exceeds it. The numbers below are the result.
 
+| | representation | max scale | heap per value | failure model |
+|---|---|---|---|---|
+| **`dec128`** | 128-bit coefficient + scale + state, 24 bytes | 19 | none | NaN value carrying the reason |
+| `shopspring/decimal` | `*big.Int` coefficient + `int32` exponent | unbounded | yes | mixed: `error`, panic, silent |
+| `cockroachdb/apd` | `big.Int` coefficient + `int32` exponent | unbounded (context) | yes | `(Condition, error)` from a `Context` |
+| `alpacadecimal` | `int64` fast path, `shopspring/decimal` fallback | unbounded on fallback | on fallback | inherited from `shopspring/decimal` |
+| `quagmt/udecimal` | 128-bit coefficient, `big.Int` fallback | 19 | on fallback | returned `error` |
+
+Pick `apd` when you need arbitrary precision with the full IEEE 754-2008 / GDA condition model, `shopspring/decimal`
+when you want the ecosystem's default and precision matters more than throughput, and `dec128` when the values are
+money, the scale is known, and the allocation is the cost you cannot pay.
+
 ## Benchmarks
 
 Measured on Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz. Reproduce with https://github.com/jokruger/go-decimal-benchmark.
@@ -242,6 +263,70 @@ udecimal.Decimal                        19.254          37.570          10.124  
 alpacadecimal.Decimal                   69.491          67.468         164.113          43.652         362.512
 shopspring.Decimal                     123.957         155.077         173.023          47.777         344.075
 ```
+
+## When not to use dec128
+
+The 128-bit budget is a deliberate trade, not an oversight. Reach for `math/big`, `cockroachdb/apd` or
+`shopspring/decimal` instead when:
+
+- **You need more than 19 decimal places.** `MaxScale` is 19 and is not configurable; it is what a 128-bit
+  coefficient buys.
+- **Your magnitudes are unbounded.** The largest value at scale 0 is 2^128 - 1, about 3.4 x 10^38. Cryptocurrency
+  wei amounts at full precision, factorials and unbounded exponentiation do not fit.
+- **You need arbitrary precision or the full IEEE 754-2008 condition model.** `apd` implements the General Decimal
+  Arithmetic specification with contexts, traps and conditions; `dec128` implements SQL `NUMERIC` in 128 bits.
+- **You need transcendental functions.** `Sqrt` and integer `PowInt` are the extent of it: no `Ln`, `Exp`,
+  `Log10` or fractional powers.
+- **You want the compiler to make you handle failure.** Arithmetic returns a NaN, not an `error`, so nothing
+  forces a check. That is the point of the design, and it is the wrong design for a codebase that relies on
+  `errcheck` to catch mistakes.
+
+## Migrating from shopspring/decimal
+
+The method names line up closely; the semantics differ in five places worth reading before you switch.
+
+| `shopspring/decimal` | `dec128` | note |
+|---|---|---|
+| `decimal.NewFromString(s)` | `dec128.FromString(s)` | no `error` return; check `ErrorDetails()` at the end of the chain |
+| `decimal.RequireFromString(s)` | `dec128.FromString(s)` | returns a NaN instead of panicking |
+| `decimal.NewFromInt(i)` | `dec128.FromInt64(i)` | also `FromInt` |
+| `decimal.NewFromFloat(f)` | `dec128.FromFloat64(f)` | still a lossy conversion; prefer `FromString` |
+| `decimal.New(value, exp)` | `dec128.New(coef, scale, neg)` | unsigned coefficient plus an explicit sign |
+| `d.Add/Sub/Mul` | `d.Add/Sub/Mul` | identical |
+| `d.Div(x)` | `d.Div(x)` | scale comes from `SetDefaultScale`, not `decimal.DivisionPrecision` |
+| `d.DivRound(x, precision)` | `d.DivRound(x, scale, mode)` | rounding mode is explicit, never global |
+| `d.Mod(x)`, `d.QuoRem(x, p)` | `d.Mod(x)`, `d.QuoRem(x)` | `QuoRem` takes no precision: the quotient is always an integer |
+| `d.Pow(x)` | `d.PowInt(n)` | integer exponents only |
+| `d.Cmp(x)` | `d.Compare(x)` | same `-1/0/1` result |
+| `d.Equal`, `d.GreaterThan`, `d.LessThan`, … | same names | identical |
+| `d.Round(n)` | `d.RoundHalfAwayFromZero(n)` | `dec128.Round(n, mode)` exists but takes the mode explicitly |
+| `d.RoundBank(n)` | `d.RoundBank(n)` | identical |
+| `d.Truncate(n)` | `d.Trunc(n)` | identical behaviour |
+| `d.StringFixed(n)` | `d.RescaleRound(n, mode).StringFixed()` | `dec128.StringFixed()` takes no argument: it prints the value's own scale |
+| `d.String()` | `d.String()` | trailing zeros removed in both |
+| `d.IntPart()` | `d.Int64()` | returns an `error` when the integer part does not fit |
+| `d.InexactFloat64()` | `d.InexactFloat64()` | returns `(float64, error)` here |
+| `decimal.Sum`, `decimal.Avg`, `decimal.Min`, `decimal.Max` | same names | identical shape |
+| `decimal.DivisionPrecision` | `dec128.SetDefaultScale(n)` | process-global in both; set it once at startup |
+| `decimal.MarshalJSONWithoutQuotes` | — | `MarshalJSON` always quotes; `UnmarshalJSON` accepts both forms |
+
+### What changes
+
+1. **Errors become values.** `NewFromString` returns an `error` and `Div` panics on a zero divisor; `dec128` returns
+   a NaN for both, and the NaN propagates until you call `ErrorDetails` or `IsNaN`. Nothing forces the check, so put
+   it at the end of every chain that crosses a boundary. See [The contract](#the-contract).
+2. **The range is finite.** Values that overflow 128 bits or 19 places are rounded down to a scale that fits, using
+   the mode set by `SetArithmeticRounding` (truncation by default), and become `NaN(Overflow)` only when the integer
+   part itself does not fit. `SetArithmeticRounding(dec128.ROUND_NAN)` turns any loss of digits into a NaN instead.
+3. **Rounding modes are explicit.** `shopspring/decimal` fixes half-away-from-zero in `Round` and reads a package
+   global for division; `dec128` takes the mode per call in `Round`, `RescaleRound`, `MulRound`, `DivRound` and
+   `SqrtRound`, and only the default for bare `Div`/`Sqrt` comes from a global.
+4. **`==` is not a numeric comparison.** `Dec128` is a comparable struct with no pointer, so `==` compiles and
+   silently compares representations: `1.5 == 1.50` is false. Use `Equal` or `Compare`, and `Canonical` before
+   using a value as a map key.
+5. **Scale survives serialization by default.** `Value`, `MarshalJSON` and `MarshalText` emit the fixed form, so
+   `1.50` reaches a database or a JSON consumer as `1.50`. `SetTrimOutput(true)` restores the trimmed output that
+   `shopspring/decimal` produces.
 
 ## Notes on Terminology
 

@@ -1,5 +1,5 @@
-// Package dec128 provides a 128-bit fixed-point decimal type for financial and banking
-// arithmetic.
+// Package dec128 provides a fast, zero-dependency 128-bit fixed-point decimal type for
+// money and financial arithmetic, with SQL NUMERIC semantics and no heap allocation.
 //
 // dec128 is named for its coefficient: a 128-bit unsigned integer with a decimal scale,
 // the same fixed-point model as Apache Arrow's and Parquet's Decimal128. It is not IEEE
@@ -86,6 +86,9 @@
 // IEEE 754 decimal128 in the BID encoding (EncodeIEEE, DecodeIEEE) and the int128
 // coefficient of Apache Arrow and Parquet (EncodeInt128, DecodeInt128). A value that the
 // type cannot hold decodes to a NaN carrying the reason rather than being rounded.
+//
+// github.com/jokruger/pgxdec128 builds a pgx v5 codec on the PostgreSQL pair, mapping
+// numeric and numeric[] columns to Dec128 on the binary wire without allocating.
 //
 // # Configuration
 //
