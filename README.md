@@ -238,17 +238,29 @@ memory footprint. That is the right trade for arbitrary precision; it is the wro
 of fixed-scale amounts. `dec128` fixes the layout at 24 bytes, keeps arithmetic allocation-free, and accepts a 19-place,
 128-bit budget in exchange, rounding to fit when a result exceeds it. The numbers below are the result.
 
-| | representation | max scale | heap per value | failure model |
-|---|---|---|---|---|
-| **`dec128`** | 128-bit coefficient + scale + state, 24 bytes | 19 | none | NaN value carrying the reason |
-| `shopspring/decimal` | `*big.Int` coefficient + `int32` exponent | unbounded | yes | mixed: `error`, panic, silent |
-| `cockroachdb/apd` | `big.Int` coefficient + `int32` exponent | unbounded (context) | yes | `(Condition, error)` from a `Context` |
-| `alpacadecimal` | `int64` fast path, `shopspring/decimal` fallback | unbounded on fallback | on fallback | inherited from `shopspring/decimal` |
-| `quagmt/udecimal` | 128-bit coefficient, `big.Int` fallback | 19 | on fallback | returned `error` |
+| | representation | size | range | allocs per `Mul` | failure model |
+|---|---|---|---|---|---|
+| **`dec128`** | `uint128` coefficient + scale + sign/state | 24 B | scale 0-19, coefficient < 2^128 | **0**, always | NaN value carrying the reason |
+| `shopspring/decimal` | `*big.Int` coefficient + `int32` exponent | 16 B | `int32` exponent, unbounded coefficient | **2**, always | mixed: `error`, panic, silent |
+| `cockroachdb/apd/v3` | `apd.BigInt` (128-bit inline array, then heap) + `int32` exponent | 32 B | context precision, exponent +/-100000 | **0** while the coefficient fits 2^128, else 2 | `(Condition, error)` from a `Context`, with traps |
+| `alpacahq/alpacadecimal` | `int64` at fixed scale 12, `*shopspring/decimal` fallback | 16 B | fast path abs(v) <= 9223372, then shopspring | **0** on the fast path, 3 on fallback | inherited from `shopspring/decimal` |
+| `quagmt/udecimal` | `u128` coefficient + `*big.Int` fallback | 32 B | scale 0-19, coefficient unbounded via fallback | **0** while the coefficient fits 2^128, else 5 | returned `error`; the `Must*` variants panic |
 
-Pick `apd` when you need arbitrary precision with the full IEEE 754-2008 / GDA condition model, `shopspring/decimal`
-when you want the ecosystem's default and precision matters more than throughput, and `dec128` when the values are
-money, the scale is known, and the allocation is the cost you cannot pay.
+Sizes are `unsafe.Sizeof` on `darwin/amd64`; allocation counts are `testing.AllocsPerRun` on `Mul` with operands on
+each library's fast path, and again with a product wider than 2^128. Checked against `shopspring/decimal` v1.4.0,
+`cockroachdb/apd/v3` v3.2.3, `alpacahq/alpacadecimal` v0.0.9 and `quagmt/udecimal` v1.10.1 on 2026-09-10.
+
+Note what the table does *not* say: `dec128` is not the only allocation-free option. `apd/v3` inlines a 128-bit array
+and takes its destination by pointer, so a steady-state loop over ordinary money values allocates nothing either, and
+`udecimal` is allocation-free inside the same 128-bit budget. What separates them is the shape of the API and the price
+of generality: `apd` gives you the full General Decimal Arithmetic machinery -- contexts, traps, conditions,
+`Ln`/`Exp`/`Pow`, exponents to +/-100000 -- and asks you to thread a `*Context` and a `(Condition, error)` pair through
+every operation. `dec128` gives you SQL `NUMERIC` in 128 bits with value semantics, no context, no error plumbing, and
+interchange codecs for the wire formats a ledger actually meets.
+
+So: pick `apd` when you need arbitrary precision, transcendentals or the GDA condition model; `shopspring/decimal` when
+you want the ecosystem default and precision matters more than throughput or allocation; and `dec128` when the values
+are money, the scale is known, and you want the fastest correct answer without an `error` on every line.
 
 ## Benchmarks
 
@@ -283,49 +295,99 @@ The 128-bit budget is a deliberate trade, not an oversight. Reach for `math/big`
 
 ## Migrating from shopspring/decimal
 
-The method names line up closely; the semantics differ in five places worth reading before you switch.
+Verified against `shopspring/decimal` v1.4.0. Every mapping below was checked by running both expressions over
+`{1.454, -1.454, 1.455, -1.455, 2.5, -2.5, 1.5, -1.5, 0.005, -0.005}` and comparing the strings.
+
+> [!WARNING]
+> **`RoundUp` and `RoundDown` mean opposite things in the two libraries.** `shopspring/decimal` reads them as
+> *away from zero* and *toward zero*; `dec128` reads them as the IEEE 754-2019 attributes *roundTowardPositive*
+> (ceiling) and *roundTowardNegative* (floor). They agree on positive values and disagree on every negative one, so a
+> mechanical rename compiles, passes tests written with positive amounts, and silently changes refunds and credits.
+> `shopspring.RoundUp(2)` on `-1.454` gives `-1.46`; `dec128.RoundUp(2)` gives `-1.45`.
+
+### Constructors
 
 | `shopspring/decimal` | `dec128` | note |
 |---|---|---|
 | `decimal.NewFromString(s)` | `dec128.FromString(s)` | no `error` return; check `ErrorDetails()` at the end of the chain |
 | `decimal.RequireFromString(s)` | `dec128.FromString(s)` | returns a NaN instead of panicking |
-| `decimal.NewFromInt(i)` | `dec128.FromInt64(i)` | also `FromInt` |
+| `decimal.NewFromInt(i int64)` | `dec128.FromInt64(i)` | also `FromInt(int)` |
 | `decimal.NewFromFloat(f)` | `dec128.FromFloat64(f)` | still a lossy conversion; prefer `FromString` |
-| `decimal.New(value, exp)` | `dec128.New(coef, scale, neg)` | unsigned coefficient plus an explicit sign |
-| `d.Add/Sub/Mul` | `d.Add/Sub/Mul` | identical |
-| `d.Div(x)` | `d.Div(x)` | scale comes from `SetDefaultScale`, not `decimal.DivisionPrecision` |
-| `d.DivRound(x, precision)` | `d.DivRound(x, scale, mode)` | rounding mode is explicit, never global |
-| `d.Mod(x)`, `d.QuoRem(x, p)` | `d.Mod(x)`, `d.QuoRem(x)` | `QuoRem` takes no precision: the quotient is always an integer |
-| `d.Pow(x)` | `d.PowInt(n)` | integer exponents only |
+| `decimal.New(value int64, exp int32)` | `dec128.New(coef uint128.Uint128, scale uint8, neg bool)` | unsigned coefficient plus an explicit sign, and a positive scale where shopspring takes a negative exponent |
+
+### Arithmetic
+
+| `shopspring/decimal` | `dec128` | note |
+|---|---|---|
+| `d.Add/Sub/Mul` | `d.Add/Sub/Mul` | identical names; `Mul` panics on `int32` exponent overflow in shopspring, returns a NaN here |
+| `d.Div(x)` | `d.Div(x)` | scale comes from `SetDefaultScale` (19) rather than `decimal.DivisionPrecision` (16), so `2/3` gains three places |
+| `d.DivRound(x, precision int32)` | `d.DivRound(x, scale uint8, mode)` | rounding mode is explicit, never global |
+| `d.QuoRem(x, precision int32)` | `d.QuoRem(x)` | no precision argument: the quotient is always an integer |
+| `d.Mod(x)` | `d.Mod(x)` | identical |
+| `d.Pow(x Decimal)`, `d.PowInt32(n)` | `d.PowInt(n)` | integer exponents only; no `PowWithPrecision`, `Ln`, `ExpHullAbrham`, `Atan` or fractional powers |
+| — | `d.Sqrt()`, `d.SqrtRound(scale, mode)` | shopspring has no square root |
+| `decimal.Sum/Avg/Min/Max(first, rest...)` | `dec128.Sum/Avg/Min/Max(a, b...)` | identical shape |
+
+### Comparison
+
+| `shopspring/decimal` | `dec128` | note |
+|---|---|---|
 | `d.Cmp(x)` | `d.Compare(x)` | same `-1/0/1` result |
-| `d.Equal`, `d.GreaterThan`, `d.LessThan`, … | same names | identical |
-| `d.Round(n)` | `d.RoundHalfAwayFromZero(n)` | `dec128.Round(n, mode)` exists but takes the mode explicitly |
+| `d.Equal`, `d.GreaterThan`, `d.LessThan`, `d.GreaterThanOrEqual`, `d.LessThanOrEqual` | same names | identical |
+| `d.Sign()`, `d.IsZero()`, `d.IsNegative()`, `d.IsPositive()` | same names | but all three `Is*` return `false` for a NaN here |
+
+### Rounding
+
+| `shopspring/decimal` | `dec128` | note |
+|---|---|---|
+| `d.Round(n)` | `d.RoundHalfAwayFromZero(n)` | shopspring's `Round` is ties-away-from-zero; `dec128.Round(n, mode)` exists but takes the mode explicitly |
 | `d.RoundBank(n)` | `d.RoundBank(n)` | identical |
-| `d.Truncate(n)` | `d.Trunc(n)` | identical behaviour |
-| `d.StringFixed(n)` | `d.RescaleRound(n, mode).StringFixed()` | `dec128.StringFixed()` takes no argument: it prints the value's own scale |
+| `d.Truncate(n)` | `d.Trunc(n)` | identical |
+| `d.RoundUp(n)` | `d.RoundAwayFromZero(n)` | **not** `RoundUp` -- see the warning above |
+| `d.RoundDown(n)` | `d.RoundTowardZero(n)` | **not** `RoundDown` -- see the warning above |
+| `d.RoundCeil(n)` | `d.RoundUp(n)` | both are toward +infinity |
+| `d.RoundFloor(n)` | `d.RoundDown(n)` | both are toward -infinity |
+| `d.RoundCash(interval)` | — | no Swiss-rounding equivalent |
+
+### Output and conversion
+
+| `shopspring/decimal` | `dec128` | note |
+|---|---|---|
 | `d.String()` | `d.String()` | trailing zeros removed in both |
-| `d.IntPart()` | `d.Int64()` | returns an `error` when the integer part does not fit |
-| `d.InexactFloat64()` | `d.InexactFloat64()` | returns `(float64, error)` here |
-| `decimal.Sum`, `decimal.Avg`, `decimal.Min`, `decimal.Max` | same names | identical shape |
-| `decimal.DivisionPrecision` | `dec128.SetDefaultScale(n)` | process-global in both; set it once at startup |
-| `decimal.MarshalJSONWithoutQuotes` | — | `MarshalJSON` always quotes; `UnmarshalJSON` accepts both forms |
+| `d.StringFixed(n)` | `d.RescaleRound(n, dec128.ROUND_HALF_AWAY_FROM_ZERO).StringFixed()` | shopspring's `StringFixed` rounds before padding; `dec128.StringFixed()` takes no argument and prints the value's own scale |
+| `d.StringFixedBank(n)` | `d.RescaleRound(n, dec128.ROUND_BANK).StringFixed()` | same shape with ties-to-even |
+| `d.IntPart()` | `d.Int64()` | shopspring returns a silently wrong `int64` when the value does not fit (`1e30` gives `5076944270305263616`); `dec128` returns `overflow` |
+| `d.InexactFloat64()` | `d.InexactFloat64()` | returns `(float64, error)` here, `float64` alone in shopspring |
+| `d.Coefficient() *big.Int`, `d.Exponent() int32` | `d.Coefficient() uint128.Uint128`, `d.Scale() uint8` | the coefficient is unsigned here, so combine it with `Sign()`; and the exponent flips sign, since `1.50` has shopspring exponent `-2` and `dec128` scale `2` (`Exponent()` is a synonym for `Scale()`, not the negated form) |
+| `decimal.NullDecimal` | `dec128.SetNullValue(dec128.Null())` | a policy on the type itself rather than a separate wrapper -- see [SQL NULL](#sql-null) |
+
+### Globals
+
+| `shopspring/decimal` | `dec128` | note |
+|---|---|---|
+| `decimal.DivisionPrecision` (16) | `dec128.SetDefaultScale(n)` (19) | process-global in both; set it once at startup |
+| `decimal.MarshalJSONWithoutQuotes` | — | `MarshalJSON` always quotes; `UnmarshalJSON` accepts a quoted string or a bare JSON number |
+| — | `dec128.SetArithmeticRounding(mode)` | how arithmetic discards digits when a result does not fit |
+| — | `dec128.SetTrimOutput(true)` | makes `Value`/`MarshalJSON`/`MarshalText` trim trailing zeros, as shopspring does |
+| `decimal.PowPrecisionNegativeExponent`, `decimal.ExpMaxIterations` | — | no transcendental functions to configure |
 
 ### What changes
 
-1. **Errors become values.** `NewFromString` returns an `error` and `Div` panics on a zero divisor; `dec128` returns
-   a NaN for both, and the NaN propagates until you call `ErrorDetails` or `IsNaN`. Nothing forces the check, so put
-   it at the end of every chain that crosses a boundary. See [The contract](#the-contract).
-2. **The range is finite.** Values that overflow 128 bits or 19 places are rounded down to a scale that fits, using
-   the mode set by `SetArithmeticRounding` (truncation by default), and become `NaN(Overflow)` only when the integer
-   part itself does not fit. `SetArithmeticRounding(dec128.ROUND_NAN)` turns any loss of digits into a NaN instead.
-3. **Rounding modes are explicit.** `shopspring/decimal` fixes half-away-from-zero in `Round` and reads a package
-   global for division; `dec128` takes the mode per call in `Round`, `RescaleRound`, `MulRound`, `DivRound` and
-   `SqrtRound`, and only the default for bare `Div`/`Sqrt` comes from a global.
-4. **`==` is not a numeric comparison.** `Dec128` is a comparable struct with no pointer, so `==` compiles and
-   silently compares representations: `1.5 == 1.50` is false. Use `Equal` or `Compare`, and `Canonical` before
-   using a value as a map key.
-5. **Scale survives serialization by default.** `Value`, `MarshalJSON` and `MarshalText` emit the fixed form, so
-   `1.50` reaches a database or a JSON consumer as `1.50`. `SetTrimOutput(true)` restores the trimmed output that
+1. **Errors become values.** `NewFromString` returns an `error`, `Div` and `QuoRem` panic on a zero divisor, `Mul`
+   panics on `int32` exponent overflow, and `IntPart` is silently wrong when the value does not fit. `dec128` answers
+   all four with a NaN that propagates until you call `ErrorDetails` or `IsNaN`. Nothing forces the check, so put it at
+   the end of every chain that crosses a boundary. See [The contract](#the-contract).
+2. **The range is finite.** Values that overflow 128 bits or 19 places are rounded down to a scale that fits, using the
+   mode set by `SetArithmeticRounding` (truncation by default), and become `NaN(Overflow)` only when the integer part
+   itself does not fit. `SetArithmeticRounding(dec128.ROUND_NAN)` turns any loss of digits into a NaN instead.
+3. **Rounding modes are explicit, and two names are traps.** `shopspring/decimal` fixes ties-away-from-zero in `Round`
+   and reads a package global for division; `dec128` takes the mode per call in `Round`, `RescaleRound`, `MulRound`,
+   `DivRound` and `SqrtRound`. Re-read the `RoundUp`/`RoundDown` warning above before renaming anything.
+4. **`==` is not a numeric comparison.** `Dec128` is a comparable struct with no pointer, so `==` compiles and silently
+   compares representations: `1.5 == 1.50` is false. Use `Equal` or `Compare`, and `Canonical` before using a value as
+   a map key. (`shopspring.Decimal` holds a pointer, so `==` is wrong there too -- it just fails more obviously.)
+5. **Scale survives serialization by default.** `Value`, `MarshalJSON` and `MarshalText` emit the fixed form, so `1.50`
+   reaches a database or a JSON consumer as `1.50`. `SetTrimOutput(true)` restores the trimmed output that
    `shopspring/decimal` produces.
 
 ## Notes on Terminology
