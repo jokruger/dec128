@@ -3,7 +3,8 @@ package dec128
 import "github.com/jokruger/dec128/state"
 
 // RoundingMode selects how digits are discarded when a result must be shortened: by Round and RescaleRound explicitly,
-// and by arithmetic implicitly whenever an exact result does not fit (see SetArithmeticRounding).
+// and by arithmetic implicitly whenever an exact result does not fit (see SetArithmeticRounding). It chooses the
+// direction only; whether arithmetic may discard a digit at all is a separate setting, LossPolicy.
 //
 // The constants are named after the Round* methods they correspond to, in ALL_CAPS so that a mode is visibly distinct
 // from the method of the same name. Five of them are the IEEE 754-2019 rounding attributes:
@@ -18,6 +19,10 @@ const (
 
 	// ROUND_NAN refuses to lose digits: if any discarded digit is nonzero the result is a NaN carrying state.Inexact.
 	// Use it to detect rounding rather than perform it.
+	//
+	// As a per-call argument to Round, RescaleRound, MulRound, DivRound and SqrtRound it is the natural spelling of
+	// "give me this scale, and tell me if it was not exact". Passing it to SetArithmeticRounding is the deprecated
+	// spelling of SetLossPolicy(LossNaNOnInexact), because refusing a loss is a policy rather than a direction.
 	ROUND_NAN
 
 	// ROUND_DOWN rounds toward negative infinity (floor). See RoundDown.
@@ -67,20 +72,32 @@ func (m RoundingMode) String() string {
 // Process-global; see SetArithmeticRounding.
 var arithmeticRounding = ROUND_TOWARD_ZERO
 
-// SetArithmeticRounding sets the rounding mode arithmetic applies when an exact result does not fit in 128 bits at its
-// natural scale and digits must be discarded. The default is ROUND_TOWARD_ZERO, which leaves every result that was not
-// NaN before rounding modes existed bit-identical. Set ROUND_NAN to restore the previous behavior of returning NaN
-// instead of rounding. This is process-global state, like SetDefaultScale: set it once during initialization, before
-// any decimal is used. Calling it while other goroutines are calculating is a data race. It panics on an undefined
-// mode; this is the only place rounding modes panic, and only at configuration time.
+// SetArithmeticRounding sets the direction in which arithmetic discards digits when an exact result does not fit in
+// 128 bits at its natural scale. The default is ROUND_TOWARD_ZERO, which leaves every result that was not NaN before
+// rounding modes existed bit-identical.
+//
+// It also writes the loss policy, so that the mode alone still describes the behaviour of code written before
+// LossPolicy existed: ROUND_NAN selects LossNaNOnInexact and every other mode selects LossRound. Passing ROUND_NAN
+// here is therefore deprecated - prefer SetLossPolicy(LossNaNOnInexact), which says the same thing without
+// overloading a direction with a policy - and a program that sets both must call SetLossPolicy second.
+//
+// This is process-global state, like SetDefaultScale: set it once during initialization, before any decimal is used.
+// Calling it while other goroutines are calculating is a data race. It panics on an undefined mode; this is the only
+// place rounding modes panic, and only at configuration time.
 func SetArithmeticRounding(m RoundingMode) {
 	if !m.IsValid() {
 		panic(state.InvalidRoundingMode.Error())
 	}
 	arithmeticRounding = m
+	if m == ROUND_NAN {
+		lossPolicy = LossNaNOnInexact
+	} else {
+		lossPolicy = LossRound
+	}
 }
 
-// ArithmeticRounding returns the rounding mode arithmetic applies when digits must be discarded.
+// ArithmeticRounding returns the direction in which arithmetic discards digits. Whether it may discard them at all
+// is CurrentLossPolicy.
 func ArithmeticRounding() RoundingMode {
 	return arithmeticRounding
 }

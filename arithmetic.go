@@ -199,11 +199,17 @@ func (d Dec128) Div(other Dec128) Dec128 {
 	}
 
 	switch {
-	case inexact && mode == ROUND_NAN:
-		return Dec128{state: state.Inexact}
-	case q.IsZero():
-		return Dec128{scale: scale}
-	case !inexact:
+	case inexact:
+		// The quotient lost a digit. A zero quotient means it lost all of them: neither operand was zero, so the
+		// exact result is below one unit in the last place and rounding has erased it.
+		if s := lossState(q.IsZero(), lossPolicy); s != state.OK {
+			return Dec128{state: s}
+		}
+		if q.IsZero() {
+			return Dec128{scale: scale}
+		}
+	default:
+		// q cannot be zero here: the dividend is non-zero and the quotient is exact.
 		// An exact quotient takes its ideal scale: trailing zeros go, but not below
 		// d.scale - other.scale, so 1/2 = 0.5 and 1.00/2 = 0.50.
 		q, scale = stripZeros(q, scale, idealDivScale(d.scale, other.scale))
@@ -380,8 +386,10 @@ func (d Dec128) Sqrt() Dec128 {
 
 	q, inexact := d.sqrtAt(defaultScale, arithmeticRounding)
 	if inexact {
-		if arithmeticRounding == ROUND_NAN {
-			return Dec128{state: state.Inexact}
+		// A root can reach zero only when the default scale is too coarse to hold it: sqrt(x) > x for 0 < x < 1, so
+		// at the full MaxScale the smallest representable radicand still has a representable root.
+		if s := lossState(q.IsZero(), lossPolicy); s != state.OK {
+			return Dec128{state: s}
 		}
 		return Dec128{coef: q, scale: defaultScale}
 	}

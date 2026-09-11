@@ -15,6 +15,44 @@
 // part. Failures are quiet NaN values, never errors or panics. PostgreSQL's numeric is
 // the reference implementation the test suite compares against, digit for digit.
 //
+// A Dec128 carries 38 significant decimal digits, and 39 while the coefficient is at or
+// below 340282366920938463463374607431768211455, shared freely between the integer and
+// the fractional part, with at most MaxScale (19) of them after the decimal point. That
+// one budget is the whole size contract, and everything below follows from it:
+//
+//   - the largest value is +/-3.402...x10^38 and the smallest non-zero value is
+//     +/-1x10^-19, so 0.00000000000000000001 is not a small number but an unrepresentable
+//     one, and FromString rejects it;
+//   - precision after the decimal point shrinks as magnitude grows. All 19 places are
+//     available up to 34028236692093846346.3374607431768211455, and one place is lost per
+//     decade above that until none is left near 10^38;
+//   - a result that needs more digits than remain is rounded to fit. That is the design
+//     and not a failure: NaN(Overflow) is reserved for a result whose integer part alone
+//     will not fit. See "Safe operating range" for where the rounding starts.
+//
+// Div and Sqrt are bounded by the scale cap rather than by the coefficient: they compute
+// to DefaultScale places, so 1/3 has 19 significant digits and not 38.
+//
+// # Safe operating range
+//
+// If every operand has at most 9 decimal places and every value, intermediate products
+// included, stays below 10^20, then Add, Sub and Mul are exact and nothing is ever
+// rounded. TestSafeZoneClaim holds the library to that promise.
+//
+// The bound on the scale is the one that binds first, and it has nothing to do with
+// magnitude: Mul adds the scales, so two operands at 9 places give an 18-place product
+// that still fits under MaxScale, while two at 10 places give a 20-place product that
+// never does. The same cliff makes small products collapse:
+//
+//	0.000000001  * 0.000000001   // 0.000000000000000001, exact
+//	0.0000000001 * 0.0000000001  // 0, the exact result 1e-20 is not representable
+//
+// The top of the range is unreachable for money - 3.4x10^36 at two decimal places is
+// many orders of magnitude beyond any real balance - but the bottom is not, and products
+// of rates or per-unit factors around 10^-10 reach it. SetLossPolicy(LossNaNOnUnderflow)
+// turns that silent zero into a NaN. MaxAtScale and QuantumAtScale report the two ends of
+// the range at any scale.
+//
 // A Dec128 holds a 128-bit unsigned coefficient, a scale (the number of digits after
 // the decimal point, 0 to MaxScale) and a byte carrying both the sign and the error
 // state. Values are immutable: every operation returns a new instance. Do not compare
@@ -49,7 +87,8 @@
 // bits, or needs more than MaxScale places, the scale is reduced to the largest at
 // which the integer part fits and the discarded digits are rounded with the mode set by
 // SetArithmeticRounding (truncation by default). NaN(Overflow) is returned only when the
-// integer part does not fit even at scale 0.
+// integer part does not fit even at scale 0, and SetLossPolicy decides whether a
+// discarded digit is acceptable at all.
 //
 // Div and Sqrt compute at the default scale (SetDefaultScale, MaxScale by default) and
 // then apply the ideal scale of an exact result: 1/2 is 0.5, 1.00/2 is 0.50, and 1/3
@@ -69,10 +108,30 @@
 // RoundingMode names the eight ways to discard digits: ROUND_TOWARD_ZERO (the default),
 // ROUND_DOWN, ROUND_UP, ROUND_AWAY_FROM_ZERO, ROUND_HALF_TOWARD_ZERO,
 // ROUND_HALF_AWAY_FROM_ZERO, ROUND_BANK, and ROUND_NAN, which refuses to lose digits and
-// returns NaN(Inexact) instead. SetArithmeticRounding(ROUND_NAN) brings back the
-// NaN-on-loss behavior that Add, Sub and Mul had up to v1.0.20, and is stricter than that
-// release in one respect: it applies to Div and Sqrt too, so 1/3 and Sqrt(2) become
-// NaN(Inexact) where v1.0.20 truncated them at the default scale.
+// returns NaN(Inexact) instead.
+//
+// # Loss policy
+//
+// A rounding mode chooses a direction; whether arithmetic may discard a digit at all is
+// the separate setting LossPolicy, because losing digits is not one condition but three.
+// An integer part that does not fit at scale 0 is an overflow and is always
+// NaN(Overflow). A result that keeps its significant digits and drops only the tail is
+// inexact, which 1/3 and Sqrt(2) are at every scale. A result that rounds to zero from
+// non-zero operands has lost every significant digit it had, which is an underflow, and
+// is the one case where a plausible-looking value hides a total loss of information.
+//
+//	LossRound           // default: round, as every version before v1.2 did
+//	LossNaNOnUnderflow  // NaN(Underflow) only when a result rounds to zero; 1/3 still works
+//	LossNaNOnInexact    // NaN(Inexact) on any discarded nonzero digit, 1/3 included
+//
+// LossNaNOnUnderflow is the recommended setting for money: a non-zero amount never
+// silently becomes zero, and an inexact division still returns a value.
+//
+// SetArithmeticRounding(ROUND_NAN) is the deprecated spelling of
+// SetLossPolicy(LossNaNOnInexact) and still behaves exactly as it did in v1.1, including
+// its one difference from v1.0.20: it applies to Div and Sqrt too, so 1/3 and Sqrt(2)
+// become NaN(Inexact) where v1.0.20 truncated them at the default scale. A program that
+// sets both must call SetLossPolicy second.
 //
 // # Text and interchange
 //
@@ -94,8 +153,9 @@
 //
 // # Configuration
 //
-// SetDefaultScale, SetArithmeticRounding, SetTrimOutput and SetNullValue are
-// process-global and are plain variables: set them once during initialization, before
-// any decimal is used. Changing them while other goroutines are calculating is a data
-// race.
+// SetDefaultScale, SetArithmeticRounding, SetLossPolicy, SetTrimOutput and SetNullValue
+// are process-global and are plain variables: set them once during initialization,
+// before any decimal is used. Changing them while other goroutines are calculating is a
+// data race. SetArithmeticRounding also writes the loss policy, so a program that sets
+// both must call SetLossPolicy second.
 package dec128

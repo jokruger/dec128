@@ -32,6 +32,7 @@ const (
 	Null                 = State(15)
 	Inexact              = State(16)
 	InvalidRoundingMode  = State(17)
+	InvalidLossPolicy    = State(18)
 )
 
 // PrecisionOutOfRange is the former name of ScaleOutOfRange; the code stays reserved so it is never reused.
@@ -65,6 +66,7 @@ var code2str = [...]string{
 	Null:                   "null",
 	Inexact:                "inexact result",
 	InvalidRoundingMode:    "invalid rounding mode",
+	InvalidLossPolicy:      "invalid loss policy",
 }
 
 var code2err = [...]error{
@@ -86,6 +88,7 @@ var code2err = [...]error{
 	Null:                   errors.New("null"),
 	Inexact:                errors.New("inexact result"),
 	InvalidRoundingMode:    errors.New("invalid rounding mode"),
+	InvalidLossPolicy:      errors.New("invalid loss policy"),
 }
 
 // OK is the state of a valid, non-negative value; it is another name for Default.

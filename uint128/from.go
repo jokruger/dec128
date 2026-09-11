@@ -23,7 +23,7 @@ func FromBytesBigEndian(b [16]byte) Uint128 {
 }
 
 // FromBigInt creates a new Uint128 from a *big.Int. A negative value yields state.NegativeInUnsignedOp and one above
-// 2^128-1 yields state.Overflow.
+// 2^128-1 yields state.Overflow. The argument is read, never modified.
 func FromBigInt(i *big.Int) (Uint128, state.State) {
 	switch {
 	case i == nil:
@@ -34,7 +34,9 @@ func FromBigInt(i *big.Int) (Uint128, state.State) {
 		return Zero, state.Overflow
 	}
 
-	return Uint128{i.Uint64(), i.Rsh(i, 64).Uint64()}, state.OK
+	// Rsh must not write to i: this is a conversion, and a caller that still needs its value would otherwise get it
+	// back shifted by 64 bits.
+	return Uint128{i.Uint64(), new(big.Int).Rsh(i, 64).Uint64()}, state.OK
 }
 
 // FromString creates a new Uint128 from a decimal string of digits; anything else yields state.InvalidFormat and a

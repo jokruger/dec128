@@ -35,12 +35,12 @@ func TestState(t *testing.T) {
 }
 
 func TestIsValid(t *testing.T) {
-	for s := State(0); s <= InvalidRoundingMode; s++ {
+	for s := State(0); s <= InvalidLossPolicy; s++ {
 		if !s.IsValid() {
 			t.Errorf("state %d must be valid", s)
 		}
 	}
-	if (InvalidRoundingMode + 1).IsValid() || State(255).IsValid() {
+	if (InvalidLossPolicy + 1).IsValid() || State(255).IsValid() {
 		t.Error("undefined codes must not be valid")
 	}
 }

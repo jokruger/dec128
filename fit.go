@@ -10,7 +10,8 @@ import (
 // An exact intermediate can be up to 256 bits wide (a product) and carry up to 38 decimal places (the sum of two
 // scales). The representable form is a 128-bit coefficient with at most MaxScale places. fitWide finds the largest
 // scale not above min(needed, MaxScale) at which the coefficient fits, discards the digits below it with the given
-// rounding mode, and returns NaN only when the integer part itself does not fit at scale 0.
+// rounding mode, and returns NaN when the integer part itself does not fit at scale 0 or when the loss policy
+// refuses to discard a nonzero digit.
 
 // bitLen10 holds bits.Len(10^k) for k = 0..38: the width of each power of ten, used to estimate how many digits must go
 // before any division is attempted.
@@ -88,7 +89,7 @@ func compare256(aLo, aHi, bLo, bHi uint128.Uint128) int {
 
 // reduceWide divides the 256-bit value (lo, hi) by 10^k and rounds the quotient with mode. overflow reports that the
 // rounded quotient does not fit in 128 bits; inexact reports that nonzero digits were discarded (the caller decides
-// whether that is an error, as it is under ROUND_NAN). Requires 1 <= k <= 38.
+// whether that is an error, as it is under LossNaNOnInexact). Requires 1 <= k <= 38.
 func reduceWide(lo, hi uint128.Uint128, k uint8, st state.State, mode RoundingMode) (q uint128.Uint128, overflow bool, inexact bool) {
 	divisor := Pow10Uint128[k]
 	var r uint128.Uint128
@@ -121,10 +122,10 @@ func reduceWide(lo, hi uint128.Uint128, k uint8, st state.State, mode RoundingMo
 
 // fitWide returns the Dec128 nearest to (lo, hi) * 10^-scale, signed by st, at the largest scale not above
 // min(scale, MaxScale) whose coefficient fits in 128 bits. Callers handle the exact, in-range case
-// (hi == 0 and scale <= MaxScale) themselves. Digits below that scale are discarded with mode. The result is
-// NaN(Overflow) when the integer part does not fit even at scale 0, and NaN(Inexact) when mode is ROUND_NAN and a
-// nonzero digit would be discarded. A zero result is never negative.
-func fitWide(lo, hi uint128.Uint128, scale uint8, st state.State, mode RoundingMode) Dec128 {
+// (hi == 0 and scale <= MaxScale) themselves. Digits below that scale are discarded with mode, and policy decides
+// whether discarding them is allowed at all. The result is NaN(Overflow) when the integer part does not fit even at
+// scale 0, and NaN(Inexact) or NaN(Underflow) when policy refuses the loss. A zero result is never negative.
+func fitWide(lo, hi uint128.Uint128, scale uint8, st state.State, mode RoundingMode, policy LossPolicy) Dec128 {
 	// Digits that must go because of the scale cap.
 	k := 0
 	if scale > MaxScale {
@@ -158,8 +159,12 @@ func fitWide(lo, hi uint128.Uint128, scale uint8, st state.State, mode RoundingM
 			k++
 			continue
 		}
-		if inexact && mode == ROUND_NAN {
-			return Dec128{state: state.Inexact}
+		if inexact {
+			// Reached only when a nonzero digit was dropped. A zero quotient here means every significant digit is
+			// gone: the operands were non-zero (a zero coefficient never reaches fitWide) and the result is not.
+			if s := lossState(q.IsZero(), policy); s != state.OK {
+				return Dec128{state: s}
+			}
 		}
 		if q.IsZero() {
 			st = state.Default

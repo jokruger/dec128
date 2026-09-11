@@ -120,7 +120,7 @@ func TestDecodeBinaryRejectsInvalid(t *testing.T) {
 		{0x1F},      // state code 31 is not defined
 		{0x20, 200}, // scale 200
 		{0x20, 20},  // scale just above MaxScale
-		{0x12},      // state 18: first undefined code
+		{0x13},      // state 19: first undefined code
 	}
 	for _, b := range bad {
 		var d Dec128

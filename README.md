@@ -18,7 +18,7 @@ the test suite checks it against PostgreSQL digit for digit.
 - [x] High performance
 - [x] Zero dependencies
 - [x] Minimal or zero memory allocation
-- [x] Scale up to 19 decimal places
+- [x] 38 significant digits (39 near the maximum), up to 19 of them after the decimal point
 - [x] Fixed 24-byte layout with no indirection (128-bit coefficient, scale, sign/state)
 - [x] No panic or error arithmetics (use NaN instead)
 - [x] Immutability (methods return new instances)
@@ -130,9 +130,69 @@ Four things that surprise people:
   reaches storage.
 - **A result that does not fit is rounded, not NaN.** The scale is reduced to the largest at which the integer part fits
   and the dropped digits are rounded with the configured mode (truncation by default). NaN means the integer part itself
-  does not fit. `SetArithmeticRounding(ROUND_NAN)` turns any loss of digits back into a NaN.
-- **`SetDefaultScale`, `SetArithmeticRounding`, `SetTrimOutput` and `SetNullValue` are process-global.** Set them once
-  during initialization; changing them while other goroutines calculate is a data race.
+  does not fit. That is the design, not a failure -- see [Safe operating range](#safe-operating-range) for where it
+  starts. `SetLossPolicy` decides whether a dropped digit is acceptable at all.
+- **A product of two small values can silently become zero.** The smallest non-zero value is `1e-19`, so
+  `1e-10 * 1e-10` is `0` under the default policy. `SetLossPolicy(LossNaNOnUnderflow)` turns that into
+  `NaN(Underflow)` while leaving `1/3` a value.
+- **`SetDefaultScale`, `SetArithmeticRounding`, `SetLossPolicy`, `SetTrimOutput` and `SetNullValue` are
+  process-global.** Set them once during initialization; changing them while other goroutines calculate is a data
+  race. `SetArithmeticRounding` also writes the loss policy, so call `SetLossPolicy` second.
+
+## Safe operating range
+
+A `Dec128` carries **38 significant decimal digits** -- 39 while the coefficient is at or below
+`340282366920938463463374607431768211455` -- shared freely between the integer and the fractional part, with **at most
+19 of them after the decimal point**. That single budget is the whole size contract.
+
+> **In one sentence:** if every operand has at most 9 decimal places and every value, intermediate products included,
+> stays below `10^20`, then `Add`, `Sub` and `Mul` are exact and nothing is ever rounded.
+
+`TestSafeZoneClaim` holds the library to that promise. Outside the zone dec128 still works; it just starts trading
+fractional digits for integer digits. Two envelopes bound it.
+
+**The top -- precision shrinks as magnitude grows.** All 19 fractional places are available while
+
+```
+|x| <= 34028236692093846346.3374607431768211455
+```
+
+whose integer part is about `3.4e19`, 3.69 times the largest `int64`. Above that one place is lost per decade, down to
+none at `3.4e38`.
+
+**The bottom -- the smallest non-zero value is `1e-19`.** `FromString("1e-20")` returns `NaN(ScaleOutOfRange)`;
+arithmetic that would produce a smaller magnitude returns zero.
+
+| decimal places | largest value | `a*b` stays exact while \|a*b\| <= |
+|---|---|---|
+| 0 | 3.40e38 | 3.40e38 |
+| 2 (cents) | 3.40e36 | 3.40e34 |
+| 4 | 3.40e34 | 3.40e30 |
+| 6 | 3.40e32 | 3.40e26 |
+| 8 (satoshi) | 3.40e30 | 3.40e22 |
+| 9 | 3.40e29 | 3.40e20 |
+| 10 | 3.40e28 | never -- every product rounds |
+| 18 (wei) | 3.40e20 | never |
+| 19 | 3.40e19 | never |
+
+`Add` and `Sub` never raise the scale, so they stay exact while the running total fits the *largest value* column.
+`Mul` adds the scales: a product is exact only when `s1 + s2 <= 19` **and** it fits the third column. At a uniform
+working scale that means **9 places or fewer**; from 10 places up every multiplication rounds. `Div` and `Sqrt` compute
+to `DefaultScale()` places and are exact only when the result terminates within that many digits -- so they are bounded
+by the scale cap rather than by the coefficient, and `1/3` has 19 significant digits, not 38.
+
+**Where this bites.** The top end is unreachable for money: `3.40e36` at two decimal places is many orders of magnitude
+beyond any real balance. The bottom end is not. The same `s1 + s2 <= 19` rule that ends exact multiplication also makes
+small products collapse:
+
+```go
+dec128.FromString("0.000000001").Mul(dec128.FromString("0.000000001"))   // 0.000000000000000001, exact
+dec128.FromString("0.0000000001").Mul(dec128.FromString("0.0000000001")) // 0 -- 1e-20 is not representable
+```
+
+Rates, probabilities and per-unit factors around `1e-10` reach it. Chain such factors in one expression rather than
+storing each intermediate, rescale into a larger unit, or set `SetLossPolicy(LossNaNOnUnderflow)` to make the collapse
+loud. `MaxAtScale` and `QuantumAtScale` report the two ends of the range at any scale.
 
 ## Scale and rounding
 
@@ -140,7 +200,27 @@ Scale is preserved rather than normalized, so `1.5` and `1.50` are distinct repr
 `Add`/`Sub` take the larger operand scale, `Mul` adds them, and a zero result keeps that scale too
 (`1.50 - 1.50` is `0.00`). When the exact result needs more than 19 places or more than 128 bits, the scale is reduced
 to the largest that fits and the digits below it are rounded with the mode set by `SetArithmeticRounding`
-(`ROUND_TOWARD_ZERO` by default).
+(`ROUND_TOWARD_ZERO` by default) -- unless `SetLossPolicy` says the loss is unacceptable.
+
+### Loss policy
+
+A rounding mode picks a *direction*; whether arithmetic may discard a digit at all is the separate `LossPolicy`,
+because losing digits is not one condition but three. An integer part that will not fit at scale 0 is an **overflow**
+and is always `NaN(Overflow)`. A result that keeps its significant digits and drops only the tail is **inexact**, which
+`1/3` and `Sqrt(2)` are at every scale. A result that rounds to zero from non-zero operands has lost every significant
+digit it had: that is an **underflow**, and it is the one case where a plausible-looking value hides a total loss of
+information.
+
+| policy | `1/3` | `1e-10 * 1e-10` | `1e20 * 1e20` |
+|---|---|---|---|
+| `LossRound` (default) | `0.3333333333333333333` | `0` | `NaN(Overflow)` |
+| `LossNaNOnUnderflow` | `0.3333333333333333333` | `NaN(Underflow)` | `NaN(Overflow)` |
+| `LossNaNOnInexact` | `NaN(Inexact)` | `NaN(Inexact)` | `NaN(Overflow)` |
+
+`LossNaNOnUnderflow` is the recommended setting for money: a non-zero amount never silently becomes zero, and an
+inexact division still returns a value. `SetArithmeticRounding(ROUND_NAN)` is the deprecated spelling of
+`SetLossPolicy(LossNaNOnInexact)`; it still behaves exactly as it did in v1.1, and a program that sets both must call
+`SetLossPolicy` second.
 
 `Div` and `Sqrt` compute at the default scale (`SetDefaultScale`, 19 by default) and give an exact result its *ideal*
 scale: `1/2` is `0.5`, `1.00/2` is `0.50`, `1/3` keeps all 19 places. `QuoRem` does not consult the default: the
@@ -283,8 +363,8 @@ shopspring.Decimal                     123.957         155.077         173.023  
 The 128-bit budget is a deliberate trade, not an oversight. Reach for `math/big`, `cockroachdb/apd` or
 `shopspring/decimal` instead when:
 
-- **You need more than 19 decimal places.** `MaxScale` is 19 and is not configurable; it is what a 128-bit
-  coefficient buys.
+- **You need more than 19 decimal places, or values below 1e-19.** `MaxScale` is 19 and is not configurable; it is
+  what a 128-bit coefficient buys. Two operands at 10 places already produce a rounded product.
 - **Your magnitudes are unbounded.** The largest value at scale 0 is 2^128 - 1, about 3.4 x 10^38. Cryptocurrency
   wei amounts at full precision, factorials and unbounded exponentiation do not fit.
 - **You need arbitrary precision or the full IEEE 754-2008 condition model.** `apd` implements the General Decimal
@@ -369,7 +449,8 @@ Verified against `shopspring/decimal` v1.4.0. Every mapping below was checked by
 |---|---|---|
 | `decimal.DivisionPrecision` (16) | `dec128.SetDefaultScale(n)` (19) | process-global in both; set it once at startup |
 | `decimal.MarshalJSONWithoutQuotes` | — | `MarshalJSON` always quotes; `UnmarshalJSON` accepts a quoted string or a bare JSON number |
-| — | `dec128.SetArithmeticRounding(mode)` | how arithmetic discards digits when a result does not fit |
+| — | `dec128.SetArithmeticRounding(mode)` | the direction in which arithmetic discards digits when a result does not fit |
+| — | `dec128.SetLossPolicy(policy)` | whether arithmetic may discard a digit at all; `LossNaNOnUnderflow` is recommended for money |
 | — | `dec128.SetTrimOutput(true)` | makes `Value`/`MarshalJSON`/`MarshalText` trim trailing zeros, as shopspring does |
 | `decimal.PowPrecisionNegativeExponent`, `decimal.ExpMaxIterations` | — | no transcendental functions to configure |
 
@@ -381,7 +462,8 @@ Verified against `shopspring/decimal` v1.4.0. Every mapping below was checked by
    the end of every chain that crosses a boundary. See [The contract](#the-contract).
 2. **The range is finite.** Values that overflow 128 bits or 19 places are rounded down to a scale that fits, using the
    mode set by `SetArithmeticRounding` (truncation by default), and become `NaN(Overflow)` only when the integer part
-   itself does not fit. `SetArithmeticRounding(dec128.ROUND_NAN)` turns any loss of digits into a NaN instead.
+   itself does not fit. See [Safe operating range](#safe-operating-range) for where that starts, and `SetLossPolicy`
+   for making the loss an error instead.
 3. **Rounding modes are explicit, and two names are traps.** `shopspring/decimal` fixes ties-away-from-zero in `Round`
    and reads a package global for division; `dec128` takes the mode per call in `Round`, `RescaleRound`, `MulRound`,
    `DivRound` and `SqrtRound`. Re-read the `RoundUp`/`RoundDown` warning above before renaming anything.

@@ -57,7 +57,7 @@ func (d Dec128) mulSlow(other Dec128) Dec128 {
 		return Dec128{coef: lo, scale: scale, state: st}
 	}
 
-	return fitWide(lo, hi, scale, st, arithmeticRounding)
+	return fitWide(lo, hi, scale, st, arithmeticRounding, lossPolicy)
 }
 
 // called only when both are not NaN
@@ -165,7 +165,7 @@ func (d Dec128) addSlow(other Dec128) Dec128 {
 		return Dec128{coef: sum.lo, scale: scale, state: st}
 	}
 
-	return fitWide(sum.lo, uint128.Uint128{Lo: sum.hi}, scale, st, arithmeticRounding)
+	return fitWide(sum.lo, uint128.Uint128{Lo: sum.hi}, scale, st, arithmeticRounding, lossPolicy)
 }
 
 // subSlow is the general case of Sub. d - other == d + (-other); Neg of a NaN is the same NaN and Neg of zero is zero,

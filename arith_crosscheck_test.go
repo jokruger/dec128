@@ -137,8 +137,9 @@ func roundBig(q, r, divisor *big.Int, neg bool, mode RoundingMode) *big.Int {
 // fitOracle is the reference implementation of the scale rule for an exact signed
 // coefficient at the given scale: the largest scale not above min(scale, MaxScale) at
 // which the rounded coefficient fits 128 bits. It returns the expected coefficient and
-// scale, or a NaN state.
-func fitOracle(exact *big.Int, scale uint8, mode RoundingMode) (coef *big.Int, resScale uint8, nan state.State) {
+// scale, or a NaN state. mode picks the direction of the rounding, policy decides
+// whether the loss is allowed at all.
+func fitOracle(exact *big.Int, scale uint8, mode RoundingMode, policy LossPolicy) (coef *big.Int, resScale uint8, nan state.State) {
 	neg := exact.Sign() < 0
 	abs := new(big.Int).Abs(exact)
 	for t := int(min(scale, MaxScale)); t >= 0; t-- {
@@ -147,8 +148,15 @@ func fitOracle(exact *big.Int, scale uint8, mode RoundingMode) (coef *big.Int, r
 		q, r := new(big.Int).QuoRem(abs, d, new(big.Int))
 		q = roundBig(q, r, d, neg, mode)
 		if q.Cmp(big2p128) < 0 {
-			if mode == ROUND_NAN && r.Sign() != 0 {
-				return nil, 0, state.Inexact
+			if r.Sign() != 0 {
+				switch policy {
+				case LossNaNOnInexact:
+					return nil, 0, state.Inexact
+				case LossNaNOnUnderflow:
+					if q.Sign() == 0 {
+						return nil, 0, state.Underflow
+					}
+				}
 			}
 			return q, uint8(t), state.OK
 		}
@@ -158,7 +166,7 @@ func fitOracle(exact *big.Int, scale uint8, mode RoundingMode) (coef *big.Int, r
 
 func checkFit(t *testing.T, op string, x, y, got Dec128, exact *big.Int, scale uint8, mode RoundingMode) {
 	t.Helper()
-	wantCoef, wantScale, wantNaN := fitOracle(exact, scale, mode)
+	wantCoef, wantScale, wantNaN := fitOracle(exact, scale, mode, CurrentLossPolicy())
 	if wantNaN != state.OK {
 		if got.state != wantNaN {
 			t.Errorf("%s(%s, %s) [%s] = %v, want NaN(%s)", op, x.StringFixed(), y.StringFixed(), mode, got, wantNaN)

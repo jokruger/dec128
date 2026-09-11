@@ -238,6 +238,28 @@ func ExampleSetArithmeticRounding() {
 	// 0.1219326311370217952
 }
 
+func ExampleSetLossPolicy() {
+	defer SetLossPolicy(CurrentLossPolicy())
+	third := FromInt64(1).Div(FromInt64(3))
+	tiny := FromString("0.0000000001") // 1e-10; squared it is 1e-20, below the smallest representable value
+
+	// The default rounds every loss, so a product of two small values can reach zero.
+	SetLossPolicy(LossRound)
+	fmt.Println(third.StringFixed(), tiny.Mul(tiny).StringFixed())
+
+	// LossNaNOnUnderflow refuses only a total loss of significance; 1/3 is still a value.
+	SetLossPolicy(LossNaNOnUnderflow)
+	fmt.Println(FromInt64(1).Div(FromInt64(3)).StringFixed(), tiny.Mul(tiny).ErrorDetails())
+
+	// LossNaNOnInexact refuses any discarded digit, 1/3 included.
+	SetLossPolicy(LossNaNOnInexact)
+	fmt.Println(FromInt64(1).Div(FromInt64(3)).ErrorDetails())
+	// Output:
+	// 0.3333333333333333333 0.0000000000000000000
+	// 0.3333333333333333333 underflow
+	// inexact result
+}
+
 func ExampleSetTrimOutput() {
 	defer SetTrimOutput(TrimOutput())
 	d := FromString("1.50")

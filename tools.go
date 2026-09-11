@@ -116,7 +116,7 @@ func Sum(a Dec128, b ...Dec128) Dec128 {
 		return Dec128{coef: lo, scale: scale, state: st}
 	}
 
-	return fitWide(lo, hi, scale, st, arithmeticRounding)
+	return fitWide(lo, hi, scale, st, arithmeticRounding, lossPolicy)
 }
 
 // accumulator is a 256-bit unsigned total of aligned magnitudes. Each term is below 2^128 * 10^19 < 2^192 and there are

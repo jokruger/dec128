@@ -71,7 +71,7 @@ func (d Dec128) EncodeIEEE(buf []byte) (int, error) {
 		// q < 10^34 + 1 after rounding, so it cannot overflow; q == 10^34 (a carry out of 34 nines) loses one more
 		// digit exactly.
 		q, _, inexact := reduceWide(coef, uint128.Zero, k, d.state, arithmeticRounding)
-		if inexact && arithmeticRounding == ROUND_NAN {
+		if inexact && lossPolicy == LossNaNOnInexact {
 			return 0, state.Inexact.Error()
 		}
 		if q.Equal(ieeeCoefLimit) {
