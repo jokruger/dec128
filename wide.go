@@ -191,7 +191,12 @@ func (a wide) bitLen() int {
 // reduceAt returns the coefficient of a * 10^-needed at exactly the scale target, rounded with mode for a result of
 // sign st. overflow reports that the coefficient does not fit in 128 bits, inexact that nonzero digits were
 // discarded; the caller decides what each of those means, exactly as it does for reduceWide.
-func (a wide) reduceAt(needed, target uint8, st state.State, mode RoundingMode) (q uint128.Uint128, overflow bool, inexact bool) {
+func (a wide) reduceAt(
+	needed uint8,
+	target uint8,
+	st state.State,
+	mode RoundingMode,
+) (q uint128.Uint128, overflow bool, inexact bool) {
 	if target >= needed {
 		// padding with zeros, which is exact whenever it fits at all
 		coef, ok := a.uint128()

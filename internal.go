@@ -1,10 +1,11 @@
 package dec128
 
 import (
-	"github.com/jokruger/dec128/state"
-	"github.com/jokruger/dec128/uint128"
 	"math"
 	"math/bits"
+
+	"github.com/jokruger/dec128/state"
+	"github.com/jokruger/dec128/uint128"
 )
 
 var (
@@ -266,7 +267,12 @@ func (a widened) at(needed, target uint8, st state.State, mode RoundingMode) Dec
 // divAt returns |d| / |other| scaled to exactly the given scale and rounded with mode, for a result of sign
 // st. overflow reports that the quotient does not fit in 128 bits; inexact that a nonzero remainder was discarded.
 // Requires d.coef != 0, other.coef != 0 and scale <= MaxScale.
-func (d Dec128) divAt(other Dec128, scale uint8, st state.State, mode RoundingMode) (q uint128.Uint128, overflow bool, inexact bool) {
+func (d Dec128) divAt(
+	other Dec128,
+	scale uint8,
+	st state.State,
+	mode RoundingMode,
+) (q uint128.Uint128, overflow bool, inexact bool) {
 	// The quotient is d.coef * 10^f / other.coef with f = scale + other.scale - d.scale.
 	f := int(scale) + int(other.scale) - int(d.scale)
 

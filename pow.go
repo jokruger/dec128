@@ -144,9 +144,9 @@ func divPow10ByCoef(e int, c uint128.Uint128) (wide, uint128.Uint128) {
 //
 // The running product is kept with guard digits - 192 bits and up to 57 decimal places, half as many again as a
 // coefficient holds - and each reduction rounds to nearest, so a long chain neither loses digits early nor drifts in
-// one direction. Only the result is rounded, to the caller's scale and mode. PowInt64 by contrast puts every intermediate back into a Dec128
-// at the published scale with the process-global rounding mode, which for the default ROUND_TOWARD_ZERO is a
-// systematic downward bias over the dozen roundings of a (1+r)^360.
+// one direction. Only the result is rounded, to the caller's scale and mode. PowInt64 by contrast puts every
+// intermediate back into a Dec128 at the published scale with the process-global rounding mode, which for the default
+// ROUND_TOWARD_ZERO is a systematic downward bias over the dozen roundings of a (1+r)^360.
 //
 // The result is faithfully rounded: it is one of the two representable values adjacent to the exact power. It was
 // also the correctly rounded one in every case measured - TestPowIntRoundAgainstBigRat compares it against an exact

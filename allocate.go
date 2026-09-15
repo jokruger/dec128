@@ -134,7 +134,11 @@ func allocQuanta(d Dec128, scale uint8) (uint128.Uint128, bool) {
 // allocInputs validates an allocation and reduces it to integers: the amount in quanta, the common scale of the
 // ratios, and their total. Every weight and the total have to fit a coefficient, which is what keeps each share's
 // numerator inside the 256-bit dividend.
-func allocInputs(d Dec128, ratios []Dec128, scale uint8) (quanta uint128.Uint128, rs uint8, total uint128.Uint128, ok bool) {
+func allocInputs(
+	d Dec128,
+	ratios []Dec128,
+	scale uint8,
+) (quanta uint128.Uint128, rs uint8, total uint128.Uint128, ok bool) {
 	if len(ratios) == 0 {
 		return uint128.Zero, 0, uint128.Zero, false
 	}

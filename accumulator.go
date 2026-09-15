@@ -27,8 +27,9 @@ type Accumulator struct {
 
 // NewAccumulator returns an empty accumulator whose working scale starts at the given scale, which must not exceed
 // MaxScale. The working scale is a floor rather than a fixed setting: a term that needs more places than the
-// accumulator currently carries raises it, up to twice MaxScale, so that every Add and every AddMul is exact (a product of two values at MaxScale needs twice MaxScale). Give it
-// the scale the total is expected to have, so that Total at that scale needs no padding.
+// accumulator currently carries raises it, up to twice MaxScale, so that every Add and every AddMul is exact (a product
+// of two values at MaxScale needs twice MaxScale). Give it the scale the total is expected to have, so that Total at
+// that scale needs no padding.
 //
 // A scale above MaxScale makes the accumulator a NaN(ScaleOutOfRange) that stays one, in keeping with the package's
 // rule that a failure is a value rather than a panic.
