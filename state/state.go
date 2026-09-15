@@ -33,6 +33,14 @@ const (
 	Inexact              = State(16)
 	InvalidRoundingMode  = State(17)
 	InvalidLossPolicy    = State(18)
+
+	// NotConverged and DomainError exist for the layers built on top of dec128 rather than for dec128 itself: an
+	// iterative solver that hits its iteration bound, and an argument outside the domain of the function it was
+	// given to. They are NaN like every other code at or above Error, so such a failure travels through the same
+	// channel as an overflow and ErrorDetails names it. SqrtNegative (12) is the special case of DomainError that
+	// dec128 raises itself.
+	NotConverged = State(19)
+	DomainError  = State(20)
 )
 
 // PrecisionOutOfRange is the former name of ScaleOutOfRange; the code stays reserved so it is never reused.
@@ -67,6 +75,8 @@ var code2str = [...]string{
 	Inexact:                "inexact result",
 	InvalidRoundingMode:    "invalid rounding mode",
 	InvalidLossPolicy:      "invalid loss policy",
+	NotConverged:           "not converged",
+	DomainError:            "argument outside the domain of the function",
 }
 
 var code2err = [...]error{
@@ -89,6 +99,8 @@ var code2err = [...]error{
 	Inexact:                errors.New("inexact result"),
 	InvalidRoundingMode:    errors.New("invalid rounding mode"),
 	InvalidLossPolicy:      errors.New("invalid loss policy"),
+	NotConverged:           errors.New("not converged"),
+	DomainError:            errors.New("argument outside the domain of the function"),
 }
 
 // OK is the state of a valid, non-negative value; it is another name for Default.

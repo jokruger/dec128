@@ -75,7 +75,9 @@ func TestPowInt64MinInt64(t *testing.T) {
 		want string
 		st   state.State
 	}{
-		{"2", "", state.Overflow},
+		// 2^-(2^63) is a positive value far below any quantum, so it is zero rather than an overflow. Before
+		// PowInt64 moved onto the guarded core it raised 2 to the power first and inverted the overflow.
+		{"2", "0", state.Default},
 		{"0.5", "", state.Overflow},
 		{"1", "1", state.Default},
 		{"-1", "1", state.Default},
@@ -120,7 +122,7 @@ func TestDecodeBinaryRejectsInvalid(t *testing.T) {
 		{0x1F},      // state code 31 is not defined
 		{0x20, 200}, // scale 200
 		{0x20, 20},  // scale just above MaxScale
-		{0x13},      // state 19: first undefined code
+		{0x15},      // state 21: first undefined code
 	}
 	for _, b := range bad {
 		var d Dec128

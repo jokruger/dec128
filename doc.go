@@ -61,7 +61,7 @@
 //
 // A Dec128 is comparable and can be a map key, but == is not a numeric comparison: 1.5
 // and 1.50 differ in scale and are different keys. Use Equal or Compare for values and
-// Canonical to normalise a key.
+// Canonical to normalize a key.
 //
 // # Failures are values, not returns
 //
@@ -92,16 +92,48 @@
 //
 // Div and Sqrt compute at the default scale (SetDefaultScale, MaxScale by default) and
 // then apply the ideal scale of an exact result: 1/2 is 0.5, 1.00/2 is 0.50, and 1/3
-// keeps all its places. MulRound, DivRound and SqrtRound take the scale and the rounding
-// mode per call and return exactly that scale, computed in one step with an exact
-// rounding decision:
+// keeps all its places. AddRound, SubRound, MulRound, DivRound and SqrtRound take the
+// scale and the rounding mode per call and return exactly that scale, computed in one
+// step with an exact rounding decision:
 //
 //	rate := annual.DivRound(daysInYear, 12, ROUND_HALF_AWAY_FROM_ZERO)
 //	fee := amount.MulRound(rate, 2, ROUND_BANK)
 //
+// MulAddRound is the fused form of the pair: d*b + c with the product held exactly and
+// the sum rounded once, which is what a chain of multiply-accumulate wants. Accumulator
+// is the same idea over an unbounded number of terms: Add and AddMul are exact, Total is
+// the only rounding, and the total does not depend on the order the terms arrived in, so
+// "the parts add up to the whole" is an exact assertion rather than an epsilon check.
+// Sum is that accumulator with the scale rule applied at the end instead.
+//
+// PowIntRound does the same for a power: it keeps the running product at up to 57
+// decimal places, half as many again as a coefficient holds, and rounds once at the end.
+// PowInt64 shares that core and differs only in taking the scale from the scale rule and
+// the mode from SetArithmeticRounding rather than per call.
+//
 // The Round* methods round to at most the given number of places and leave a shorter
 // value unchanged; RescaleRound(places, mode) is the "exactly n places" operation, the
 // equivalent of PostgreSQL's round(x, n). Rescale pads or truncates without rounding.
+//
+// Two grids are not a scale of the type. RoundToPlaces takes a negative number of places,
+// for the currencies with no minor unit and the disclosure rounding several jurisdictions
+// require, and RoundToMultiple rounds to a multiple of any positive value, which is Swiss
+// and Swedish cash rounding to 0.05 and the "up to the next whole ten" of retail lending.
+// ScaleByPow10 moves the decimal point exactly, so a percentage or a basis point becomes a
+// fraction without a division.
+//
+// # Splitting an amount
+//
+// Allocate divides a value into shares proportional to a list of ratios, and Split into n
+// equal ones, by the largest-remainder method: every share gets the whole quanta its exact
+// proportion is worth, and the quanta the truncations leave over go one each to the
+// largest fractions, ties to the lowest index. The shares sum to the original value
+// exactly, so a reconciliation is an equality and not an epsilon:
+//
+//	shares, ok := fee.Allocate([]Dec128{partyA, partyB, partyC}, 2)
+//
+// AppendAllocate and AppendSplit append to a slice the caller keeps, and a split of up to
+// 32 ways then costs no allocation.
 //
 // # Rounding modes
 //
@@ -132,6 +164,45 @@
 // its one difference from v1.0.20: it applies to Div and Sqrt too, so 1/3 and Sqrt(2)
 // become NaN(Inexact) where v1.0.20 truncated them at the default scale. A program that
 // sets both must call SetLossPolicy second.
+//
+// # The global-free subset
+//
+// Three of the five process-global settings can change the value an operation returns:
+// SetDefaultScale, SetArithmeticRounding and SetLossPolicy. Code that must produce the
+// same bytes in every process, whatever some other package passed to those functions at
+// init time, has to keep to the operations that never read them.
+//
+// These operations do read them, and are therefore outside the subset:
+//
+//	Add, Sub, Mul and their Int forms, when the exact result does not fit
+//	Div, Sqrt, PowInt, PowInt64 and their Int forms, always
+//	Sum, Avg
+//	EncodeIEEE, when the coefficient needs more than 34 digits
+//
+// Everything else is global-free. In particular the whole *Round family, which takes the
+// scale and the rounding mode per call and is the deterministic spelling of the four
+// basic operations:
+//
+//	AddRound, SubRound, MulRound, MulAddRound, DivRound, DivRoundInexact, SqrtRound, PowIntRound
+//	Accumulator and its methods
+//	QuoRem, Mod and their Int forms, which are exact
+//	Round and the Round* methods, RoundToPlaces, RoundToMultiple, Trunc, Rescale, RescaleRound
+//	ScaleByPow10, Allocate, AppendAllocate, Split, AppendSplit
+//	Abs, Neg, Compare, Equal, the comparison predicates, Canonical
+//	the From* constructors, the String and Append forms, and the Encode/Decode codecs
+//	other than EncodeIEEE
+//
+// The list is a maintained API contract, and TestGlobalFreeSubset holds it to that: it
+// runs every method named here under a matrix of the three settings and requires the
+// results to be identical.
+//
+// Determinism has one requirement beyond this list: do not use FromFloat64 or
+// InexactFloat64 inside a calculation. They are legitimate at a system boundary, but
+// binary floating point is where architecture-dependent results come from.
+//
+// The two remaining globals affect text and SQL rather than arithmetic. String,
+// StringFixed and the Marshal and Value methods read SetTrimOutput; Scan(nil) and
+// UnmarshalJSON("null") read SetNullValue.
 //
 // # Text and interchange
 //

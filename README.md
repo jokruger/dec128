@@ -33,7 +33,11 @@ the test suite checks it against PostgreSQL digit for digit.
 - [x] Conversion to fixed string representation (e.g. 1.0000 -> "1.0000")
 - [x] Conversion to human-readable string representation (e.g. 1.0000 -> "1")
 - [x] Scientific notation: parsed by `FromString`, printed on request (e.g. "1.5e3" -> 1500, 12345 -> "1.2345e+4")
-- [x] Per-call scale and rounding mode for multiplication, division and square root (`MulRound`, `DivRound`, `SqrtRound`)
+- [x] Per-call scale and rounding mode for every operation (`AddRound`, `SubRound`, `MulRound`, `DivRound`, `SqrtRound`, `PowIntRound`) -- a documented subset that reads no global configuration, so the same inputs give the same bytes in every process
+- [x] Fused multiply-add (`MulAddRound`) and a wide exact accumulator (`Accumulator`, with `AddMul`): a chain of multiply-accumulate rounds once, not once per term
+- [x] Integer powers with guard digits (`PowIntRound`): `(1+r)^360` correctly rounded rather than carrying a dozen roundings
+- [x] Exact splitting of an amount (`Allocate`, `Split`): the shares sum to the whole, digit for digit
+- [x] Rounding to a negative number of places and to a multiple (`RoundToPlaces`, `RoundToMultiple`) for cash rounding and disclosure rules
 - [x] Interchange codecs: PostgreSQL `numeric` binary, IEEE 754 decimal128 (BID), Arrow/Parquet int128
 - [x] Configurable SQL `NULL` / JSON `null` handling that round-trips (`SetNullValue`)
 
@@ -244,6 +248,69 @@ dec128.FromString("1.5").RescaleRound(2, dec128.ROUND_BANK)      // 1.50
 dec128.FromString("200").DivRound(dec128.FromInt64(3), 2, dec128.ROUND_HALF_AWAY_FROM_ZERO) // 66.67
 ```
 
+## Determinism: the global-free subset
+
+Three of the five process-global settings can change the value an operation returns: `SetDefaultScale`,
+`SetArithmeticRounding` and `SetLossPolicy`. A library that must produce the same bytes in every process, whatever
+some other package passed to those functions at init time, cannot use the operations that read them.
+
+`dec128` therefore documents and tests a **global-free subset**. It excludes `Add`, `Sub` and `Mul` when the exact
+result does not fit, `Div`, `Sqrt`, `PowInt64`, `Sum`, `Avg` and `EncodeIEEE`, and includes everything else --
+in particular the whole `*Round` family, `Accumulator`, `QuoRem`, `Mod`, the `Round*` methods, `Allocate` and the
+codecs. `TestGlobalFreeSubset` runs every operation on the list under the whole matrix of the three settings and
+requires the results to be bit-identical; its complement checks that the operations left out really do depend on
+them. The package documentation carries the maintained list.
+
+## Fused and exact operations
+
+Every intermediate rounding is a place where two implementations can diverge and where bias accumulates, so the
+operations a financial formula leans on have forms that round once.
+
+```go
+// d*b + c with the product held exactly and one rounding, instead of three
+pv := principal.MulAddRound(rate, fee, 2, dec128.ROUND_BANK)
+
+// a sum of products that is exact until Total: NPV, weighted averages, schedule reconciliation
+acc := dec128.NewAccumulator(2)
+for i, cf := range cashflows {
+    acc.AddMul(cf, discountFactors[i])
+}
+npv := acc.Total(2, dec128.ROUND_HALF_AWAY_FROM_ZERO)
+
+// compounding with guard digits: the running product carries 57 places, not 19
+factor := dec128.FromString("1.000164383561643836").PowIntRound(3650, 19, dec128.ROUND_HALF_AWAY_FROM_ZERO)
+```
+
+`Accumulator` is the one mutable type in the package, and deliberately so: positive and negative terms are kept apart
+and cancelled once, at the end, so the total does not depend on the order the terms arrived in. Its zero value is a
+usable empty accumulator, `Sum` is built on it, and nothing in it reads the globals.
+
+## Splitting an amount
+
+`Allocate` divides a value into shares proportional to a list of ratios, and `Split` into `n` equal ones, by the
+largest-remainder method: every share gets the whole quanta its exact proportion is worth, and the quanta left over go
+one each to the largest fractions, ties to the lowest index. The shares sum to the original value **exactly**, so a
+reconciliation is an equality and not an epsilon check.
+
+```go
+shares, ok := dec128.FromString("100.00").Allocate([]dec128.Dec128{one, one, one}, 2)
+// 33.34, 33.33, 33.33 -- and Sum(shares...) is exactly 100.00
+
+parts, ok := dec128.FromString("0.05").Split(3, 2)  // 0.02, 0.02, 0.01
+```
+
+`AppendAllocate` and `AppendSplit` append to a slice the caller keeps; a split of up to 32 ways then allocates
+nothing.
+
+## Grids that are not a scale
+
+```go
+dec128.FromString("2.37").RoundToMultiple(five, dec128.ROUND_HALF_AWAY_FROM_ZERO) // 2.35, Swiss cash rounding
+dec128.FromString("183.47").RoundToMultiple(ten, dec128.ROUND_UP)                 // 190, the next whole ten
+dec128.FromString("1234567").RoundToPlaces(-3, dec128.ROUND_HALF_AWAY_FROM_ZERO)  // 1235000
+dec128.FromString("5.25").ScaleByPow10(-2)                                        // 0.0525, no division
+```
+
 ## Text output
 
 `String` removes trailing zeros; `StringFixed` keeps the value's scale. `Value` (for `database/sql`), `MarshalJSON`
@@ -369,8 +436,8 @@ The 128-bit budget is a deliberate trade, not an oversight. Reach for `math/big`
   wei amounts at full precision, factorials and unbounded exponentiation do not fit.
 - **You need arbitrary precision or the full IEEE 754-2008 condition model.** `apd` implements the General Decimal
   Arithmetic specification with contexts, traps and conditions; `dec128` implements SQL `NUMERIC` in 128 bits.
-- **You need transcendental functions.** `Sqrt` and integer `PowInt` are the extent of it: no `Ln`, `Exp`,
-  `Log10` or fractional powers.
+- **You need transcendental functions.** `Sqrt` and the integer powers `PowInt` and `PowIntRound` are the extent of
+  it: no `Ln`, `Exp`, `Log10` or fractional powers.
 - **You want the compiler to make you handle failure.** Arithmetic returns a NaN, not an `error`, so nothing
   forces a check. That is the point of the design, and it is the wrong design for a codebase that relies on
   `errcheck` to catch mistakes.
@@ -406,9 +473,12 @@ Verified against `shopspring/decimal` v1.4.0. Every mapping below was checked by
 | `d.DivRound(x, precision int32)` | `d.DivRound(x, scale uint8, mode)` | rounding mode is explicit, never global |
 | `d.QuoRem(x, precision int32)` | `d.QuoRem(x)` | no precision argument: the quotient is always an integer |
 | `d.Mod(x)` | `d.Mod(x)` | identical |
-| `d.Pow(x Decimal)`, `d.PowInt32(n)` | `d.PowInt(n)` | integer exponents only; no `PowWithPrecision`, `Ln`, `ExpHullAbrham`, `Atan` or fractional powers |
+| `d.Pow(x Decimal)`, `d.PowInt32(n)` | `d.PowInt(n)`, `d.PowIntRound(n, scale, mode)` | integer exponents only; no `PowWithPrecision`, `Ln`, `ExpHullAbrham`, `Atan` or fractional powers. Both keep the running product at 57 places and round once |
+| — | `d.MulAddRound(b, c, scale, mode)` | fused multiply-add; shopspring has no fused form |
+| — | `dec128.NewAccumulator(scale)` | an exact wide running total with `Add`, `AddMul` and one rounding in `Total` |
 | — | `d.Sqrt()`, `d.SqrtRound(scale, mode)` | shopspring has no square root |
 | `decimal.Sum/Avg/Min/Max(first, rest...)` | `dec128.Sum/Avg/Min/Max(a, b...)` | identical shape |
+| — | `d.Allocate(ratios, scale)`, `d.Split(n, scale)` | exact splitting; shopspring has neither |
 
 ### Comparison
 
@@ -429,7 +499,8 @@ Verified against `shopspring/decimal` v1.4.0. Every mapping below was checked by
 | `d.RoundDown(n)` | `d.RoundTowardZero(n)` | **not** `RoundDown` -- see the warning above |
 | `d.RoundCeil(n)` | `d.RoundUp(n)` | both are toward +infinity |
 | `d.RoundFloor(n)` | `d.RoundDown(n)` | both are toward -infinity |
-| `d.RoundCash(interval)` | — | no Swiss-rounding equivalent |
+| `d.RoundCash(interval)` | `d.RoundToMultiple(m, mode)` | any positive multiple, not only the five shopspring intervals, and the mode is explicit |
+| — | `d.RoundToPlaces(places int8, mode)` | `places` may be negative: rounding to the nearest hundred or thousand |
 
 ### Output and conversion
 

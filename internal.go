@@ -231,6 +231,38 @@ func (d Dec128) addExact(other Dec128) (sum widened, scale uint8, st state.State
 	}
 }
 
+// at brings the exact 192-bit magnitude a, which stands at the scale needed, to exactly the scale target, rounding
+// with mode for a result of sign st. It is the tail of AddRound and SubRound: the target is at most MaxScale and the
+// needed scale is one of the operands' own, so the reduction is never by more than 10^MaxScale.
+func (a widened) at(needed, target uint8, st state.State, mode RoundingMode) Dec128 {
+	if target >= needed {
+		// padding with zeros, which only a value that already needs all 128 bits can fail
+		if a.hi != 0 {
+			return Dec128{state: state.Overflow}
+		}
+		if a.lo.IsZero() {
+			return Dec128{scale: target}
+		}
+		coef, s := a.lo.Mul64(Pow10Uint64[target-needed])
+		if s >= state.Error {
+			return Dec128{state: state.Overflow}
+		}
+		return Dec128{coef: coef, scale: target, state: st}
+	}
+
+	q, overflow, inexact := reduceWide(a.lo, uint128.Uint128{Lo: a.hi}, needed-target, st, mode)
+	switch {
+	case overflow:
+		return Dec128{state: state.Overflow}
+	case inexact && mode == ROUND_NAN:
+		return Dec128{state: state.Inexact}
+	case q.IsZero():
+		return Dec128{scale: target} // a zero is never negative
+	}
+
+	return Dec128{coef: q, scale: target, state: st}
+}
+
 // divAt returns |d| / |other| scaled to exactly the given scale and rounded with mode, for a result of sign
 // st. overflow reports that the quotient does not fit in 128 bits; inexact that a nonzero remainder was discarded.
 // Requires d.coef != 0, other.coef != 0 and scale <= MaxScale.

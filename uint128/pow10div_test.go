@@ -118,3 +118,51 @@ func FuzzQuoRemPow10Reciprocal(f *testing.F) {
 
 func add1(v Uint128) Uint128 { r, _ := v.Add64(1); return r }
 func sub1(v Uint128) Uint128 { r, _ := v.Sub64(1); return r }
+
+// Pow10Reciprocal and Div2By1Unsafe are the primitives a caller outside the package uses to divide a value of any
+// width by a power of ten. The test drives them exactly as such a caller would, over a three-limb dividend, and
+// compares with math/big.
+func TestPow10ReciprocalAndDiv2By1(t *testing.T) {
+	if _, _, _, ok := Pow10Reciprocal(0); ok {
+		t.Error("10^0 is not a divisor this table serves")
+	}
+	if _, _, _, ok := Pow10Reciprocal(20); ok {
+		t.Error("10^20 does not fit a limb and must be refused")
+	}
+
+	r := rand.New(rand.NewSource(20260921))
+	for range 20000 {
+		limbs := [3]uint64{r.Uint64(), r.Uint64(), r.Uint64() >> uint(r.Intn(64))}
+		k := uint8(1 + r.Intn(19))
+
+		dn, v, shift, ok := Pow10Reciprocal(k)
+		if !ok {
+			t.Fatalf("Pow10Reciprocal(%d) not available", k)
+		}
+		s := uint(shift)
+
+		// normalize, one division step per limb from the top, denormalize the remainder
+		var q [3]uint64
+		rem := limbs[2] >> (64 - s)
+		for i := 2; i >= 0; i-- {
+			u := limbs[i] << s
+			if i > 0 {
+				u |= limbs[i-1] >> (64 - s)
+			}
+			q[i], rem = Div2By1Unsafe(rem, u, dn, v)
+		}
+
+		n := new(big.Int)
+		for i := 2; i >= 0; i-- {
+			n.Lsh(n, 64).Or(n, new(big.Int).SetUint64(limbs[i]))
+		}
+		gotQ := new(big.Int)
+		for i := 2; i >= 0; i-- {
+			gotQ.Lsh(gotQ, 64).Or(gotQ, new(big.Int).SetUint64(q[i]))
+		}
+		wantQ, wantR := new(big.Int).QuoRem(n, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(k)), nil), new(big.Int))
+		if gotQ.Cmp(wantQ) != 0 || wantR.Uint64() != rem>>s {
+			t.Fatalf("%s / 10^%d = %s rem %d, want %s rem %s", n, k, gotQ, rem>>s, wantQ, wantR)
+		}
+	}
+}

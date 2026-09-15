@@ -295,3 +295,83 @@ func ExampleDec128_EncodePgNumeric() {
 	// 000200000000000200011388
 	// 1.50
 }
+
+func ExampleAccumulator() {
+	// The present value of three cashflows, discounted by factors carried to full precision. Each term is a product
+	// that is not representable on its own; the accumulator keeps them all exact and rounds once.
+	cashflows := []Dec128{FromString("1000.00"), FromString("1000.00"), FromString("1000.00")}
+	factors := []Dec128{
+		FromString("0.9523809523809523810"),
+		FromString("0.9070294784580498866"),
+		FromString("0.8638376937695713206"),
+	}
+
+	npv := NewAccumulator(2)
+	for i, cf := range cashflows {
+		npv.AddMul(cf, factors[i])
+	}
+	fmt.Println(npv.Count(), npv.Total(2, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// Output:
+	// 3 2723.25
+}
+
+func ExampleAccumulator_exact() {
+	// Splitting a payment three ways and adding the parts back is exact, because the accumulator never rounds a term.
+	third := FromString("0.3333333333333333333")
+
+	acc := NewAccumulator(2)
+	acc.Add(third)
+	acc.Add(third)
+	acc.Add(third)
+	fmt.Println(acc.Total(MaxScale, ROUND_BANK).StringFixed())
+	fmt.Println(acc.Total(2, ROUND_BANK).StringFixed())
+	// Output:
+	// 0.9999999999999999999
+	// 1.00
+}
+
+func ExampleDec128_PowIntRound() {
+	// Ten years of a 6% annual rate at daily rest, to the last place a Dec128 has. PowInt64 shares the same guarded
+	// core but takes the scale the scale rule gives it, and is one unit in the last place low here.
+	factor := FromString("1.000164383561643836")
+	fmt.Println(factor.PowIntRound(3650, MaxScale, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	fmt.Println(factor.PowInt64(3650).StringFixed())
+
+	// A negative exponent is the power of the reciprocal, so it is exact where the reciprocal is.
+	fmt.Println(FromString("0.5").PowIntRound(-100, 0, ROUND_BANK).StringFixed())
+	// Output:
+	// 1.8220289545384488980
+	// 1.8220289545384488979
+	// 1267650600228229401496703205376
+}
+
+func ExampleDec128_Allocate() {
+	// A fee split three ways: the odd cent goes to the largest remainder, and the parts add up to the whole.
+	fee := FromString("100.00")
+	shares, _ := fee.Allocate([]Dec128{FromInt64(1), FromInt64(1), FromInt64(1)}, 2)
+	fmt.Println(shares[0].StringFixed(), shares[1].StringFixed(), shares[2].StringFixed())
+	fmt.Println(Sum(shares[0], shares[1:]...).StringFixed())
+
+	// Weighted, at a finer scale than the amount itself.
+	shares, _ = FromString("1000.00").Allocate([]Dec128{FromString("0.5"), FromString("0.3"), FromString("0.2")}, 2)
+	fmt.Println(shares[0].StringFixed(), shares[1].StringFixed(), shares[2].StringFixed())
+	// Output:
+	// 33.34 33.33 33.33
+	// 100.00
+	// 500.00 300.00 200.00
+}
+
+func ExampleDec128_RoundToMultiple() {
+	// Swiss cash rounding to the nearest five centimes, and the retail-lending "next whole ten".
+	fmt.Println(FromString("2.37").RoundToMultiple(FromString("0.05"), ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	fmt.Println(FromString("183.47").RoundToMultiple(FromInt64(10), ROUND_UP).StringFixed())
+	// Disclosure rounding to the nearest thousand.
+	fmt.Println(FromString("1234567").RoundToPlaces(-3, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// A percentage as a fraction, without a division.
+	fmt.Println(FromString("5.25").ScaleByPow10(-2).StringFixed())
+	// Output:
+	// 2.35
+	// 190
+	// 1235000
+	// 0.0525
+}

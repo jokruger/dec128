@@ -13,14 +13,16 @@ import (
 // contract change that must update this table.
 
 var (
-	allocSinkDec   Dec128
-	allocSinkDec2  Dec128
-	allocSinkInt   int
-	allocSinkBool  bool
-	allocSinkStr   string
-	allocSinkBytes []byte
-	allocSinkErr   error
-	allocSinkAny   any
+	allocSinkDec    Dec128
+	allocSinkDec2   Dec128
+	allocSinkInt    int
+	allocSinkBool   bool
+	allocSinkStr    string
+	allocSinkBytes  []byte
+	allocSinkErr    error
+	allocSinkAny    any
+	allocSinkShares []Dec128
+	allocRatios     = []Dec128{FromInt64(1), FromInt64(2), FromInt64(3)}
 )
 
 func TestAllocationGates(t *testing.T) {
@@ -50,6 +52,7 @@ func TestAllocationGates(t *testing.T) {
 	var ieeeBuf [IEEEBytes]byte
 	_, _ = a.EncodeIEEE(ieeeBuf[:])
 	appendBuf := make([]byte, 0, 64)
+	allocSinkShares = make([]Dec128, 0, 8)
 
 	zero := []struct {
 		name string
@@ -64,6 +67,20 @@ func TestAllocationGates(t *testing.T) {
 		{"FromInt64", func() { allocSinkDec = FromInt64(-123456789) }},
 		{"FromFloat64", func() { allocSinkDec = FromFloat64(1234.5678) }},
 		{"Add", func() { allocSinkDec = a.Add(b) }},
+		{"AddRound", func() { allocSinkDec = a.AddRound(b, 2, ROUND_BANK) }},
+		{"SubRound", func() { allocSinkDec = a.SubRound(b, 2, ROUND_BANK) }},
+		{"MulAddRound", func() { allocSinkDec = a.MulAddRound(b, a, 2, ROUND_BANK) }},
+		{"MulAddRound wide", func() { allocSinkDec = nearMax.MulAddRound(nearMax, a, 2, ROUND_BANK) }},
+		{"PowIntRound", func() { allocSinkDec = FromString("1.05").PowIntRound(360, 10, ROUND_BANK) }},
+		{"PowIntRound negative", func() { allocSinkDec = FromString("1.05").PowIntRound(-360, 10, ROUND_BANK) }},
+		{"RoundToPlaces", func() { allocSinkDec = large.RoundToPlaces(-3, ROUND_BANK) }},
+		{"RoundToMultiple", func() { allocSinkDec = a.RoundToMultiple(FromString("0.05"), ROUND_BANK) }},
+		{"ScaleByPow10", func() { allocSinkDec = a.ScaleByPow10(-2) }},
+		{"DivRoundInexact", func() { allocSinkDec, allocSinkBool = a.DivRoundInexact(b, 2, ROUND_BANK) }},
+		{"AppendAllocate", func() {
+			allocSinkShares, allocSinkBool = a.AppendAllocate(allocSinkShares[:0], allocRatios, 4)
+		}},
+		{"AppendSplit", func() { allocSinkShares, allocSinkBool = a.AppendSplit(allocSinkShares[:0], 3, 4) }},
 		{"Add unaligned", func() { allocSinkDec = a.Add(large) }},
 		{"Sub", func() { allocSinkDec = a.Sub(b) }},
 		{"Mul", func() { allocSinkDec = a.Mul(b) }},
@@ -75,6 +92,14 @@ func TestAllocationGates(t *testing.T) {
 		{"QuoRem", func() { allocSinkDec, allocSinkDec2 = a.QuoRem(b) }},
 		{"Sqrt", func() { allocSinkDec = a.Sqrt() }},
 		{"Sum", func() { allocSinkDec = Sum(a, b, large, nearMax) }},
+		{"Accumulator", func() {
+			// the accumulator itself is a value the caller places; only NewAccumulator returns a pointer
+			var acc Accumulator
+			acc.Add(a)
+			acc.AddMul(b, large)
+			acc.Sub(nearMax)
+			allocSinkDec = acc.Total(2, ROUND_BANK)
+		}},
 		{"DivRound", func() { allocSinkDec = a.DivRound(b, 2, ROUND_HALF_AWAY_FROM_ZERO) }},
 		{"Div reduce", func() { allocSinkDec = nearMax.Div(FromString("0.001")) }},
 		{"SqrtRound", func() { allocSinkDec = a.SqrtRound(2, ROUND_BANK) }},

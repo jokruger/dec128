@@ -1,7 +1,6 @@
 package dec128
 
 import (
-	"math"
 	"math/bits"
 
 	"github.com/jokruger/dec128/state"
@@ -22,6 +21,29 @@ func (d Dec128) Add(other Dec128) Dec128 {
 		}
 	}
 	return d.addSlow(other)
+}
+
+// AddRound returns d + other at exactly the given scale, rounding with mode.
+// The exact sum is formed at the larger of the two scales and brought to scale in one step, so the rounding decision
+// is exact and is taken once. A coefficient that does not fit in 128 bits at that scale yields NaN(Overflow); under
+// ROUND_NAN a discarded nonzero digit yields NaN(Inexact). A scale above MaxScale yields NaN(ScaleOutOfRange), an
+// undefined mode NaN(InvalidRoundingMode), and NaN operands propagate.
+//
+// Unlike Add it reads no process-global configuration; see "The global-free subset" in the package documentation.
+func (d Dec128) AddRound(other Dec128, scale uint8, mode RoundingMode) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case other.state >= state.Error:
+		return other
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
+	case !mode.IsValid():
+		return Dec128{state: state.InvalidRoundingMode}
+	}
+
+	sum, needed, st := d.addExact(other)
+	return sum.at(needed, scale, st, mode)
 }
 
 // AddInt returns the sum of the Dec128 and the int.
@@ -56,6 +78,14 @@ func (d Dec128) Sub(other Dec128) Dec128 {
 		return Dec128{coef: mag, scale: d.scale, state: st}
 	}
 	return d.subSlow(other)
+}
+
+// SubRound returns d - other at exactly the given scale, rounding with mode; see AddRound for the rules.
+// Unlike Sub it reads no process-global configuration.
+func (d Dec128) SubRound(other Dec128, scale uint8, mode RoundingMode) Dec128 {
+	// d - other == d + (-other): Neg of a NaN is the same NaN and Neg of zero is zero, so the identity holds for
+	// every input, and AddRound validates the scale and the mode.
+	return d.AddRound(other.Neg(), scale, mode)
 }
 
 // SubInt returns the difference of the Dec128 and the int.
@@ -131,6 +161,48 @@ func (d Dec128) MulRound(other Dec128, scale uint8, mode RoundingMode) Dec128 {
 	}
 
 	return Dec128{coef: q, scale: scale, state: st}
+}
+
+// MulAddRound returns d*b + c at exactly the given scale, rounding with mode: the fused multiply-add.
+//
+// The product is formed exactly, the addend is aligned into the same intermediate, and the sum is brought to scale in
+// one step, so the result is rounded once. Writing it as d.Mul(b).Add(c).Round(scale, mode) rounds up to three times
+// and reads the process-global configuration on the way; this reads none of it. A chain of multiply-accumulate is
+// what almost every financial formula is - P*r*t, balance*(1+i) - pmt, a Newton step, Horner evaluation of a cashflow
+// polynomial - so the difference compounds.
+//
+// The failure modes are those of MulRound: NaN(Overflow) when the coefficient does not fit at scale, NaN(Inexact)
+// under ROUND_NAN when a nonzero digit would be discarded, NaN(ScaleOutOfRange) above MaxScale,
+// NaN(InvalidRoundingMode) for an undefined mode, and a NaN operand propagates - d first, then b, then c.
+func (d Dec128) MulAddRound(b, c Dec128, scale uint8, mode RoundingMode) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case b.state >= state.Error:
+		return b
+	case c.state >= state.Error:
+		return c
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
+	case !mode.IsValid():
+		return Dec128{state: state.InvalidRoundingMode}
+	}
+
+	lo, hi := d.coef.MulCarry(b.coef)
+	needed := d.scale + b.scale
+	st := signOf(d.state, b.state)
+	if lo.IsZero() && hi.IsZero() {
+		st = state.Default
+	}
+
+	// Fast path: the product is itself a representable value, so the fused operation is the exact product added to c
+	// in the 192-bit register that Add already uses, and the single rounding is the one AddRound takes.
+	if hi.IsZero() && needed <= MaxScale {
+		sum, sumScale, sumSt := Dec128{coef: lo, scale: needed, state: st}.addExact(c)
+		return sum.at(sumScale, scale, sumSt, mode)
+	}
+
+	return mulAddSlow(lo, hi, needed, st, c, scale, mode)
 }
 
 // MulInt returns d * other.
@@ -232,34 +304,46 @@ func idealDivScale(s1, s2 uint8) uint8 {
 // that scale does not fit in 128 bits the result is NaN(Overflow); under ROUND_NAN a nonzero remainder yields
 // NaN(Inexact). Division by zero yields NaN(DivisionByZero), a scale above MaxScale NaN(ScaleOutOfRange), an
 // undefined mode NaN(InvalidRoundingMode), and NaN operands propagate.
+// Use DivRoundInexact to learn whether the quotient was exact without losing it.
 func (d Dec128) DivRound(other Dec128, scale uint8, mode RoundingMode) Dec128 {
+	q, _ := d.DivRoundInexact(other, scale, mode)
+	return q
+}
+
+// DivRoundInexact is DivRound with the fact it already knows: whether a nonzero remainder had to be discarded.
+//
+// ROUND_NAN and LossNaNOnInexact can tell a caller that a quotient was not exact, but only by throwing the quotient
+// away. A solver needs both - the rounded value to carry on from, and the knowledge that it is not the exact one - and
+// the alternative is to divide twice under two modes and compare, which doubles the cost of every step. The flag is
+// false whenever the result is NaN, including for a NaN operand and for an argument the method rejects.
+func (d Dec128) DivRoundInexact(other Dec128, scale uint8, mode RoundingMode) (Dec128, bool) {
 	switch {
 	case d.state >= state.Error:
-		return d
+		return d, false
 	case other.state >= state.Error:
-		return other
+		return other, false
 	case scale > MaxScale:
-		return Dec128{state: state.ScaleOutOfRange}
+		return Dec128{state: state.ScaleOutOfRange}, false
 	case !mode.IsValid():
-		return Dec128{state: state.InvalidRoundingMode}
+		return Dec128{state: state.InvalidRoundingMode}, false
 	case other.coef.IsZero():
-		return Dec128{state: state.DivisionByZero}
+		return Dec128{state: state.DivisionByZero}, false
 	case d.coef.IsZero():
-		return Dec128{scale: scale}
+		return Dec128{scale: scale}, false
 	}
 
 	st := signOf(d.state, other.state)
 	q, overflow, inexact := d.divAt(other, scale, st, mode)
 	switch {
 	case overflow:
-		return Dec128{state: state.Overflow}
+		return Dec128{state: state.Overflow}, false
 	case inexact && mode == ROUND_NAN:
-		return Dec128{state: state.Inexact}
+		return Dec128{state: state.Inexact}, false
 	case q.IsZero():
-		return Dec128{scale: scale}
+		return Dec128{scale: scale}, inexact
 	}
 
-	return Dec128{coef: q, scale: scale, state: st}
+	return Dec128{coef: q, scale: scale, state: st}, inexact
 }
 
 // DivInt returns d / other.
@@ -429,34 +513,50 @@ func (d Dec128) PowInt(n int) Dec128 {
 	return d.PowInt64(int64(n))
 }
 
-// PowInt64 returns Dec128 raised to the power of n, by repeated squaring with each product rounded to fit like Mul.
-// d^0 is 1 for every d including 0. A negative n yields 1 / d^-n at the default scale, so it is inexact and rounded
-// like Div; 0 to a negative power is NaN(DivisionByZero), and a power whose reciprocal does not fit is NaN(Overflow).
-// NaN propagates.
+// PowInt64 returns Dec128 raised to the power of n, at the scale the scale rule gives the result and rounded with the
+// mode set by SetArithmeticRounding.
+//
+// It shares the guarded core of PowIntRound, so the running product carries up to 57 decimal places and the result is
+// rounded once rather than at every squaring; only the choice of the result scale differs, this one taking the
+// largest scale at which the result fits rather than a scale given per call. d^0 is 1 for every d including 0. A
+// negative n is the power of the reciprocal; 0 to a negative power is NaN(DivisionByZero), and a result whose integer
+// part does not fit is NaN(Overflow). NaN propagates.
+//
+// Prefer PowIntRound in new code: it takes the scale and the rounding mode per call and reads no process-global
+// configuration.
 func (d Dec128) PowInt64(n int64) Dec128 {
 	switch {
 	case d.state >= state.Error:
 		return d
-	case n < 0:
-		var r Dec128
-		if n == math.MinInt64 {
-			// -n does not fit an int64; d^(2^63) is d^(2^63-1) * d
-			r = d.PowInt64(math.MaxInt64).Mul(d)
-		} else {
-			r = d.PowInt64(-n)
-		}
-		if r.IsZero() && !d.IsZero() {
-			// the positive power rounded to zero, so its reciprocal does not fit
-			return Dec128{state: state.Overflow}
-		}
-		return One.Div(r)
 	case n == 0:
 		return One
-	case n == 1:
-		return d
-	case (n & 1) == 0:
-		return d.Mul(d).PowInt64(n / 2)
-	default:
-		return d.Mul(d).PowInt64((n - 1) / 2).Mul(d)
+	case d.coef.IsZero() && n < 0:
+		return Dec128{state: state.DivisionByZero}
 	}
+
+	// |n| as a magnitude: negating in uint64 is correct for math.MinInt64 as well
+	m := uint64(n)
+	if n < 0 {
+		m = -m
+	}
+
+	st := state.Default
+	if d.state == state.Neg && m&1 == 1 {
+		st = state.Neg
+	}
+
+	coef, workScale := wideFrom128(d.coef), d.scale
+	inexact := false
+	if n < 0 {
+		coef, workScale, inexact = reciprocalGuard(d.coef, d.scale)
+	}
+
+	coef, workScale, dropped, ok := powMagnitude(coef, workScale, m)
+	if !ok {
+		return Dec128{state: state.Overflow}
+	}
+
+	// The sticky flag carries the digits the core dropped while squaring, so the loss policy rules on the whole
+	// computation and not only on the final reduction.
+	return coef.fit(workScale, st, arithmeticRounding, lossPolicy, inexact || dropped)
 }

@@ -113,3 +113,28 @@ func QuoRem256ByPow10(lo, hi Uint128, k uint8) (q Uint128, r uint64, ok bool) {
 	q0, r0 := div2by1(r1, n0, e.dn, e.v)
 	return Uint128{Lo: q0, Hi: q1}, r0 >> s, true
 }
+
+// Pow10Reciprocal returns what is needed to divide by 10^k without a hardware divide: the normalized divisor
+// dn = 10^k << s, whose top bit is set, the Moller-Granlund reciprocal v of dn, and the normalization shift s.
+// ok is false for a k outside 1..19, in which case the other results are zero.
+//
+// It is exported together with Div2By1Unsafe so that a caller can divide a value of any width by a power of ten with
+// the same reciprocals this package uses internally: normalize the dividend by s, run one Div2By1Unsafe per limb from
+// the most significant down, carrying the remainder, and shift the final remainder right by s. The decimal layer does
+// exactly that for the 384-bit intermediates of its fused operations.
+func Pow10Reciprocal(k uint8) (dn, v uint64, s uint8, ok bool) {
+	if k == 0 || int(k) >= len(pow10DivTab) {
+		return 0, 0, 0, false
+	}
+	e := &pow10DivTab[k]
+	return e.dn, e.v, e.s, true
+}
+
+// Div2By1Unsafe divides the 128-bit value {u1, u0} by the normalized divisor dn with reciprocal v, both as returned by
+// Pow10Reciprocal, and returns the 64-bit quotient and the remainder.
+//
+// It requires u1 < dn, which also implies that the quotient fits in one limb. The result is wrong rather than
+// reported, as the name says, when that does not hold; SubUnsafe is the same bargain.
+func Div2By1Unsafe(u1, u0, dn, v uint64) (q, r uint64) {
+	return div2by1(u1, u0, dn, v)
+}

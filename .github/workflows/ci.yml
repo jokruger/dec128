@@ -5,8 +5,18 @@ on:
 
 jobs:
   test:
-    name: Run tests and collect coverage
-    runs-on: ubuntu-latest
+    name: Run tests and collect coverage (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            coverage: true
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            coverage: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,7 +32,11 @@ jobs:
       - name: Run tests
         run: go test -coverprofile=coverage.txt ./...
 
+      - name: Run tests in a shuffled order
+        run: go test -shuffle=on ./...
+
       - name: Upload results to Codecov
+        if: matrix.coverage
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
