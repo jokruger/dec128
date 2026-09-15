@@ -139,6 +139,17 @@ func (d Dec128) ScaleByPow10(k int) Dec128 {
 		return d
 	}
 
+	// The reachable window is narrow, and deciding the outside of it first is what keeps the subtraction below from
+	// wrapping for a k near the ends of an int. Growing needs coef * 10^(k-scale) to fit 128 bits, so k is at most
+	// 38 + scale <= 3*MaxScale; shrinking needs scale + k places, so -k is at most 38 + (MaxScale - scale) <=
+	// 3*MaxScale. One step past either end is an overflow or an underflow whatever the coefficient is.
+	switch {
+	case k > 3*int(MaxScale):
+		return Dec128{state: state.Overflow}
+	case k < -3*int(MaxScale):
+		return Dec128{state: state.Underflow}
+	}
+
 	t := int(d.scale) - k // the scale the result wants
 	switch {
 	case t >= 0 && t <= int(MaxScale):
@@ -170,4 +181,47 @@ func (d Dec128) ScaleByPow10(k int) Dec128 {
 		}
 		return Dec128{coef: coef, scale: MaxScale, state: d.state}
 	}
+}
+
+// RoundToSignificant rounds d to at most the given number of significant digits with mode.
+//
+// It is the grid a rate is quoted on rather than the one an amount is held on: an FX rate to five significant digits
+// is 1.0987 at parity and 0.0000109 for a currency with a small unit, which no number of decimal places describes.
+// It is also the precision-based rounding of IEEE 754 decimal arithmetic, where dec128 otherwise works to a scale.
+//
+// A value that already has no more significant digits than asked for is returned unchanged, as the Round* methods
+// leave a shorter value alone. Zero has no significant digits and is returned unchanged.
+//
+// What the result is, exactly, is the value rounded at the decimal position that leaves the requested number of
+// digits - and that is all a scale-based type can promise, because rounding can carry into a new digit that no scale
+// can then drop: 9.99 to two significant digits is 10.0 and 999 to one is 1000, since neither 10 nor 1000 can be
+// written with a leading digit and an exponent here. Use Canonical if the trailing zeros of such a result are
+// unwanted.
+//
+// digits == 0 is NaN(DomainError), an undefined mode NaN(InvalidRoundingMode), a result that no longer fits
+// NaN(Overflow), and under ROUND_NAN a discarded nonzero digit NaN(Inexact). NaN propagates. It reads no
+// process-global configuration.
+func (d Dec128) RoundToSignificant(digits uint8, mode RoundingMode) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case !mode.IsValid():
+		return Dec128{state: state.InvalidRoundingMode}
+	case digits == 0:
+		return Dec128{state: state.DomainError}
+	}
+
+	p := d.SignificantDigits()
+	if p <= int(digits) {
+		return d
+	}
+
+	// The digits to drop, expressed as the number of decimal places to keep, which RoundToPlaces takes negative when
+	// the cut falls to the left of the point.
+	places := int(d.scale) - (p - int(digits))
+	if places >= 0 {
+		return d.Round(uint8(places), mode)
+	}
+
+	return d.RoundToPlaces(int8(places), mode)
 }

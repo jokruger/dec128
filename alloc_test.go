@@ -140,6 +140,33 @@ func TestAllocationGates(t *testing.T) {
 		{"Scan(nil)", func() { allocSinkErr = allocSinkDec.Scan(nilAny) }},
 		{"Int64", func() { _, allocSinkErr = a.Int64() }},
 		{"InexactFloat64", func() { _, allocSinkErr = a.InexactFloat64() }},
+		{"AppendAllocateResidual", func() {
+			allocSinkShares, allocSinkBool = a.AppendAllocateResidual(allocSinkShares[:0], allocRatios, 4, 1, ROUND_BANK)
+		}},
+		{"AppendSplitResidual", func() {
+			allocSinkShares, allocSinkBool = a.AppendSplitResidual(allocSinkShares[:0], 3, 4, 2, ROUND_BANK)
+		}},
+		{"Accumulator.Mean", func() {
+			var acc Accumulator
+			acc.Add(a)
+			acc.AddMul(b, large)
+			allocSinkDec = acc.Mean(2, ROUND_BANK)
+		}},
+		{"Accumulator.Reset", func() {
+			var acc Accumulator
+			acc.Add(a)
+			acc.Reset()
+			allocSinkDec = acc.Total(2, ROUND_BANK)
+		}},
+		{"SumSlice", func() { allocSinkDec = SumSlice(allocRatios) }},
+		{"SignificantDigits", func() { allocSinkInt = large.SignificantDigits() }},
+		{"IntegerDigits", func() { allocSinkInt = large.IntegerDigits() }},
+		{"FitsNumeric", func() { allocSinkBool = large.FitsNumeric(20, 4) }},
+		{"IsInteger", func() { allocSinkBool = a.IsInteger() }},
+		{"IntFrac", func() { allocSinkDec, allocSinkDec2 = a.IntFrac() }},
+		{"Clamp", func() { allocSinkDec = a.Clamp(Zero, b) }},
+		{"RoundToSignificant", func() { allocSinkDec = large.RoundToSignificant(5, ROUND_BANK) }},
+		{"RescaleRoundInexact", func() { allocSinkDec, allocSinkBool = a.RescaleRoundInexact(2, ROUND_BANK) }},
 	}
 	for _, c := range zero {
 		if got := testing.AllocsPerRun(100, c.fn); got != 0 {
@@ -191,5 +218,29 @@ func TestAllocationGates(t *testing.T) {
 	// driver.Value: the string plus boxing it into the interface.
 	if got := testing.AllocsPerRun(100, func() { allocSinkAny, allocSinkErr = a.Value() }); got > 2 {
 		t.Errorf("Value: %v allocs/op, want at most 2", got)
+	}
+
+	// NthRootRound is the one operation that is documented to allocate, because the exact comparison its rounding
+	// decision needs is wider than any register the package keeps. The gate is a ceiling rather than a count: it
+	// exists so that a change of algorithm that made it allocate per digit would be noticed.
+	if got := testing.AllocsPerRun(100, func() { allocSinkDec = a.NthRootRound(3, 6, ROUND_BANK) }); got > 60 {
+		t.Errorf("NthRootRound: %v allocs/op, want at most 60", got)
+	}
+	if got := testing.AllocsPerRun(20, func() { allocSinkDec = a.NthRootRound(365, 19, ROUND_BANK) }); got > 150 {
+		t.Errorf("NthRootRound at degree 365: %v allocs/op, want at most 150", got)
+	}
+	// ... and the degrees it refuses cost nothing at all, because they are refused before any of that
+	for _, c := range []struct {
+		name string
+		fn   func()
+	}{
+		{"NthRootRound n=1", func() { allocSinkDec = a.NthRootRound(1, 6, ROUND_BANK) }},
+		{"NthRootRound n=0", func() { allocSinkDec = a.NthRootRound(0, 6, ROUND_BANK) }},
+		{"NthRootRound of zero", func() { allocSinkDec = Zero.NthRootRound(3, 6, ROUND_BANK) }},
+		{"NthRootRound of a NaN", func() { allocSinkDec = nanVal.NthRootRound(3, 6, ROUND_BANK) }},
+	} {
+		if got := testing.AllocsPerRun(100, c.fn); got != 0 {
+			t.Errorf("%s: %v allocs/op, want 0", c.name, got)
+		}
 	}
 }

@@ -1,6 +1,7 @@
 package dec128
 
 import (
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -358,6 +359,209 @@ func TestDivRoundInexact(t *testing.T) {
 		got, inexact := c.a.DivRoundInexact(c.b, c.scale, c.mode)
 		if !got.IsNaN() || inexact {
 			t.Errorf("%s = %v, inexact %v", c.what, got, inexact)
+		}
+	}
+}
+
+// ScaleByPow10 takes a plain int, so the ends of that int are inputs like any other and must be answered rather than
+// indexed with. They used to reach the power tables through a subtraction that wrapped.
+func TestScaleByPow10Extremes(t *testing.T) {
+	for _, c := range []struct {
+		d    Dec128
+		k    int
+		want state.State
+	}{
+		{One, math.MinInt, state.Underflow},
+		{One, math.MaxInt, state.Overflow},
+		{One, math.MinInt + int(MaxScale), state.Underflow},
+		{One, math.MaxInt - int(MaxScale), state.Overflow},
+		{MaxAtScale(MaxScale), math.MinInt, state.Underflow},
+		{MaxAtScale(MaxScale), math.MaxInt, state.Overflow},
+		{QuantumAtScale(MaxScale), math.MinInt, state.Underflow},
+		{FromString("-1.5"), math.MinInt, state.Underflow},
+		{FromString("-1.5"), math.MaxInt, state.Overflow},
+		// one step past each end of the reachable window
+		{One, 3*int(MaxScale) + 1, state.Overflow},
+		{One, -3*int(MaxScale) - 1, state.Underflow},
+	} {
+		if got := c.d.ScaleByPow10(c.k); got.state != c.want {
+			t.Errorf("ScaleByPow10(%s, %d) = %v (%v), want NaN(%s)", c.d.StringFixed(), c.k, got, got.ErrorDetails(), c.want)
+		}
+	}
+
+	// A zero and a NaN answer before the window is considered at all, so they are unaffected by the ends.
+	for _, k := range []int{math.MinInt, math.MaxInt, 0} {
+		if got := Zero.ScaleByPow10(k); !got.IsZero() {
+			t.Errorf("ScaleByPow10(0, %d) = %v", k, got)
+		}
+		if got := NaN(state.DomainError).ScaleByPow10(k); got.state != state.DomainError {
+			t.Errorf("ScaleByPow10(NaN, %d) = %v", k, got)
+		}
+	}
+
+	// The window itself is not narrower than it needs to be: the largest growth and the deepest shrink that a value
+	// can still survive are both inside it.
+	if got := FromString("0.1").ScaleByPow10(39); got.StringFixed() != "100000000000000000000000000000000000000" {
+		t.Errorf("0.1 * 10^39 = %v (%v), want 10^38", got, got.ErrorDetails())
+	}
+	if got := FromString("300000000000000000000000000000000000000").ScaleByPow10(-57); got.StringFixed() != "0.0000000000000000003" {
+		t.Errorf("3e38 * 10^-57 = %v (%v)", got, got.ErrorDetails())
+	}
+	if got := FromString("300000000000000000000000000000000000000").ScaleByPow10(-58); got.state != state.Underflow {
+		t.Errorf("3e38 * 10^-58 = %v, want NaN(Underflow)", got)
+	}
+}
+
+// RoundToMultiple returns a whole number of m, so it carries m's scale and not d's. That is what makes the result
+// storable in the column the multiple came from, and it is easy to break.
+func TestRoundToMultipleKeepsTheMultiplesScale(t *testing.T) {
+	for _, c := range []struct {
+		d, m, want string
+	}{
+		{"1.50", "0.5", "1.5"},     // already a multiple, and the scale still comes from m
+		{"1", "0.05", "1.00"},      // m finer than d
+		{"1.5000", "0.05", "1.50"}, // d finer than m
+		{"7", "3", "6"},            // both integers
+		{"2.37", "0.05", "2.35"},
+		{"0", "0.05", "0.00"},     // a zero takes m's scale too
+		{"-0.02", "0.05", "0.00"}, // and so does a result that rounds to zero
+	} {
+		got := FromString(c.d).RoundToMultiple(FromString(c.m), ROUND_HALF_AWAY_FROM_ZERO)
+		if got.IsNaN() || got.StringFixed() != c.want {
+			t.Errorf("RoundToMultiple(%s, %s) = %v (%v), want %s", c.d, c.m, got, got.ErrorDetails(), c.want)
+		}
+		if !got.IsNaN() && got.scale != FromString(c.m).scale {
+			t.Errorf("RoundToMultiple(%s, %s) has scale %d, want %d", c.d, c.m, got.scale, FromString(c.m).scale)
+		}
+	}
+
+	// over random operands: the result is always at the multiple's scale and is always a whole number of them
+	r := rand.New(rand.NewSource(20261025))
+	for range 20000 {
+		d := randDec(r)
+		m := randDec(r).Abs()
+		if m.coef.IsZero() {
+			continue
+		}
+		got := d.RoundToMultiple(m, allModes[r.Intn(len(allModes))])
+		if got.IsNaN() {
+			continue
+		}
+		if got.scale != m.scale {
+			t.Fatalf("RoundToMultiple(%s, %s) = %s at scale %d, want scale %d",
+				d.StringFixed(), m.StringFixed(), got.StringFixed(), got.scale, m.scale)
+		}
+		if rem := got.Mod(m); !rem.IsNaN() && !rem.IsZero() {
+			t.Fatalf("RoundToMultiple(%s, %s) = %s, which is not a multiple (remainder %s)",
+				d.StringFixed(), m.StringFixed(), got.StringFixed(), rem.StringFixed())
+		}
+	}
+}
+
+func TestRoundToSignificant(t *testing.T) {
+	for _, c := range []struct {
+		in     string
+		digits uint8
+		mode   RoundingMode
+		want   string
+	}{
+		{"123456.789", 5, ROUND_HALF_AWAY_FROM_ZERO, "123460"},
+		{"123456.789", 9, ROUND_HALF_AWAY_FROM_ZERO, "123456.789"},
+		{"123456.789", 10, ROUND_HALF_AWAY_FROM_ZERO, "123456.789"},
+		{"123456.789", 6, ROUND_HALF_AWAY_FROM_ZERO, "123457"},
+		{"123456.789", 7, ROUND_HALF_AWAY_FROM_ZERO, "123456.8"},
+		{"123456.789", 1, ROUND_HALF_AWAY_FROM_ZERO, "100000"},
+		{"0.00123456", 3, ROUND_HALF_AWAY_FROM_ZERO, "0.00123"},
+		{"0.00123456", 1, ROUND_HALF_AWAY_FROM_ZERO, "0.001"},
+		{"1.0987", 5, ROUND_BANK, "1.0987"},
+		{"1.09875", 5, ROUND_BANK, "1.0988"},
+		{"-1.2345", 2, ROUND_BANK, "-1.2"},
+		{"1.25", 2, ROUND_BANK, "1.2"},
+		{"1.25", 2, ROUND_HALF_AWAY_FROM_ZERO, "1.3"},
+		{"1.20", 2, ROUND_BANK, "1.2"},                 // three significant digits already, so one place goes
+		{"9.99", 2, ROUND_HALF_AWAY_FROM_ZERO, "10.0"}, // the carry adds a digit no scale can drop
+		{"9.99", 1, ROUND_HALF_AWAY_FROM_ZERO, "10"},
+		{"0.0999", 1, ROUND_HALF_AWAY_FROM_ZERO, "0.10"},
+		{"999", 1, ROUND_HALF_AWAY_FROM_ZERO, "1000"},
+		{"0", 1, ROUND_BANK, "0"},
+		{"0.000", 5, ROUND_BANK, "0.000"},
+		{"5", 1, ROUND_BANK, "5"},
+		{"340282366920938463463374607431768211455", 3, ROUND_TOWARD_ZERO, "340000000000000000000000000000000000000"},
+		{"340282366920938463463374607431768211455", 1, ROUND_TOWARD_ZERO, "300000000000000000000000000000000000000"},
+	} {
+		got := FromString(c.in).RoundToSignificant(c.digits, c.mode)
+		if got.IsNaN() || got.StringFixed() != c.want {
+			t.Errorf("RoundToSignificant(%s, %d, %s) = %s (%v), want %s",
+				c.in, c.digits, c.mode, got.StringFixed(), got.ErrorDetails(), c.want)
+		}
+	}
+
+	for _, c := range []struct {
+		what string
+		got  Dec128
+		want state.State
+	}{
+		{"zero digits", One.RoundToSignificant(0, ROUND_BANK), state.DomainError},
+		{"undefined mode", One.RoundToSignificant(3, RoundingMode(99)), state.InvalidRoundingMode},
+		{"NaN", NaN(state.NotConverged).RoundToSignificant(3, ROUND_BANK), state.NotConverged},
+		{"inexact under ROUND_NAN", FromString("123.456").RoundToSignificant(4, ROUND_NAN), state.Inexact},
+		{"carrying past the coefficient", MaxAtScale(0).RoundToSignificant(1, ROUND_AWAY_FROM_ZERO), state.Overflow},
+	} {
+		if c.got.state != c.want {
+			t.Errorf("%s = %v, want NaN(%s)", c.what, c.got, c.want)
+		}
+	}
+	// an exact reduction is accepted under ROUND_NAN
+	if got := FromString("1.2000").RoundToSignificant(2, ROUND_NAN); got.StringFixed() != "1.2" {
+		t.Errorf("an exact reduction under ROUND_NAN = %v", got)
+	}
+
+	// Against the definition: the result is the value rounded at the decimal position that leaves that many digits,
+	// it never has more significant digits than asked for unless rounding carried, and it is never further from the
+	// value than one unit in that position.
+	r := rand.New(rand.NewSource(20261026))
+	for range 40000 {
+		d := randDec(r)
+		digits := uint8(1 + r.Intn(41))
+		mode := allModes[r.Intn(len(allModes))]
+
+		got := d.RoundToSignificant(digits, mode)
+		if got.IsNaN() {
+			continue
+		}
+		p := d.SignificantDigits()
+		if p <= int(digits) {
+			if got != d {
+				t.Fatalf("RoundToSignificant(%s, %d) changed a value that was already short enough: %s",
+					d.StringFixed(), digits, got.StringFixed())
+			}
+			continue
+		}
+
+		// the same rounding expressed through the general primitive
+		places := int(d.scale) - (p - int(digits))
+		var want Dec128
+		if places >= 0 {
+			want = d.Round(uint8(places), mode)
+		} else {
+			want = d.RoundToPlaces(int8(places), mode)
+		}
+		if got != want {
+			t.Fatalf("RoundToSignificant(%s, %d, %s) = %v, rounding to %d places gives %v",
+				d.StringFixed(), digits, mode, got, places, want)
+		}
+		// and it did not move by more than one unit in the place it rounded at
+		var unit Dec128
+		if places >= 0 {
+			unit = QuantumAtScale(uint8(places))
+		} else {
+			unit = QuantumAtScale(0).ScaleByPow10(-places)
+		}
+		if !unit.IsNaN() {
+			if diff := got.SubRound(d, MaxScale, ROUND_TOWARD_ZERO).Abs(); !diff.IsNaN() && diff.Compare(unit) > 0 {
+				t.Fatalf("RoundToSignificant(%s, %d, %s) = %s, which moved by %s, more than one unit of %s",
+					d.StringFixed(), digits, mode, got.StringFixed(), diff.StringFixed(), unit.StringFixed())
+			}
 		}
 	}
 }

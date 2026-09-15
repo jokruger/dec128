@@ -300,3 +300,260 @@ func TestAccumulatorErrorDetailsWhenHealthy(t *testing.T) {
 		t.Errorf("ErrorDetails on a healthy accumulator = %v", err)
 	}
 }
+
+// Mean divides the exact total by the number of terms and brings the quotient to the requested scale, and the two
+// together take one rounding decision. The oracle is the exact rational mean rounded once.
+func TestAccumulatorMeanAgainstBig(t *testing.T) {
+	r := rand.New(rand.NewSource(20261023))
+	for range 4000 {
+		acc := NewAccumulator(uint8(r.Intn(int(MaxScale) + 1)))
+		exact := new(big.Rat)
+		terms := 1 + r.Intn(8)
+		for range terms {
+			if r.Intn(3) == 0 {
+				x, y := randDec(r), randDec(r)
+				acc.AddMul(x, y)
+				exact.Add(exact, new(big.Rat).Mul(bigOf(x), bigOf(y)))
+			} else {
+				d := randDec(r)
+				acc.Add(d)
+				exact.Add(exact, bigOf(d))
+			}
+		}
+		if acc.IsNaN() {
+			continue
+		}
+		exact.Quo(exact, new(big.Rat).SetInt64(int64(terms)))
+
+		scale := uint8(r.Intn(int(MaxScale) + 1))
+		mode := allModes[r.Intn(len(allModes))]
+		got := acc.Mean(scale, mode)
+
+		// the correctly rounded mean at that scale, from the rational
+		num := new(big.Int).Mul(exact.Num(), bigPow10(scale))
+		q, rem := new(big.Int).QuoRem(new(big.Int).Abs(num), exact.Denom(), new(big.Int))
+		want := roundBig(q, rem, exact.Denom(), exact.Sign() < 0, mode)
+
+		// A result that does not fit is an overflow whatever else is true of it: that is the order reduceAt
+		// reports in and wantAt expects.
+		switch {
+		case want.Cmp(big2p128) >= 0:
+			if got.state != state.Overflow {
+				t.Fatalf("Mean(%d, %s) = %v, want NaN(Overflow)", scale, mode, got)
+			}
+		case mode == ROUND_NAN && rem.Sign() != 0:
+			if got.state != state.Inexact {
+				t.Fatalf("Mean(%d, ROUND_NAN) = %v, want NaN(Inexact) for %s", scale, got, exact.FloatString(25))
+			}
+		case got.IsNaN():
+			t.Fatalf("Mean(%d, %s) = NaN(%v), want %s (exact %s)",
+				scale, mode, got.ErrorDetails(), want, exact.FloatString(25))
+		case got.scale != scale:
+			t.Fatalf("Mean(%d, %s) = %s at scale %d", scale, mode, got.StringFixed(), got.scale)
+		case new(big.Int).Abs(bigAtScale(got, scale)).Cmp(want) != 0:
+			t.Fatalf("Mean(%d, %s) = %s, want coefficient %s (exact %s)",
+				scale, mode, got.StringFixed(), want, exact.FloatString(25))
+		case (got.state == state.Neg) != (exact.Sign() < 0 && want.Sign() != 0):
+			t.Fatalf("Mean(%d, %s) = %s: wrong sign", scale, mode, got.StringFixed())
+		}
+	}
+}
+
+func TestAccumulatorMeanEdges(t *testing.T) {
+	// the mean of nothing is not zero
+	empty := NewAccumulator(2)
+	if got := empty.Mean(2, ROUND_BANK); got.state != state.DivisionByZero {
+		t.Errorf("the mean of an empty accumulator = %v, want NaN(DivisionByZero)", got)
+	}
+
+	acc := NewAccumulator(2)
+	acc.Add(One)
+	acc.Add(FromInt64(2))
+	acc.Add(FromInt64(4))
+	for _, c := range []struct {
+		scale uint8
+		mode  RoundingMode
+		want  string
+	}{
+		{MaxScale, ROUND_TOWARD_ZERO, "2.3333333333333333333"},
+		{2, ROUND_BANK, "2.33"},
+		{2, ROUND_AWAY_FROM_ZERO, "2.34"},
+		{0, ROUND_BANK, "2"},
+		{0, ROUND_AWAY_FROM_ZERO, "3"},
+		{4, ROUND_HALF_AWAY_FROM_ZERO, "2.3333"},
+	} {
+		if got := acc.Mean(c.scale, c.mode); got.StringFixed() != c.want {
+			t.Errorf("Mean(%d, %s) = %s, want %s", c.scale, c.mode, got.StringFixed(), c.want)
+		}
+	}
+
+	// an exact mean is exact under ROUND_NAN, an inexact one is refused
+	exact := NewAccumulator(0)
+	exact.Add(One)
+	exact.Add(FromInt64(3))
+	if got := exact.Mean(0, ROUND_NAN); got.StringFixed() != "2" {
+		t.Errorf("an exact mean under ROUND_NAN = %v", got)
+	}
+	if got := acc.Mean(2, ROUND_NAN); got.state != state.Inexact {
+		t.Errorf("an inexact mean under ROUND_NAN = %v", got)
+	}
+
+	// a mean at a finer scale than the terms is padded before the division, so the places are produced, not invented
+	half := NewAccumulator(0)
+	half.Add(One)
+	half.Add(Zero)
+	if got := half.Mean(MaxScale, ROUND_BANK); got.StringFixed() != "0.5000000000000000000" {
+		t.Errorf("Mean at a finer scale = %s", got.StringFixed())
+	}
+
+	// the sign of a negative mean, and a mean that cancels to zero
+	neg := NewAccumulator(2)
+	neg.Sub(One)
+	neg.Sub(FromInt64(2))
+	if got := neg.Mean(2, ROUND_BANK); got.StringFixed() != "-1.50" {
+		t.Errorf("a negative mean = %s", got.StringFixed())
+	}
+	cancel := NewAccumulator(2)
+	cancel.Add(One)
+	cancel.Sub(One)
+	if got := cancel.Mean(4, ROUND_BANK); got.StringFixed() != "0.0000" || got.state != state.Default {
+		t.Errorf("a cancelling mean = %v, state %s", got, got.state)
+	}
+
+	// the argument checks, and a failure recorded earlier
+	if got := acc.Mean(MaxScale+1, ROUND_BANK); got.state != state.ScaleOutOfRange {
+		t.Errorf("Mean with a bad scale = %v", got)
+	}
+	if got := acc.Mean(2, RoundingMode(99)); got.state != state.InvalidRoundingMode {
+		t.Errorf("Mean with a bad mode = %v", got)
+	}
+	failed := NewAccumulator(2)
+	failed.Add(NaN(state.DomainError))
+	if got := failed.Mean(2, ROUND_BANK); got.state != state.DomainError {
+		t.Errorf("Mean of a failed accumulator = %v", got)
+	}
+	if got := NewAccumulator(MaxScale+1).Mean(2, ROUND_BANK); got.state != state.ScaleOutOfRange {
+		t.Errorf("Mean of an accumulator born out of range = %v", got)
+	}
+
+	// a total whose mean does not fit a coefficient at the requested scale
+	full := NewAccumulator(0)
+	for range 3 {
+		full.AddMul(MaxAtScale(0), MaxAtScale(0))
+	}
+	if got := full.Mean(MaxScale, ROUND_BANK); got.state != state.Overflow {
+		t.Errorf("the mean of a full register at a fine scale = %v", got)
+	}
+
+	// A mean that fits when truncated but carries past the coefficient when rounded up. The terms are one product
+	// of three times the largest value and two ones, so the exact mean is the largest value and two thirds.
+	carry := NewAccumulator(0)
+	carry.AddMul(FromInt64(3), MaxAtScale(0))
+	carry.Add(One)
+	carry.Add(One)
+	if got := carry.Mean(0, ROUND_TOWARD_ZERO); !got.Equal(MaxAtScale(0)) {
+		t.Errorf("the truncated mean = %v, want the largest value", got)
+	}
+	for _, mode := range []RoundingMode{ROUND_HALF_AWAY_FROM_ZERO, ROUND_BANK, ROUND_UP, ROUND_AWAY_FROM_ZERO} {
+		if got := carry.Mean(0, mode); got.state != state.Overflow {
+			t.Errorf("the mean rounded up under %s = %v, want NaN(Overflow)", mode, got)
+		}
+	}
+
+	// Mean and Total agree where the count is one, and Mean does not disturb the running total
+	one := NewAccumulator(2)
+	one.Add(FromString("1.23"))
+	if got, want := one.Mean(2, ROUND_BANK), one.Total(2, ROUND_BANK); got != want {
+		t.Errorf("the mean of one term = %v, Total = %v", got, want)
+	}
+	if got := one.Mean(2, ROUND_BANK); got.StringFixed() != "1.23" {
+		t.Errorf("Mean changed the running total: %s", got.StringFixed())
+	}
+	// a term added with AddMul counts as one term
+	prod := NewAccumulator(0)
+	prod.AddMul(FromInt64(3), FromInt64(4))
+	prod.AddMul(FromInt64(1), FromInt64(2))
+	if got := prod.Mean(0, ROUND_BANK); got.StringFixed() != "7" {
+		t.Errorf("the mean of two products = %s, want 7", got.StringFixed())
+	}
+}
+
+func TestAccumulatorReset(t *testing.T) {
+	acc := NewAccumulator(4)
+	acc.Add(FromString("1.5"))
+	acc.AddMul(FromString("0.0000000001"), FromString("0.0000000001"))
+	if acc.scale != 20 {
+		t.Fatalf("the working scale should have grown to 20, got %d", acc.scale)
+	}
+
+	acc.Reset()
+	if acc.Count() != 0 || acc.IsNaN() || acc.scale != 4 {
+		t.Errorf("after Reset: count %d, NaN %v, scale %d, want 0, false, 4", acc.Count(), acc.IsNaN(), acc.scale)
+	}
+	if got := acc.Total(4, ROUND_BANK); got.StringFixed() != "0.0000" {
+		t.Errorf("the total after Reset = %s", got.StringFixed())
+	}
+
+	// a reused accumulator gives what a fresh one would
+	acc.Add(FromString("2.5"))
+	acc.Add(FromString("1.25"))
+	fresh := NewAccumulator(4)
+	fresh.Add(FromString("2.5"))
+	fresh.Add(FromString("1.25"))
+	if got, want := acc.Total(4, ROUND_BANK), fresh.Total(4, ROUND_BANK); got != want {
+		t.Errorf("a reused accumulator gave %v, a fresh one %v", got, want)
+	}
+	if got, want := acc.Mean(4, ROUND_BANK), fresh.Mean(4, ROUND_BANK); got != want {
+		t.Errorf("a reused accumulator's mean %v, a fresh one's %v", got, want)
+	}
+
+	// Reset clears a failure that a term caused
+	acc.Add(NaN(state.Overflow))
+	if !acc.IsNaN() {
+		t.Fatal("the accumulator should have failed")
+	}
+	acc.Reset()
+	if acc.IsNaN() {
+		t.Error("Reset must clear a failure a term caused")
+	}
+	acc.Add(One)
+	if got := acc.Total(0, ROUND_BANK); got.StringFixed() != "1" {
+		t.Errorf("the total after resetting a failure = %v", got)
+	}
+
+	// ... but not the one an impossible scale caused, which emptying it cannot fix
+	born := NewAccumulator(MaxScale + 1)
+	born.Reset()
+	if !born.IsNaN() || born.ErrorDetails() != state.ScaleOutOfRange.Error() {
+		t.Errorf("Reset on an accumulator born out of range = %v", born.ErrorDetails())
+	}
+
+	// the zero value resets to the zero value
+	var zero Accumulator
+	zero.Add(One)
+	zero.Reset()
+	if zero.Count() != 0 || zero.scale != 0 || zero.IsNaN() {
+		t.Errorf("the zero value after Reset: count %d, scale %d, NaN %v", zero.Count(), zero.scale, zero.IsNaN())
+	}
+}
+
+func TestSumSlice(t *testing.T) {
+	// the reason it exists: Sum takes its first term separately, so an empty slice has nowhere to come from
+	if got := SumSlice(nil); !got.Equal(Zero) || got.IsNaN() {
+		t.Errorf("SumSlice(nil) = %v, want zero", got)
+	}
+	if got := SumSlice([]Dec128{}); !got.Equal(Zero) {
+		t.Errorf("SumSlice(empty) = %v, want zero", got)
+	}
+
+	r := rand.New(rand.NewSource(20261024))
+	for range 20000 {
+		xs := make([]Dec128, 1+r.Intn(8))
+		for i := range xs {
+			xs[i] = randDec(r)
+		}
+		if got, want := SumSlice(xs), Sum(xs[0], xs[1:]...); got != want {
+			t.Fatalf("SumSlice = %v, Sum = %v", got, want)
+		}
+	}
+}

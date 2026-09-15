@@ -20,12 +20,21 @@ import (
 // Compile-time layout guard. Both differences must be valid array lengths, which proves equality rather than an
 // upper or lower bound, and does so even when the package is only cross-compiled. Dec128 is a value type that is
 // copied by every operation and returned by value, so its width is part of the performance contract: 16 bytes of
-// coefficient plus the scale and state bytes, padded to the 8-byte alignment of the coefficient's limbs.
+// coefficient plus the scale and state bytes, padded to the alignment of the coefficient's limbs.
+//
+// That alignment is the word, so the expected width is 24 bytes on a 64-bit platform and 20 on a 32-bit one, where a
+// uint64 aligns to 4. The shift is the usual way to write the word size as a constant.
+const (
+	wordIs64   = ^uintptr(0) >> 63 // 1 on a 64-bit platform, 0 on a 32-bit one
+	dec128Size = 20 + 4*wordIs64
+	dec128Algn = 4 + 4*wordIs64
+)
+
 var (
-	_ [unsafe.Sizeof(Dec128{}) - 24]byte
-	_ [24 - unsafe.Sizeof(Dec128{})]byte
-	_ [unsafe.Alignof(Dec128{}) - 8]byte
-	_ [8 - unsafe.Alignof(Dec128{})]byte
+	_ [unsafe.Sizeof(Dec128{}) - dec128Size]byte
+	_ [dec128Size - unsafe.Sizeof(Dec128{})]byte
+	_ [unsafe.Alignof(Dec128{}) - dec128Algn]byte
+	_ [dec128Algn - unsafe.Alignof(Dec128{})]byte
 )
 
 // TestTablesAgainstBig recomputes every precalculated table with math/big or from its definition. A typo in one of

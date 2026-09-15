@@ -104,7 +104,10 @@
 // is the same idea over an unbounded number of terms: Add and AddMul are exact, Total is
 // the only rounding, and the total does not depend on the order the terms arrived in, so
 // "the parts add up to the whole" is an exact assertion rather than an epsilon check.
-// Sum is that accumulator with the scale rule applied at the end instead.
+// Mean divides that exact total by the number of terms with the same single rounding, and
+// Reset empties the accumulator for the next batch. Sum and SumSlice are the same idea
+// with the scale rule applied at the end instead of a scale per call; they keep a
+// narrower register, because every term of a sum is a term rather than a product.
 //
 // PowIntRound does the same for a power: it keeps the running product at up to 57
 // decimal places, half as many again as a coefficient holds, and rounds once at the end.
@@ -120,7 +123,9 @@
 // require, and RoundToMultiple rounds to a multiple of any positive value, which is Swiss
 // and Swedish cash rounding to 0.05 and the "up to the next whole ten" of retail lending.
 // ScaleByPow10 moves the decimal point exactly, so a percentage or a basis point becomes a
-// fraction without a division.
+// fraction without a division. RoundToSignificant rounds to a number of significant digits
+// rather than to a position, which is how a rate is quoted and how IEEE 754 decimal
+// arithmetic works.
 //
 // # Splitting an amount
 //
@@ -132,8 +137,30 @@
 //
 //	shares, ok := fee.Allocate([]Dec128{partyA, partyB, partyC}, 2)
 //
-// AppendAllocate and AppendSplit append to a slice the caller keeps, and a split of up to
-// 32 ways then costs no allocation.
+// AllocateResidual and SplitResidual are the other convention, the one an amortization
+// schedule and a syndicated facility use: every share but one is its proportion rounded
+// the agreed way, and the share at an index the caller names takes what is left. The
+// shares still sum to the whole exactly, but only the others are within a quantum of
+// their proportions - the named one absorbs all the rounding, and for an amount of a few
+// quanta it can even come out on the other side of zero.
+//
+// AppendAllocate, AppendSplit and their residual forms append to a slice the caller keeps,
+// and a split of up to 32 ways then costs no allocation.
+//
+// # Roots and the shape of a value
+//
+// SqrtRound is the square root and NthRootRound the n-th, which is the inverse of
+// PowIntRound and the primitive of rate conversion: the monthly factor behind an annual
+// one is factor.NthRootRound(12, scale, mode). It is correctly rounded, and it is the one
+// operation here that allocates, because the comparison its rounding decision needs is
+// wider than any register the package keeps - a few dozen math/big values per call. A
+// degree above 1024 is refused rather than computed.
+//
+// SignificantDigits, IntegerDigits and FitsNumeric report the shape of a value for the
+// column it has to be stored in, so that a value too wide for a NUMERIC(p, s) is caught
+// where it is computed rather than by the database halfway through a batch; and
+// RescaleRoundInexact makes it fit, saying whether that cost anything. IsInteger, IntFrac
+// and Clamp are the small value operations a schedule and a limit check need.
 //
 // # Rounding modes
 //
@@ -176,7 +203,7 @@
 //
 //	Add, Sub, Mul and their Int forms, when the exact result does not fit
 //	Div, Sqrt, PowInt, PowInt64 and their Int forms, always
-//	Sum, Avg
+//	Sum, SumSlice, Avg
 //	EncodeIEEE, when the coefficient needs more than 34 digits
 //
 // Everything else is global-free. In particular the whole *Round family, which takes the
@@ -184,13 +211,16 @@
 // basic operations:
 //
 //	AddRound, SubRound, MulRound, MulAddRound, DivRound, DivRoundInexact, SqrtRound, PowIntRound
-//	Accumulator and its methods
+//	NthRootRound
+//	Accumulator and its methods, Total and Mean included
 //	QuoRem, Mod and their Int forms, which are exact
-//	Round and the Round* methods, RoundToPlaces, RoundToMultiple, Trunc, Rescale, RescaleRound
-//	ScaleByPow10, Allocate, AppendAllocate, Split, AppendSplit
-//	Abs, Neg, Compare, Equal, the comparison predicates, Canonical
-//	the From* constructors, the String and Append forms, and the Encode/Decode codecs
-//	other than EncodeIEEE
+//	Round and the Round* methods, RoundToPlaces, RoundToMultiple, RoundToSignificant,
+//	Trunc, Rescale, RescaleRound, RescaleRoundInexact
+//	ScaleByPow10, Allocate, Split and their Append and Residual forms
+//	Abs, Neg, Compare, Equal, the comparison predicates, Canonical, Clamp
+//	IsInteger, IntFrac, SignificantDigits, IntegerDigits, FitsNumeric
+//	the From* constructors, the String and Append forms, Format, and the Encode/Decode
+//	codecs other than EncodeIEEE
 //
 // The list is a maintained API contract, and TestGlobalFreeSubset holds it to that: it
 // runs every method named here under a matrix of the three settings and requires the
@@ -201,12 +231,14 @@
 // binary floating point is where architecture-dependent results come from.
 //
 // The two remaining globals affect text and SQL rather than arithmetic. String,
-// StringFixed and the Marshal and Value methods read SetTrimOutput; Scan(nil) and
+// StringFixed, Format and the Marshal and Value methods read SetTrimOutput; Scan(nil) and
 // UnmarshalJSON("null") read SetNullValue.
 //
 // # Text and interchange
 //
 // String prints the value with trailing zeros removed; StringFixed keeps the scale.
+// Format implements fmt.Formatter, so %v and %s are String, %f is StringFixed and %.2f is
+// the value at two places rounded half to even, as Go's own %f rounds a float64.
 // Value, MarshalJSON and MarshalText emit the fixed form, so the scale survives a round
 // trip through a database or a JSON consumer; SetTrimOutput(true) switches them to the
 // trimmed form of earlier versions. FromString parses both notations and the special

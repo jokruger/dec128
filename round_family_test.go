@@ -1,6 +1,7 @@
 package dec128
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -349,6 +350,55 @@ func TestGlobalFreeSubset(t *testing.T) {
 			return back
 		}},
 		{"comparison", func(a, b Dec128) Dec128 { return FromInt64(int64(a.Compare(b))) }},
+		{"NthRootRound", func(a, b Dec128) Dec128 { return a.Abs().NthRootRound(3, 6, ROUND_BANK) }},
+		{"NthRootRound squared", func(a, b Dec128) Dec128 { return a.Abs().NthRootRound(2, 6, ROUND_BANK) }},
+		{"RoundToSignificant", func(a, b Dec128) Dec128 { return a.RoundToSignificant(5, ROUND_BANK) }},
+		{"RescaleRoundInexact", func(a, b Dec128) Dec128 { q, _ := a.RescaleRoundInexact(4, ROUND_BANK); return q }},
+		{"RescaleRoundInexact flag", func(a, b Dec128) Dec128 {
+			if _, inexact := a.RescaleRoundInexact(4, ROUND_BANK); inexact {
+				return One
+			}
+			return Zero
+		}},
+		{"Clamp", func(a, b Dec128) Dec128 { return a.Clamp(b.Abs().Neg(), b.Abs()) }},
+		{"IsInteger", func(a, b Dec128) Dec128 {
+			if a.IsInteger() {
+				return One
+			}
+			return Zero
+		}},
+		{"IntFrac integer part", func(a, b Dec128) Dec128 { ip, _ := a.IntFrac(); return ip }},
+		{"IntFrac fractional part", func(a, b Dec128) Dec128 { _, fp := a.IntFrac(); return fp }},
+		{"SignificantDigits", func(a, b Dec128) Dec128 { return FromInt(a.SignificantDigits()) }},
+		{"IntegerDigits", func(a, b Dec128) Dec128 { return FromInt(a.IntegerDigits()) }},
+		{"FitsNumeric", func(a, b Dec128) Dec128 {
+			if a.FitsNumeric(20, 4) {
+				return One
+			}
+			return Zero
+		}},
+		{"Accumulator.Mean", func(a, b Dec128) Dec128 {
+			var acc Accumulator
+			acc.Add(a)
+			acc.AddMul(a, b)
+			acc.Sub(b)
+			return acc.Mean(6, ROUND_BANK)
+		}},
+		{"AllocateResidual", func(a, b Dec128) Dec128 {
+			shares, ok := a.RescaleRound(2, ROUND_TOWARD_ZERO).AllocateResidual([]Dec128{One, b.Abs()}, 2, 1, ROUND_BANK)
+			if !ok {
+				return NaN(state.DomainError)
+			}
+			return shares[1]
+		}},
+		{"SplitResidual", func(a, b Dec128) Dec128 {
+			shares, ok := a.RescaleRound(2, ROUND_TOWARD_ZERO).SplitResidual(3, 2, 2, ROUND_BANK)
+			if !ok {
+				return NaN(state.DomainError)
+			}
+			return shares[2]
+		}},
+		{"Format", func(a, b Dec128) Dec128 { return FromString(fmt.Sprintf("%.6f", a)) }},
 	}
 
 	// the defaults, which every combination below must reproduce

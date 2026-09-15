@@ -76,7 +76,7 @@ var arithmeticRounding = ROUND_TOWARD_ZERO
 // 128 bits at its natural scale. The default is ROUND_TOWARD_ZERO, which leaves every result that was not NaN before
 // rounding modes existed bit-identical.
 //
-// It also writes the loss policy, so that the mode alone still describes the behaviour of code written before
+// It also writes the loss policy, so that the mode alone still describes the behavior of code written before
 // LossPolicy existed: ROUND_NAN selects LossNaNOnInexact and every other mode selects LossRound. Passing ROUND_NAN
 // here is therefore deprecated - prefer SetLossPolicy(LossNaNOnInexact), which says the same thing without
 // overloading a direction with a policy - and a program that sets both must call SetLossPolicy second.
@@ -148,6 +148,25 @@ func (d Dec128) roundNaN(scale uint8) Dec128 {
 		return Dec128{scale: scale} // a zero is never negative
 	}
 	return Dec128{coef: q, scale: scale, state: d.state}
+}
+
+// RescaleRoundInexact is RescaleRound with the fact it already knows: whether a nonzero digit had to be discarded.
+//
+// "Does this amount fit the two places the currency has, or did it arrive with more?" is one question, and answering
+// it by rescaling twice and comparing does the work twice. It is the counterpart of DivRoundInexact, and pairs with
+// FitsNumeric, which asks the same question of a column without rounding anything. The flag is false whenever the
+// result is NaN, and whenever the scale was raised rather than lowered, which is always exact.
+//
+// It reads no process-global configuration.
+func (d Dec128) RescaleRoundInexact(scale uint8, mode RoundingMode) (Dec128, bool) {
+	got := d.RescaleRound(scale, mode)
+	if got.IsNaN() || scale >= d.scale {
+		return got, false
+	}
+
+	// Padding the result back out is exact whenever nothing was discarded, so the comparison is the answer, and it
+	// costs a multiplication rather than the second division an explicit remainder would.
+	return got, !got.Rescale(d.scale).Equal(d)
 }
 
 // RescaleRound returns d at the given scale. Raising the scale is exact, as with Rescale; lowering it rounds with the

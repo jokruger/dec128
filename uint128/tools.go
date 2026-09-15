@@ -150,3 +150,19 @@ func SubUnsafe(u Uint128, v Uint128) Uint128 {
 	hi, _ := bits.Sub64(u.Hi, v.Hi, borrow)
 	return Uint128{Lo: lo, Hi: hi}
 }
+
+// Len10 returns the number of decimal digits in ui, and 0 for zero. It is len(ui.String()) without formatting the
+// value: the bit length gives a lower bound on the digit count that is never more than one short, and the comparison
+// that follows settles it.
+func (ui Uint128) Len10() int {
+	if ui.IsZero() {
+		return 0
+	}
+	// ui is at least 2^(b-1), so it has at least floor((b-1)*log10(2)) + 1 digits. 1233/4096 is just below
+	// log10(2), which keeps the estimate on the safe side; the loop makes up the digit it can be short by.
+	n := ((ui.BitLen()-1)*1233)>>12 + 1
+	for n < MaxStrLen && ui.Compare(Pow10Uint128[n]) >= 0 {
+		n++
+	}
+	return n
+}

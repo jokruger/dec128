@@ -309,22 +309,184 @@ func TestReciprocalGuard(t *testing.T) {
 // scale rule would have chosen anyway.
 func TestPowInt64SharesTheGuardedCore(t *testing.T) {
 	defer SetArithmeticRounding(ArithmeticRounding())
+	defer SetLossPolicy(CurrentLossPolicy()) // SetArithmeticRounding writes the policy as well
 	defer SetDefaultScale(DefaultScale())
 
 	r := rand.New(rand.NewSource(20260927))
-	for _, mode := range allModes[:1] {
+	for _, mode := range allModes {
 		SetArithmeticRounding(mode)
 		for range 20000 {
 			d := randPowBase(r)
 			n := int64(r.Intn(200)) - 50
 			got := d.PowInt64(n)
 			if got.IsNaN() {
+				// A NaN carries no scale to ask the other operation about, but it does carry a claim: the power
+				// could not be produced at the scale the rule would have chosen, and scale 0 is the coarsest
+				// there is, so the per-call form must fail there too.
+				if want := d.PowIntRound(n, 0, mode); !want.IsNaN() {
+					t.Fatalf("PowInt64(%s, %d) = NaN(%v) but PowIntRound at scale 0 = %s",
+						d.StringFixed(), n, got.ErrorDetails(), want.StringFixed())
+				}
 				continue
 			}
 			if want := d.PowIntRound(n, got.scale, mode); got != want {
-				t.Fatalf("PowInt64(%s, %d) = %s at scale %d, PowIntRound at the same scale = %s",
-					d.StringFixed(), n, got.StringFixed(), got.scale, want.StringFixed())
+				t.Fatalf("PowInt64(%s, %d) under %s = %s at scale %d, PowIntRound at the same scale = %s (%v)",
+					d.StringFixed(), n, mode, got.StringFixed(), got.scale, want.StringFixed(), want.ErrorDetails())
 			}
+		}
+	}
+}
+
+// A power that falls below every quantum the type has is still a nonzero value, and a directed mode has to move it to
+// the first unit rather than report a zero. The two forms took that decision in different places until the scale rule
+// learned to make it, so this is where they are held together.
+func TestPowTinyResultUnderDirectedModes(t *testing.T) {
+	defer SetArithmeticRounding(ArithmeticRounding())
+	defer SetLossPolicy(CurrentLossPolicy())
+
+	tenth := FromString("0.1")
+	quantum := QuantumAtScale(MaxScale)
+
+	for _, c := range []struct {
+		d    Dec128
+		n    int64
+		mode RoundingMode
+		want string
+	}{
+		// 10^-60 is positive and far below 10^-19, so a ceiling is one quantum and a floor is zero
+		{tenth, 60, ROUND_UP, "0.0000000000000000001"},
+		{tenth, 60, ROUND_AWAY_FROM_ZERO, "0.0000000000000000001"},
+		{tenth, 60, ROUND_DOWN, "0.0000000000000000000"},
+		{tenth, 60, ROUND_TOWARD_ZERO, "0.0000000000000000000"},
+		{tenth, 60, ROUND_HALF_AWAY_FROM_ZERO, "0.0000000000000000000"},
+		{tenth, 60, ROUND_BANK, "0.0000000000000000000"},
+		// and the same from below zero, where the directions swap
+		{tenth.Neg(), 61, ROUND_DOWN, "-0.0000000000000000001"},
+		{tenth.Neg(), 61, ROUND_AWAY_FROM_ZERO, "-0.0000000000000000001"},
+		{tenth.Neg(), 61, ROUND_UP, "0.0000000000000000000"},
+		{tenth.Neg(), 61, ROUND_TOWARD_ZERO, "0.0000000000000000000"},
+		// an even power of a negative base is positive, so the ceiling moves and the floor does not
+		{tenth.Neg(), 60, ROUND_UP, "0.0000000000000000001"},
+		{tenth.Neg(), 60, ROUND_DOWN, "0.0000000000000000000"},
+		// a quantum squared is the same case reached by a different route
+		{quantum, 2, ROUND_UP, "0.0000000000000000001"},
+		{quantum, 2, ROUND_TOWARD_ZERO, "0.0000000000000000000"},
+	} {
+		SetArithmeticRounding(c.mode)
+		SetLossPolicy(LossRound)
+		if got := c.d.PowInt64(c.n); got.StringFixed() != c.want {
+			t.Errorf("PowInt64(%s, %d) under %s = %s (%v), want %s",
+				c.d.StringFixed(), c.n, c.mode, got.StringFixed(), got.ErrorDetails(), c.want)
+		}
+		if got := c.d.PowIntRound(c.n, MaxScale, c.mode); got.StringFixed() != c.want {
+			t.Errorf("PowIntRound(%s, %d, %d, %s) = %s (%v), want %s",
+				c.d.StringFixed(), c.n, MaxScale, c.mode, got.StringFixed(), got.ErrorDetails(), c.want)
+		}
+	}
+
+	// The loss policy rules on the rounded result, so a directed mode that reached the first unit did not underflow
+	// and one that stayed at zero did - which is how a value that merely rounds to zero behaves too.
+	for _, c := range []struct {
+		mode RoundingMode
+		want state.State
+	}{
+		{ROUND_UP, state.Default},
+		{ROUND_AWAY_FROM_ZERO, state.Default},
+		{ROUND_TOWARD_ZERO, state.Underflow},
+		{ROUND_DOWN, state.Underflow},
+		{ROUND_BANK, state.Underflow},
+	} {
+		SetArithmeticRounding(c.mode)
+		SetLossPolicy(LossNaNOnUnderflow)
+		if got := tenth.PowInt64(60); got.state != c.want {
+			t.Errorf("PowInt64(0.1, 60) under %s with LossNaNOnUnderflow = %v (%v), want state %s",
+				c.mode, got, got.ErrorDetails(), c.want)
+		}
+	}
+
+	// Under LossNaNOnInexact every one of them is inexact, whatever direction it took.
+	for _, mode := range allModes {
+		SetArithmeticRounding(mode)
+		SetLossPolicy(LossNaNOnInexact)
+		if got := tenth.PowInt64(60); got.state != state.Inexact {
+			t.Errorf("PowInt64(0.1, 60) under %s with LossNaNOnInexact = %v", mode, got)
+		}
+	}
+}
+
+// The exponent extremes, against an independent oracle. TestPowIntRoundAgainstBigRat is exact but stops at a few
+// hundred, because a big.Rat of d^n is unusable beyond that; big.Float at 320 bits carries the same chain to 2^63
+// with a relative error around 2^-310, which is ten orders of magnitude below half a quantum of a 19-place result.
+func TestPowIntRoundLargeExponents(t *testing.T) {
+	const prec = 320
+
+	powFloat := func(d Dec128, n int64) *big.Float {
+		v := new(big.Float).SetPrec(prec).SetInt(bigAtScale(d, d.scale))
+		v.Quo(v, new(big.Float).SetPrec(prec).SetInt(bigPow10(d.scale)))
+		m := uint64(n)
+		if n < 0 {
+			m = -m
+		}
+		acc := new(big.Float).SetPrec(prec).SetInt64(1)
+		base := new(big.Float).SetPrec(prec).Set(v)
+		for m > 0 {
+			if m&1 == 1 {
+				acc.Mul(acc, base)
+			}
+			if m >>= 1; m > 0 {
+				base.Mul(base, base)
+			}
+		}
+		if n < 0 {
+			acc.Quo(new(big.Float).SetPrec(prec).SetInt64(1), acc)
+		}
+		return acc
+	}
+
+	for _, c := range []struct {
+		in    string
+		n     int64
+		scale uint8
+	}{
+		{"1.0000000000000000001", math.MaxInt64, MaxScale},
+		{"1.0000000000000000001", math.MinInt64, MaxScale},
+		{"1.0000000000000000001", 1 << 40, MaxScale},
+		{"0.9999999999999999999", 1 << 40, MaxScale},
+		{"0.9999999999999999999", -(1 << 40), MaxScale},
+		{"1.000000001", 1 << 20, MaxScale},
+		{"1.000000001", 1 << 20, 4},
+		{"1.0000000000000000001", math.MaxInt64, 2},
+		{"0.9999999999999999999", math.MaxInt64, MaxScale},
+	} {
+		d := FromString(c.in)
+		got := d.PowIntRound(c.n, c.scale, ROUND_HALF_AWAY_FROM_ZERO)
+		if got.IsNaN() {
+			t.Errorf("PowIntRound(%s, %d, %d) = NaN(%v)", c.in, c.n, c.scale, got.ErrorDetails())
+			continue
+		}
+
+		// the exact value at the requested scale, truncated; the correctly rounded one is within one of it
+		want, _ := new(big.Float).Mul(powFloat(d, c.n), new(big.Float).SetPrec(prec).SetInt(bigPow10(c.scale))).Int(nil)
+		diff := new(big.Int).Sub(new(big.Int).Abs(bigAtScale(got, c.scale)), want)
+		diff.Abs(diff)
+		if diff.Cmp(big.NewInt(1)) > 0 {
+			t.Errorf("PowIntRound(%s, %d, %d) = %s, the oracle truncates to %s: off by %s",
+				c.in, c.n, c.scale, got.StringFixed(), want, diff)
+			continue
+		}
+		t.Logf("PowIntRound(%s, %d, %d) = %s", c.in, c.n, c.scale, got.StringFixed())
+	}
+
+	// A power of one is one however large the exponent, and the identity exponent returns the value itself at its
+	// own scale rather than a recomputed one.
+	for _, d := range []Dec128{MaxAtScale(0), MaxAtScale(MaxScale), FromString("-123.456"), QuantumAtScale(MaxScale)} {
+		if got := d.PowIntRound(1, d.scale, ROUND_BANK); got != d {
+			t.Errorf("%s^1 = %v, want the value itself", d.StringFixed(), got)
+		}
+	}
+	for _, n := range []int64{1, 2, 1 << 30, math.MaxInt64, -1, math.MinInt64} {
+		if got := One.PowIntRound(n, 4, ROUND_BANK); got.StringFixed() != "1.0000" {
+			t.Errorf("1^%d = %s", n, got.StringFixed())
 		}
 	}
 }

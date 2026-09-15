@@ -1,6 +1,7 @@
 package dec128
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/jokruger/dec128/state"
@@ -139,4 +140,84 @@ func TestSetArithmeticRounding(t *testing.T) {
 		}
 	}()
 	SetArithmeticRounding(RoundingMode(99))
+}
+
+func TestRescaleRoundInexact(t *testing.T) {
+	for _, c := range []struct {
+		in      string
+		scale   uint8
+		mode    RoundingMode
+		want    string
+		inexact bool
+	}{
+		{"1.005", 2, ROUND_BANK, "1.00", true},
+		{"1.500", 2, ROUND_BANK, "1.50", false},
+		{"1.5", 2, ROUND_BANK, "1.50", false}, // padding is exact
+		{"1.5", 4, ROUND_BANK, "1.5000", false},
+		{"1.5", 1, ROUND_BANK, "1.5", false}, // the same scale is exact
+		{"1.999", 2, ROUND_HALF_AWAY_FROM_ZERO, "2.00", true},
+		{"-1.005", 2, ROUND_AWAY_FROM_ZERO, "-1.01", true},
+		{"0.00", 0, ROUND_BANK, "0", false},
+		{"1.00", 0, ROUND_BANK, "1", false},
+		{"0.001", 2, ROUND_BANK, "0.00", true},
+	} {
+		got, inexact := FromString(c.in).RescaleRoundInexact(c.scale, c.mode)
+		if got.IsNaN() || got.StringFixed() != c.want || inexact != c.inexact {
+			t.Errorf("RescaleRoundInexact(%s, %d, %s) = %s, %v; want %s, %v",
+				c.in, c.scale, c.mode, got.StringFixed(), inexact, c.want, c.inexact)
+		}
+	}
+
+	// The value is whatever RescaleRound gives, everywhere, and the flag is the answer to
+	// "does padding it back out return the original", which is the definition of having lost nothing.
+	r := rand.New(rand.NewSource(20261027))
+	for range 40000 {
+		d := randDec(r)
+		scale := uint8(r.Intn(int(MaxScale) + 1))
+		mode := allModes[r.Intn(len(allModes))]
+
+		got, inexact := d.RescaleRoundInexact(scale, mode)
+		if want := d.RescaleRound(scale, mode); got != want {
+			t.Fatalf("RescaleRoundInexact and RescaleRound disagree on %s at scale %d: %v vs %v",
+				d.StringFixed(), scale, got, want)
+		}
+		if got.IsNaN() {
+			if inexact {
+				t.Fatalf("a NaN result must not be reported as inexact: %v", got)
+			}
+			continue
+		}
+		if scale >= d.scale && inexact {
+			t.Fatalf("raising the scale of %s to %d is exact, but it was reported inexact", d.StringFixed(), scale)
+		}
+		if !inexact && !got.Rescale(d.scale).Equal(d) {
+			t.Fatalf("%s at scale %d is %s, reported exact, but padding it back gives %s",
+				d.StringFixed(), scale, got.StringFixed(), got.Rescale(d.scale).StringFixed())
+		}
+		// and when it is inexact, the discarded part really was nonzero
+		if inexact {
+			if _, rem, _ := d.coef.QuoRemPow10(d.scale - scale); rem == 0 {
+				t.Fatalf("%s at scale %d was reported inexact but nothing was discarded", d.StringFixed(), scale)
+			}
+		}
+	}
+
+	// the argument errors report nothing
+	for _, c := range []struct {
+		what  string
+		d     Dec128
+		scale uint8
+		mode  RoundingMode
+	}{
+		{"NaN", NaN(state.DomainError), 2, ROUND_BANK},
+		{"scale above MaxScale", One, MaxScale + 1, ROUND_BANK},
+		{"undefined mode", FromString("1.005"), 2, RoundingMode(99)},
+		{"ROUND_NAN on an inexact rescale", FromString("1.005"), 2, ROUND_NAN},
+		{"padding overflow", MaxAtScale(0), 1, ROUND_BANK},
+	} {
+		got, inexact := c.d.RescaleRoundInexact(c.scale, c.mode)
+		if !got.IsNaN() || inexact {
+			t.Errorf("%s = %v, inexact %v", c.what, got, inexact)
+		}
+	}
 }

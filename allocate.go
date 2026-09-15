@@ -169,3 +169,152 @@ func allocInputs(
 
 	return quanta, rs, total, true
 }
+
+// AllocateResidual divides d into shares proportional to ratios at the given scale, rounding every share but one
+// with mode and giving the one at index residual whatever is left, so that the shares still sum to exactly d.
+//
+// This is the other convention a ledger splits by, and the one an amortization schedule and a syndicated facility
+// use: every party gets its proportion rounded the agreed way, and the difference that rounding creates goes to a
+// named party - the last installment, the lead bank, the house account - rather than to whoever happened to have the
+// largest fraction. Allocate is the choice when no party is named, since it keeps every share within a quantum of
+// its proportion; here only the other shares have that property. The residual may be up to len(ratios)-1 quanta away
+// from its own proportion, and may even come out with the opposite sign to d when d is a few quanta and the others
+// round away from zero.
+//
+// ok is false, and the shares are not produced, on every condition Allocate fails on, and also when residual is not
+// an index of ratios, when mode is undefined, or when mode is ROUND_NAN and a share is not exact - a NaN cannot be
+// returned through a bool, so ROUND_NAN reads here as "refuse unless the split is exact".
+//
+// It reads no process-global configuration.
+func (d Dec128) AllocateResidual(ratios []Dec128, scale uint8, residual int, mode RoundingMode) ([]Dec128, bool) {
+	return d.AppendAllocateResidual(nil, ratios, scale, residual, mode)
+}
+
+// AppendAllocateResidual is AllocateResidual appending to dst, for a caller that keeps the slice: pass shares[:0] and
+// the split costs no allocation. dst is returned unchanged when the split fails.
+func (d Dec128) AppendAllocateResidual(
+	dst []Dec128,
+	ratios []Dec128,
+	scale uint8,
+	residual int,
+	mode RoundingMode,
+) ([]Dec128, bool) {
+	quanta, rs, total, ok := allocInputs(d, ratios, scale)
+	if !ok || residual < 0 || residual >= len(ratios) || !mode.IsValid() {
+		return dst, false
+	}
+
+	// Every share but the residual is its exact proportion rounded with mode. Their sum is within len(ratios)-1
+	// quanta of the whole on either side, which can pass 2^128 when d is near the largest coefficient, so it is
+	// accumulated in 256 bits.
+	base := len(dst)
+	var sumLo, sumHi uint128.Uint128
+	for i := range ratios {
+		if i == residual {
+			dst = append(dst, Dec128{scale: scale}) // filled in below
+			continue
+		}
+		w, _ := ratios[i].coef.Mul(Pow10Uint128[rs-ratios[i].scale])
+		lo, hi := quanta.MulCarry(w)
+		q, r, _ := uint128.QuoRem256By128(lo, hi, total)
+		if mode == ROUND_NAN && !r.IsZero() {
+			return dst[:base], false
+		}
+		if up, _ := roundUp(q, r, total, d.state, mode); up {
+			// This cannot carry out. A weight below the total makes the quotient strictly below the quanta, which
+			// is itself a coefficient; a weight equal to the total makes the quotient the quanta exactly and the
+			// remainder zero, so there is nothing to round up.
+			q, _ = q.AddCarry(uint128.One)
+		}
+
+		var carry uint64
+		sumLo, carry = sumLo.AddCarry(q)
+		sumHi, _ = sumHi.AddCarry(uint128.Uint128{Lo: carry})
+
+		st := d.state
+		if q.IsZero() {
+			st = state.Default // a zero is never negative
+		}
+		dst = append(dst, Dec128{coef: q, scale: scale, state: st})
+	}
+
+	coef, st := residualOf(quanta, sumLo, sumHi, d.state)
+	dst[base+residual] = Dec128{coef: coef, scale: scale, state: st}
+
+	return dst, true
+}
+
+// SplitResidual divides d into n equal shares at the given scale: each share is d/n rounded with mode except the one
+// at index residual, which takes what is left, so the shares sum to exactly d. It is AllocateResidual with equal
+// ratios and fails on the same conditions, plus a non-positive n.
+func (d Dec128) SplitResidual(n int, scale uint8, residual int, mode RoundingMode) ([]Dec128, bool) {
+	return d.AppendSplitResidual(nil, n, scale, residual, mode)
+}
+
+// AppendSplitResidual is SplitResidual appending to dst.
+func (d Dec128) AppendSplitResidual(
+	dst []Dec128,
+	n int,
+	scale uint8,
+	residual int,
+	mode RoundingMode,
+) ([]Dec128, bool) {
+	quanta, ok := allocQuanta(d, scale)
+	if !ok || n <= 0 || residual < 0 || residual >= n || !mode.IsValid() {
+		return dst, false
+	}
+
+	// Equal shares take one rounding decision between them.
+	share, r, _ := quanta.QuoRem64(uint64(n))
+	if mode == ROUND_NAN && r != 0 {
+		return dst, false
+	}
+	divisor := uint128.FromUint64(uint64(n))
+	if up, _ := roundUp(share, uint128.FromUint64(r), divisor, d.state, mode); up {
+		// As in AppendAllocateResidual this cannot carry out: a quotient equal to the quanta means n is one, and
+		// then the remainder is zero and there is nothing to round up.
+		share, _ = share.AddCarry(uint128.One)
+	}
+
+	sumLo, sumHi := share.MulCarry(uint128.FromUint64(uint64(n - 1)))
+	coef, rst := residualOf(quanta, sumLo, sumHi, d.state)
+
+	st := d.state
+	if share.IsZero() {
+		st = state.Default // a zero is never negative
+	}
+	for i := range n {
+		if i == residual {
+			dst = append(dst, Dec128{coef: coef, scale: scale, state: rst})
+			continue
+		}
+		dst = append(dst, Dec128{coef: share, scale: scale, state: st})
+	}
+
+	return dst, true
+}
+
+// residualOf returns what is left of the whole, given in quanta, after the other shares have taken the 256-bit total
+// (sumLo, sumHi) of them: the magnitude of the residual share and its sign. The other shares carry the sign st, so a
+// sum that overshoots the whole leaves a residual of the opposite sign.
+//
+// The gap is always a coefficient wide at most, whichever way it falls: the exact proportions sum to the whole, and
+// each rounded share is within one quantum of its own, so the sum is within the share count of the whole. The
+// subtraction below therefore always lands in the low word.
+func residualOf(quanta, sumLo, sumHi uint128.Uint128, st state.State) (uint128.Uint128, state.State) {
+	if compare256(sumLo, sumHi, quanta, uint128.Zero) <= 0 {
+		// sumHi is zero here: quanta has no high word for it to have compared equal against
+		coef := uint128.SubUnsafe(quanta, sumLo)
+		if coef.IsZero() {
+			return coef, state.Default // a zero is never negative
+		}
+		return coef, st
+	}
+
+	lo, borrow := sumLo.SubBorrow(quanta)
+	_, _ = sumHi.SubBorrow(uint128.Uint128{Lo: borrow})
+	if st == state.Neg {
+		return lo, state.Default
+	}
+	return lo, state.Neg
+}

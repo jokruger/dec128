@@ -47,8 +47,8 @@ func TestBasic1(t *testing.T) {
 	if !e.IsOK() {
 		t.Errorf("unexpected error: %s", e.String())
 	}
-	if i != math.MaxUint64 {
-		t.Errorf("expected %d, got %d", uint(math.MaxUint64), i)
+	if i != uint64(math.MaxUint64) {
+		t.Errorf("expected %d, got %d", uint64(math.MaxUint64), i)
 	}
 }
 
@@ -1217,6 +1217,55 @@ func TestFromSafeStringOverflow(t *testing.T) {
 	for _, tc := range testCases {
 		if _, e := FromSafeString(tc); e != state.Overflow {
 			t.Errorf("FromSafeString(%s): expected overflow, got %s", tc, e.String())
+		}
+	}
+}
+
+// Len10 is the digit count the decimal layer reports as a value's precision, so it has to agree with the text in
+// every case, and in particular at each power of ten, where an estimate from the bit length is at its least reliable.
+func TestLen10(t *testing.T) {
+	if got := Zero.Len10(); got != 0 {
+		t.Errorf("Len10(0) = %d, want 0", got)
+	}
+
+	for k := range MaxStrLen {
+		p := Pow10Uint128[k]
+		if got, want := p.Len10(), k+1; got != want {
+			t.Errorf("Len10(10^%d) = %d, want %d", k, got, want)
+		}
+		if k > 0 {
+			below, _ := p.Sub64(1)
+			if got, want := below.Len10(), k; got != want {
+				t.Errorf("Len10(10^%d - 1) = %d, want %d", k, got, want)
+			}
+		}
+		above, _ := p.Add64(1)
+		if got, want := above.Len10(), k+1; got != want {
+			t.Errorf("Len10(10^%d + 1) = %d, want %d", k, got, want)
+		}
+	}
+
+	if got := Max.Len10(); got != MaxStrLen {
+		t.Errorf("Len10(max) = %d, want %d", got, MaxStrLen)
+	}
+
+	// against the text, which is the definition, over every bit length and a spread of random values
+	for b := 1; b <= 128; b++ {
+		for _, v := range []Uint128{
+			One.Lsh(uint(b - 1)),
+			One.Lsh(uint(b - 1)).Or(One),
+		} {
+			if got, want := v.Len10(), len(v.String()); got != want {
+				t.Errorf("Len10(%s) = %d, want %d", v, got, want)
+			}
+		}
+	}
+
+	r := rand.New(rand.NewSource(20261028))
+	for range 200000 {
+		v := Uint128{Lo: r.Uint64(), Hi: r.Uint64() >> uint(r.Intn(65))}
+		if got, want := v.Len10(), len(v.String()); got != want {
+			t.Errorf("Len10(%s) = %d, want %d", v, got, want)
 		}
 	}
 }

@@ -346,3 +346,73 @@ func (d Dec128) NextDown() Dec128 {
 	}
 	return Dec128{coef: coef, scale: d.scale, state: state.Neg}
 }
+
+// IsInteger reports whether d has nothing after the decimal point: 5, 0 and 1.000 are integers and 1.5 is not. A NaN
+// is not an integer.
+func (d Dec128) IsInteger() bool {
+	if d.state >= state.Error {
+		return false
+	}
+	if d.scale == 0 || d.coef.IsZero() {
+		return true
+	}
+
+	// the scale is in 1..MaxScale, so the division cannot fail
+	_, r, _ := d.coef.QuoRemPow10(d.scale)
+
+	return r == 0
+}
+
+// IntFrac splits d into its integer part, at scale 0, and its fractional part, at d's own scale, both carrying d's
+// sign so that ip.Add(fp) is exactly d: -1.25 gives -1 and -0.25, which is what an amortization split needs when the
+// interest portion is the whole units and the rest carries forward. The fractional part is always below one in
+// magnitude, and neither part is ever a negative zero. A NaN gives that NaN twice.
+//
+// It reads no process-global configuration.
+func (d Dec128) IntFrac() (ip, fp Dec128) {
+	if d.state >= state.Error {
+		return d, d
+	}
+	if d.scale == 0 {
+		return d, Dec128{}
+	}
+
+	// the scale is in 1..MaxScale, so the division cannot fail
+	q, r, _ := d.coef.QuoRemPow10(d.scale)
+
+	ip = Dec128{coef: q, state: d.state}
+	if q.IsZero() {
+		ip.state = state.Default // a zero is never negative
+	}
+	fp = Dec128{coef: uint128.FromUint64(r), scale: d.scale, state: d.state}
+	if r == 0 {
+		fp.state = state.Default
+	}
+
+	return ip, fp
+}
+
+// Clamp returns d limited to the range [lo, hi]: lo when d is below it, hi when d is above it, and d itself
+// otherwise. The comparison is numeric, and the value returned keeps its own scale, so clamping 1.5 to [0, 2.00]
+// gives 1.5 and clamping 3 gives 2.00.
+//
+// A NaN operand propagates - d first, then lo, then hi - and a lo above hi is NaN(DomainError) rather than a silent
+// choice between them. It reads no process-global configuration.
+func (d Dec128) Clamp(lo, hi Dec128) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case lo.state >= state.Error:
+		return lo
+	case hi.state >= state.Error:
+		return hi
+	case lo.Compare(hi) > 0:
+		return Dec128{state: state.DomainError}
+	case d.Compare(lo) < 0:
+		return lo
+	case d.Compare(hi) > 0:
+		return hi
+	}
+
+	return d
+}

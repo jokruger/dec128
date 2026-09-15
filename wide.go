@@ -112,8 +112,16 @@ func (a wide) quoRemPow10Small(k uint8) (q wide, r uint64) {
 	// Normalize by shifting left by s. The bits that leave the top limb are the first partial remainder, and they are
 	// below 2^s <= 2^60 < dn, which is what the division step requires. For s == 0 every shift by 64 is zero in Go,
 	// so the normalization is a no-op as intended.
-	r = a[wideLimbs-1] >> (64 - s)
-	for i := wideLimbs - 1; i >= 0; i-- {
+	//
+	// The division starts at the highest nonzero limb rather than at the top of the register: a leading zero limb
+	// contributes a zero quotient limb and leaves the remainder alone, and the powers and the accumulator work in a
+	// register several limbs wider than the values they usually hold.
+	top := wideLimbs - 1
+	for top > 0 && a[top] == 0 {
+		top--
+	}
+	r = a[top] >> (64 - s)
+	for i := top; i >= 0; i-- {
 		u := a[i] << s
 		if i > 0 {
 			u |= a[i-1] >> (64 - s)
@@ -124,6 +132,15 @@ func (a wide) quoRemPow10Small(k uint8) (q wide, r uint64) {
 	return q, r >> s
 }
 
+// quoRem64 returns a / v and a % v for a nonzero v, with one 128-by-64 division per limb from the top down. Each
+// step's remainder is below v, which is what bits.Div64 requires of its high word.
+func (a wide) quoRem64(v uint64) (q wide, r uint64) {
+	for i := wideLimbs - 1; i >= 0; i-- {
+		q[i], r = bits.Div64(r, a[i], v)
+	}
+	return q, r
+}
+
 // quoCmpHalfPow10 returns a / 10^k truncated, together with the two facts a rounding decision needs about what was
 // dropped: whether it is above half of 10^k and whether it is exactly half, plus whether it was nonzero at all.
 //
@@ -131,12 +148,19 @@ func (a wide) quoRemPow10Small(k uint8) (q wide, r uint64) {
 // remainder takes part in the comparison: the steps go from the low digits up, so that remainder is the most
 // significant part of what was dropped and the earlier ones are no more than a sticky bit.
 func (a wide) quoCmpHalfPow10(k uint8) (q wide, above, tie, inexact bool) {
+	return a.quoCmpHalfPow10Sticky(k, false)
+}
+
+// quoCmpHalfPow10Sticky is quoCmpHalfPow10 with digits the caller has already dropped folded into the comparison.
+// sticky says that what fell below the register before this call was nonzero, which is what the remainder of a
+// division into the register is. Those digits are worth less than one unit in the register's last place, so all they
+// can do is turn an exact tie into a value just above one and make an otherwise exact reduction inexact.
+func (a wide) quoCmpHalfPow10Sticky(k uint8, sticky bool) (q wide, above, tie, inexact bool) {
 	if k == 0 {
-		return a, false, false, false
+		return a, false, false, sticky
 	}
 
 	last := min(k, MaxScale)
-	sticky := false
 	for low := k - last; low > 0; {
 		step := min(low, MaxScale)
 		var r uint64
@@ -256,6 +280,28 @@ func (a wide) at(needed, target uint8, st state.State, mode RoundingMode) Dec128
 // this last reduction: a guarded power that dropped digits while squaring is inexact even if the final reduction
 // happens to drop only zeros.
 func (a wide) fit(scale uint8, st state.State, mode RoundingMode, policy LossPolicy, sticky bool) Dec128 {
+	if a == (wide{}) {
+		rs := min(scale, MaxScale)
+		if !sticky {
+			return Dec128{scale: rs} // an exact zero
+		}
+		// Everything the value had was dropped before it reached here, so it stands below the quantum of every
+		// scale this type has and only a directed mode reaches the first unit. reduceAt takes that same decision
+		// for a magnitude that is merely small rather than gone, and the policy then rules on the rounded result;
+		// doing it in that order here is what makes the two agree.
+		var coef uint128.Uint128
+		if roundDecision(false, false, false, st, mode) {
+			coef = uint128.One
+		}
+		if s := lossState(coef.IsZero(), policy); s != state.OK {
+			return Dec128{state: s}
+		}
+		if coef.IsZero() {
+			return Dec128{scale: rs} // a zero is never negative
+		}
+		return Dec128{coef: coef, scale: rs, state: st}
+	}
+
 	// Digits that must go because of the scale cap, then those that must go because of the width: the quotient by
 	// 10^k has at least bitLen - bitLen10[k] bits, so no smaller k can fit. The estimate is optimistic by at most one
 	// digit, and the loop moves on when the reduction reports overflow.

@@ -2,6 +2,7 @@ package dec128
 
 import (
 	"github.com/jokruger/dec128/state"
+	"github.com/jokruger/dec128/uint128"
 )
 
 // Accumulator is a running total held in a register wider than a Dec128, so that a sum, or a sum of products, stays
@@ -22,6 +23,7 @@ type Accumulator struct {
 	pos, neg wide
 	count    int
 	scale    uint8       // working scale: the largest natural scale any term has needed
+	floor    uint8       // the scale it was created with, which Reset returns it to
 	state    state.State // sticky failure - the first NaN term, or a register that overflowed
 }
 
@@ -34,13 +36,25 @@ type Accumulator struct {
 // A scale above MaxScale makes the accumulator a NaN(ScaleOutOfRange) that stays one, in keeping with the package's
 // rule that a failure is a value rather than a panic.
 func NewAccumulator(scale uint8) *Accumulator {
-	a := &Accumulator{}
+	a := &Accumulator{floor: scale}
 	if scale > MaxScale {
 		a.state = state.ScaleOutOfRange
 		return a
 	}
 	a.scale = scale
 	return a
+}
+
+// Reset empties the accumulator and returns it to the working scale it was created with, so that one can be reused
+// for the next batch instead of allocating another. The terms and any failure recorded along the way are both
+// cleared - except for the ScaleOutOfRange of an accumulator created with a scale it can never have, which emptying
+// it cannot fix.
+func (a *Accumulator) Reset() {
+	bad := a.floor > MaxScale
+	*a = Accumulator{scale: min(a.floor, MaxScale), floor: a.floor}
+	if bad {
+		a.state = state.ScaleOutOfRange
+	}
 }
 
 // Count returns the number of terms added, whether or not any of them failed.
@@ -172,4 +186,76 @@ func (a *Accumulator) Total(scale uint8, mode RoundingMode) Dec128 {
 	}
 	m, st, ws := a.total()
 	return m.at(ws, scale, st, mode)
+}
+
+// Mean returns the arithmetic mean of the terms added so far at exactly the given scale, rounding with mode. The
+// exact total is divided by Count and the quotient is brought to scale, and the two together take one rounding
+// decision rather than one each, so the result is the correctly rounded mean of the terms and not the rounded mean of
+// a rounded total.
+//
+// An empty accumulator is NaN(DivisionByZero): the mean of nothing is not zero. Otherwise it fails as Total does,
+// and also with NaN(Overflow) when a total that fills the register is asked for at a scale that needs padding.
+//
+// Terms that were added with AddMul count as one term each, so the mean of a weighted sum is that sum over the number
+// of products in it.
+func (a *Accumulator) Mean(scale uint8, mode RoundingMode) Dec128 {
+	switch {
+	case a.state >= state.Error:
+		return Dec128{state: a.state}
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
+	case !mode.IsValid():
+		return Dec128{state: state.InvalidRoundingMode}
+	case a.count == 0:
+		return Dec128{state: state.DivisionByZero}
+	}
+
+	m, st, ws := a.total()
+
+	// Pad before dividing when the mean is wanted at a finer scale than the terms were kept at, so that the division
+	// produces those places instead of the reduction having to discard them.
+	//
+	// The padding cannot carry out of the register. A term is below 2^256 and there are fewer than 2^63 of them,
+	// because the count is an int, so the total at working scale zero is below 2^319; a working scale of ws carries
+	// a further 10^ws, and padding to scale multiplies by 10^(scale-ws), so what is held is below 2^319 * 10^scale,
+	// and scale is at most MaxScale: 2^319 * 10^19 < 2^383.
+	if scale > ws {
+		m, _ = m.mulPow10(scale - ws)
+		ws = scale
+	}
+
+	q, r := m.quoRem64(uint64(a.count))
+
+	// What the rounding decision has to weigh is r/count of the register's last place, plus the ws-scale digits the
+	// reduction drops. When there are no digits to drop the remainder is the whole of it and decides on its own;
+	// otherwise those digits are the more significant part and the remainder is no more than a sticky bit.
+	var qw wide
+	var above, tie, inexact bool
+	if k := ws - scale; k == 0 {
+		half := uint64(a.count) / 2
+		qw, above, tie, inexact = q, r > half, uint64(a.count)%2 == 0 && r == half, r != 0
+	} else {
+		qw, above, tie, inexact = q.quoCmpHalfPow10Sticky(k, r != 0)
+	}
+
+	coef, ok := qw.uint128()
+	if !ok {
+		return Dec128{state: state.Overflow}
+	}
+	if inexact {
+		if mode == ROUND_NAN {
+			return Dec128{state: state.Inexact}
+		}
+		if roundDecision(above, tie, coef.Lo&1 == 1, st, mode) {
+			var carry uint64
+			if coef, carry = coef.AddCarry(uint128.One); carry != 0 {
+				return Dec128{state: state.Overflow}
+			}
+		}
+	}
+	if coef.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
+
+	return Dec128{coef: coef, scale: scale, state: st}
 }

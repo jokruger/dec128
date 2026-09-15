@@ -1,6 +1,9 @@
 package dec128
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func ExampleFromString() {
 	a := FromString("0.123456789")
@@ -374,4 +377,97 @@ func ExampleDec128_RoundToMultiple() {
 	// 190
 	// 1235000
 	// 0.0525
+}
+
+func ExampleDec128_SplitResidual() {
+	// A seven-installment schedule where the last one absorbs the rounding of the other six, which is the
+	// convention a loan agreement names. The installments still sum to the principal exactly.
+	parts, _ := FromString("1000.00").SplitResidual(7, 2, 6, ROUND_HALF_AWAY_FROM_ZERO)
+	texts := make([]string, len(parts))
+	for i, p := range parts {
+		texts[i] = p.StringFixed()
+	}
+	fmt.Println(strings.Join(texts, " "))
+	fmt.Println(SumSlice(parts).StringFixed())
+
+	// Largest remainder instead, where no share is named and none is more than a cent from its proportion.
+	parts, _ = FromString("1000.00").Split(7, 2)
+	fmt.Println(parts[0].StringFixed(), parts[6].StringFixed())
+	// Output:
+	// 142.86 142.86 142.86 142.86 142.86 142.86 142.84
+	// 1000.00
+	// 142.86 142.85
+}
+
+func ExampleDec128_NthRootRound() {
+	// The monthly factor behind an annual one: the inverse of raising it to the twelfth power.
+	annual := FromString("1.126825")
+	monthly := annual.NthRootRound(12, 10, ROUND_HALF_AWAY_FROM_ZERO)
+	fmt.Println(monthly.StringFixed())
+	fmt.Println(monthly.PowIntRound(12, 6, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+
+	// An exact root is exact, and a tie is broken by the mode like any other.
+	fmt.Println(FromString("8").NthRootRound(3, 2, ROUND_BANK).StringFixed())
+	fmt.Println(FromString("0.25").NthRootRound(2, 0, ROUND_BANK).StringFixed())
+	// Output:
+	// 1.0099999977
+	// 1.126825
+	// 2.00
+	// 0
+}
+
+func ExampleDec128_FitsNumeric() {
+	// The check before the insert: the column is NUMERIC(19,4), and a value that does not fit is either made to fit
+	// or reported, rather than left for the database to refuse mid-batch.
+	for _, s := range []string{"1234.5", "1234.56789", "1234567890123456.789"} {
+		d := FromString(s)
+		if d.FitsNumeric(19, 4) {
+			fmt.Printf("%-22s fits\n", s)
+			continue
+		}
+		rounded, lost := d.RescaleRoundInexact(4, ROUND_BANK)
+		if rounded.FitsNumeric(19, 4) {
+			fmt.Printf("%-22s fits as %s (lost digits: %v)\n", s, rounded.StringFixed(), lost)
+			continue
+		}
+		fmt.Printf("%-22s needs %d integer digits, and the column has %d\n", s, d.IntegerDigits(), 19-4)
+	}
+	// Output:
+	// 1234.5                 fits
+	// 1234.56789             fits as 1234.5679 (lost digits: true)
+	// 1234567890123456.789   needs 16 integer digits, and the column has 15
+}
+
+func ExampleDec128_Format() {
+	d := FromString("1234.50")
+	fmt.Printf("%v|%s|%f|%.2f|%.0f\n", d, d, d, d, d)
+	fmt.Printf("%10.2f|%-10.2f|%010.2f\n", d, d, d)
+	fmt.Printf("%e|%d|%+.2f\n", d, d, d)
+
+	// The rounding is the decimal one, so it does not inherit a float's representation error: the float64 nearest
+	// 2.675 is a shade below it, which is why Go's own %.2f gives 2.67 there.
+	fmt.Printf("%.2f %.2f\n", FromString("2.675"), 2.675)
+	// Output:
+	// 1234.5|1234.5|1234.50|1234.50|1234
+	//    1234.50|1234.50   |0001234.50
+	// 1.2345e+3|1234|+1234.50
+	// 2.68 2.67
+}
+
+func ExampleAccumulator_Mean() {
+	// The mean of a batch, rounded once: the exact total is divided by the count and brought to the scale in one
+	// decision, rather than rounding a total and then rounding a quotient.
+	acc := NewAccumulator(2)
+	for _, s := range []string{"10.00", "20.00", "40.05"} {
+		acc.Add(FromString(s))
+	}
+	fmt.Println(acc.Count(), acc.Total(2, ROUND_BANK).StringFixed(), acc.Mean(2, ROUND_BANK).StringFixed())
+
+	// and the accumulator is reusable for the next batch
+	acc.Reset()
+	acc.Add(FromString("1.00"))
+	fmt.Println(acc.Count(), acc.Mean(2, ROUND_BANK).StringFixed())
+	// Output:
+	// 3 70.05 23.35
+	// 1 1.00
 }

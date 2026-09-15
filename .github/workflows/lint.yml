@@ -25,3 +25,23 @@ jobs:
         with:
           # Keep in sync with GOLANGCI_LINT_VERSION in the Makefile.
           version: v2.13.2
+
+  cross-compile:
+    name: vet on a 32-bit target
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # int_32bit.go ships, so the package and its tests have to build where int is 32 bits and a uint64 aligns to
+      # four bytes. The tests are not run here: there is no 32-bit runner, and the arithmetic is covered by the
+      # amd64 and arm64 jobs in ci.yml.
+      - name: Vet for linux/386 and linux/arm
+        run: |
+          GOOS=linux GOARCH=386 go vet ./...
+          GOOS=linux GOARCH=arm go vet ./...
