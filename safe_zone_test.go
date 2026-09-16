@@ -77,8 +77,8 @@ func TestSafeZoneScaleCliff(t *testing.T) {
 	SetArithmeticRounding(ROUND_TOWARD_ZERO)
 	SetLossPolicy(LossRound)
 
-	inside := FromString[string]("0.000000001")   // scale 9
-	outside := FromString[string]("0.0000000001") // scale 10
+	inside := FromString("0.000000001")   // scale 9
+	outside := FromString("0.0000000001") // scale 10
 
 	if got := inside.Mul(inside); got.StringFixed() != "0.000000000000000001" {
 		t.Errorf("scale 9 squared = %s, want 0.000000000000000001 (exact)", got.StringFixed())
@@ -94,7 +94,7 @@ func TestSafeZoneScaleCliff(t *testing.T) {
 	if got := QuantumAtScale(MaxScale).StringFixed(); got != "0.0000000000000000001" {
 		t.Errorf("smallest non-zero value = %s", got)
 	}
-	if d := FromString[string]("0.00000000000000000001"); !d.IsNaN() {
+	if d := FromString("0.00000000000000000001"); !d.IsNaN() {
 		t.Errorf("1e-20 parsed to %s, want NaN: it is below the smallest representable value", d.StringFixed())
 	}
 }

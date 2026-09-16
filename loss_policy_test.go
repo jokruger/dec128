@@ -100,7 +100,7 @@ type lossCase struct {
 func lossCases(t *testing.T) []lossCase {
 	t.Helper()
 	f := func(s string) Dec128 {
-		d := FromString[string](s)
+		d := FromString(s)
 		if d.IsNaN() {
 			t.Fatalf("FromString(%q) = NaN(%v)", s, d.ErrorDetails())
 		}
@@ -118,7 +118,7 @@ func lossCases(t *testing.T) []lossCase {
 	}
 }
 
-func TestLossPolicyBehaviour(t *testing.T) {
+func TestLossPolicyBehavior(t *testing.T) {
 	restoreConfig(t)
 
 	for _, c := range lossCases(t) {
@@ -167,7 +167,7 @@ func TestLossPolicyUnderflowIsNaN(t *testing.T) {
 	restoreConfig(t)
 	SetLossPolicy(LossNaNOnUnderflow)
 
-	tiny := FromString[string]("0.0000000001")
+	tiny := FromString("0.0000000001")
 	u := tiny.Mul(tiny)
 	if !u.IsNaN() || u.ErrorDetails() != state.Underflow.Error() {
 		t.Fatalf("underflow = %v (%v)", u, u.ErrorDetails())
@@ -191,7 +191,7 @@ func TestSqrtUnderflowAtCoarseScale(t *testing.T) {
 	restoreConfig(t)
 	SetDefaultScale(0)
 
-	half := FromString[string]("0.25")
+	half := FromString("0.25")
 
 	SetLossPolicy(LossRound)
 	if got := half.Sqrt(); !got.IsZero() {
@@ -217,7 +217,7 @@ func TestPerCallRoundingIgnoresPolicy(t *testing.T) {
 	if got := FromInt64(2).SqrtRound(4, ROUND_BANK); got.IsNaN() || got.StringFixed() != "1.4142" {
 		t.Errorf("SqrtRound(2, 4, ROUND_BANK) = %v (%v), want 1.4142", got, got.ErrorDetails())
 	}
-	x := FromString[string]("1.2345678901")
+	x := FromString("1.2345678901")
 	if got := x.MulRound(x, 4, ROUND_BANK); got.IsNaN() || got.StringFixed() != "1.5242" {
 		t.Errorf("MulRound(x, 4, ROUND_BANK) = %v (%v), want 1.5242", got, got.ErrorDetails())
 	}
