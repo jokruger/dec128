@@ -351,7 +351,7 @@ func divOracle(a, b Dec128, scale uint8, mode RoundingMode) (coef *big.Int, neg 
 	return roundBig(q, r, den, neg, mode), neg, r.Sign() != 0
 }
 
-func checkQuotient(t *testing.T, op string, a, b, got Dec128, scale uint8, mode RoundingMode, want *big.Int, neg, inexact bool, allowOverflow bool) {
+func checkQuotient(t *testing.T, op string, a, b, got Dec128, scale uint8, mode RoundingMode, want *big.Int, neg, inexact bool) {
 	t.Helper()
 	switch {
 	case want.Cmp(big2p128) >= 0:
@@ -383,7 +383,7 @@ func TestDivRoundAgainstBig(t *testing.T) {
 		mode := allModes[r.Intn(len(allModes))]
 		scale := uint8(r.Intn(int(MaxScale) + 1))
 		want, neg, inexact := divOracle(a, b, scale, mode)
-		checkQuotient(t, "DivRound", a, b, a.DivRound(b, scale, mode), scale, mode, want, neg, inexact, false)
+		checkQuotient(t, "DivRound", a, b, a.DivRound(b, scale, mode), scale, mode, want, neg, inexact)
 	}
 }
 
@@ -428,7 +428,7 @@ func TestDivAgainstBig(t *testing.T) {
 						scale--
 					}
 				}
-				checkQuotient(t, "Div", a, b, got, uint8(scale), mode, want, neg, inexact, true)
+				checkQuotient(t, "Div", a, b, got, uint8(scale), mode, want, neg, inexact)
 			}
 		}
 	}
@@ -539,7 +539,7 @@ func TestDivRoundingCarry(t *testing.T) {
 	SetArithmeticRounding(ROUND_HALF_AWAY_FROM_ZERO)
 	got := d.Div(nine)
 	want, neg, inexact := divOracle(d, nine, 0, ROUND_HALF_AWAY_FROM_ZERO)
-	checkQuotient(t, "Div", d, nine, got, 0, ROUND_HALF_AWAY_FROM_ZERO, want, neg, inexact, true)
+	checkQuotient(t, "Div", d, nine, got, 0, ROUND_HALF_AWAY_FROM_ZERO, want, neg, inexact)
 }
 
 func TestIdealScale(t *testing.T) {

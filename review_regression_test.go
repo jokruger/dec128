@@ -21,13 +21,13 @@ func TestDivMulEqualTopLimbsNoPanic(t *testing.T) {
 	a := FromString("170141183460469231731687303715884105728")
 	b := FromString("5000000000000000000.0000000000000000001")
 	want, neg, inexact := divOracle(a, b, MaxScale, ROUND_TOWARD_ZERO)
-	checkQuotient(t, "DivRound", a, b, a.DivRound(b, MaxScale, ROUND_TOWARD_ZERO), MaxScale, ROUND_TOWARD_ZERO, want, neg, inexact, false)
+	checkQuotient(t, "DivRound", a, b, a.DivRound(b, MaxScale, ROUND_TOWARD_ZERO), MaxScale, ROUND_TOWARD_ZERO, want, neg, inexact)
 	// Div rounds to the largest scale that fits; it must agree with DivRound at that scale
 	if got := a.Div(b); got.IsNaN() || got.StringFixed() != a.DivRound(b, got.scale, ROUND_TOWARD_ZERO).StringFixed() {
 		t.Errorf("Div = %v", got)
 	} else {
 		want, neg, inexact := divOracle(a, b, got.scale, ROUND_TOWARD_ZERO)
-		checkQuotient(t, "Div", a, b, got, got.scale, ROUND_TOWARD_ZERO, want, neg, inexact, false)
+		checkQuotient(t, "Div", a, b, got, got.scale, ROUND_TOWARD_ZERO, want, neg, inexact)
 	}
 	q, r := a.QuoRem(b)
 	if q.IsNaN() || r.IsNaN() {
@@ -62,7 +62,7 @@ func TestDivMulEqualTopLimbsNoPanic(t *testing.T) {
 		}
 		o := Dec128{coef: v, scale: uint8(f - 19 + int(s1))}
 		want, neg, inexact := divOracle(d, o, MaxScale, ROUND_TOWARD_ZERO)
-		checkQuotient(t, "DivRound", d, o, d.DivRound(o, MaxScale, ROUND_TOWARD_ZERO), MaxScale, ROUND_TOWARD_ZERO, want, neg, inexact, false)
+		checkQuotient(t, "DivRound", d, o, d.DivRound(o, MaxScale, ROUND_TOWARD_ZERO), MaxScale, ROUND_TOWARD_ZERO, want, neg, inexact)
 		if got := d.Div(o); got.IsNaN() {
 			t.Errorf("Div(%s, %s) = NaN(%v)", d.StringFixed(), o.StringFixed(), got.ErrorDetails())
 		}

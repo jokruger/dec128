@@ -212,7 +212,7 @@ func FuzzDivQuoRem(f *testing.F) {
 
 		// DivRound against the exact quotient at that scale
 		want, neg, inexact := divOracle(x, y, scale, mode)
-		checkQuotient(t, "DivRound", x, y, x.DivRound(y, scale, mode), scale, mode, want, neg, inexact, false)
+		checkQuotient(t, "DivRound", x, y, x.DivRound(y, scale, mode), scale, mode, want, neg, inexact)
 
 		// QuoRem is exact, and reconstructs the dividend
 		q, r := x.QuoRem(y)
