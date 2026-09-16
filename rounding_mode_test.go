@@ -221,3 +221,60 @@ func TestRescaleRoundInexact(t *testing.T) {
 		}
 	}
 }
+
+// The eight modes are implemented twice: roundDecision (fit.go), which every reduction over a wide register goes
+// through, and the hand-written Round* methods (rounding.go), which Round, RescaleRound and RoundToPlaces dispatch to.
+// The second set exists because it is about 20% faster than routing a constant mode through the switch - RoundBank(2)
+// is 6.3ns against 7.5ns - and that is worth having on the call every caller makes at the end of a chain. Nothing in
+// the compiler keeps the two in step, so this does: the reference below is roundDecision driving the same division,
+// and it must agree with the shipped methods on every value, scale and mode.
+func TestRoundMethodsMatchRoundDecision(t *testing.T) {
+	reference := func(d Dec128, scale uint8, mode RoundingMode) Dec128 {
+		if d.state >= state.Error || scale >= d.scale {
+			return d
+		}
+		k := d.scale - scale
+		q, r, _ := d.coef.QuoRemPow10(k)
+		if r != 0 {
+			if mode == ROUND_NAN {
+				return Dec128{state: state.Inexact}
+			}
+			half := Pow10Uint64[k] / 2
+			if roundDecision(r > half, r == half, q.Lo&1 == 1, d.state, mode) {
+				q, _ = q.Add64(1)
+			}
+		}
+		if q.IsZero() {
+			return Dec128{scale: scale} // a zero is never negative
+		}
+		return Dec128{coef: q, scale: scale, state: d.state}
+	}
+
+	// the boundaries first: a tie, one either side of it, and the carry that makes a new digit
+	fixed := []string{
+		"0.5", "1.5", "2.5", "-0.5", "-1.5", "-2.5", "0.05", "0.15", "0.25", "1.005", "1.015",
+		"0.4999999999999999999", "0.5000000000000000001", "9.999999999999999999", "-9.999999999999999999",
+		"0.0000000000000000001", "-0.0000000000000000001",
+	}
+	for _, s := range fixed {
+		d := FromString(s)
+		for scale := uint8(0); scale <= MaxScale; scale++ {
+			for _, mode := range allModes {
+				if got, want := d.Round(scale, mode), reference(d, scale, mode); got != want {
+					t.Fatalf("%s at scale %d [%s]: Round = %v, roundDecision = %v", s, scale, mode, got, want)
+				}
+			}
+		}
+	}
+
+	r := rand.New(rand.NewSource(20260916))
+	for range 100000 {
+		d := randDec(r)
+		scale := uint8(r.Intn(int(MaxScale) + 1))
+		for _, mode := range allModes {
+			if got, want := d.Round(scale, mode), reference(d, scale, mode); got != want {
+				t.Fatalf("%s at scale %d [%s]: Round = %v, roundDecision = %v", d.StringFixed(), scale, mode, got, want)
+			}
+		}
+	}
+}

@@ -209,16 +209,11 @@ func (d *Dec128) DecodePgNumeric(buf []byte) error {
 		coef = n.lo
 	}
 
-	scale := dscale
-	for scale > int(MaxScale) {
-		q, r, _ := coef.QuoRemPow10(1)
-		if r != 0 {
-			*d = Dec128{state: state.ScaleOutOfRange}
-			return nil
-		}
-		coef = q
-		scale--
+	coef, scale, ok := shedScale(coef, dscale)
+	if !ok {
+		*d = Dec128{state: state.ScaleOutOfRange}
+		return nil
 	}
-	*d = Dec128{coef: coef, scale: uint8(scale), state: st}
+	*d = Dec128{coef: coef, scale: scale, state: st}
 	return nil
 }

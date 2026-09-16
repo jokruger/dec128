@@ -165,7 +165,7 @@ func TestNthRootRoundRateConversion(t *testing.T) {
 				got := d.NthRootRound(n, scale, ROUND_HALF_AWAY_FROM_ZERO)
 				rootPostCondition(t, d, n, scale, ROUND_HALF_AWAY_FROM_ZERO, got)
 
-				// and the round trip: raising the root back to the power n returns to the neighbourhood of d
+				// and the round trip: raising the root back to the power n returns to the neighborhood of d
 				if !got.IsNaN() && !got.IsZero() {
 					back := got.PowIntRound(int64(n), scale, ROUND_HALF_AWAY_FROM_ZERO)
 					if !back.IsNaN() {

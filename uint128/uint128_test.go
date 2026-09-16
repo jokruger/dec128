@@ -1172,7 +1172,7 @@ func u256ToBig(lo Uint128, hi Uint128) *big.Int {
 
 // TestQR256b128Random cross-checks the 256/128 division against math/big. The
 // trial quotient produced by bits.Div64 can be up to 2 too large, and only a
-// randomised sweep reliably exercises both correction steps.
+// randomized sweep reliably exercises both correction steps.
 func TestQR256b128Random(t *testing.T) {
 	rnd := rand.New(rand.NewSource(42))
 

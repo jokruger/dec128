@@ -185,6 +185,7 @@ func (d *Dec128) DecodeIEEE(buf []byte) error {
 		st = state.Neg
 	}
 
+	var scale uint8
 	switch {
 	case exp > 0:
 		if exp > 38 {
@@ -196,18 +197,15 @@ func (d *Dec128) DecodeIEEE(buf []byte) error {
 			*d = Dec128{state: state.Overflow}
 			return nil
 		}
-		exp = 0
 	case exp < -int(MaxScale):
-		for exp < -int(MaxScale) {
-			q, r, _ := coef.QuoRemPow10(1)
-			if r != 0 {
-				*d = Dec128{state: state.ScaleOutOfRange}
-				return nil
-			}
-			coef = q
-			exp++
+		var ok bool
+		if coef, scale, ok = shedScale(coef, -exp); !ok {
+			*d = Dec128{state: state.ScaleOutOfRange}
+			return nil
 		}
+	default:
+		scale = uint8(-exp)
 	}
-	*d = Dec128{coef: coef, scale: uint8(-exp), state: st}
+	*d = Dec128{coef: coef, scale: scale, state: st}
 	return nil
 }

@@ -53,7 +53,7 @@ func TestPaddedInputIsAccepted(t *testing.T) {
 		}
 	}
 
-	// Padding that already fits keeps the scale it was written with, so 1.50 is not silently canonicalised.
+	// Padding that already fits keeps the scale it was written with, so 1.50 is not silently canonicalized.
 	for _, c := range []struct{ in, want string }{
 		{"1.50", "1.50"},
 		{"1.50e0", "1.50"},

@@ -121,6 +121,15 @@ func prodAt(mag *big.Int, ts int, st state.State, scale uint8, mode RoundingMode
 // coefficient fits 128 bits, with the digits below it discarded by mode and policy. It is fitWide's contract, over a
 // magnitude too wide for fitWide's register.
 func prodFit(mag *big.Int, ts int, st state.State, mode RoundingMode, policy LossPolicy) Dec128 {
+	// The mode here comes from SetArithmeticRounding, where ROUND_NAN is the deprecated spelling of
+	// SetLossPolicy(LossNaNOnInexact) rather than a direction of its own: refusing the loss is the policy's decision,
+	// and a program that sets both - policy second, as the documentation requires - means the policy. fitWide and
+	// wide.fit take it the same way, through roundDecision, which gives ROUND_NAN the direction of truncation.
+	// prodAt's own ROUND_NAN branch is for the per-call ProdRound, where the mode does mean refusal.
+	if mode == ROUND_NAN {
+		mode = ROUND_TOWARD_ZERO
+	}
+
 	for s := min(ts, int(MaxScale)); s >= 0; s-- {
 		d := prodAt(mag, ts, st, uint8(s), mode, policy)
 		if d.state != state.Overflow {

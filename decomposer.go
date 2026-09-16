@@ -152,16 +152,9 @@ func (d *Dec128) Compose(form byte, negative bool, coefficient []byte, exponent 
 		}
 		c, exponent = lo, 0
 	}
-	for exponent < -int32(MaxScale) {
-		k := uint8(min(-exponent-int32(MaxScale), int32(MaxScale)))
-		q, r, st := c.QuoRemPow10(k)
-		if st >= state.Error {
-			return st.Error()
-		}
-		if r != 0 {
-			return state.Inexact.Error()
-		}
-		c, exponent = q, exponent+int32(k)
+	c, scale, ok := shedScale(c, int(-exponent))
+	if !ok {
+		return state.Inexact.Error()
 	}
 
 	st := state.Default
@@ -169,7 +162,7 @@ func (d *Dec128) Compose(form byte, negative bool, coefficient []byte, exponent 
 		st = state.Neg
 	}
 
-	*d = Dec128{coef: c, scale: uint8(-exponent), state: st}
+	*d = Dec128{coef: c, scale: scale, state: st}
 
 	return nil
 }

@@ -110,16 +110,11 @@ func (d *Dec128) DecodeInt128(buf []byte, scale uint8, order binary.ByteOrder) e
 		st = state.Default
 	}
 
-	s := int(scale)
-	for s > int(MaxScale) {
-		q, r, _ := c.QuoRemPow10(1)
-		if r != 0 {
-			*d = Dec128{state: state.ScaleOutOfRange}
-			return nil
-		}
-		c = q
-		s--
+	c, s, ok := shedScale(c, int(scale))
+	if !ok {
+		*d = Dec128{state: state.ScaleOutOfRange}
+		return nil
 	}
-	*d = Dec128{coef: c, scale: uint8(s), state: st}
+	*d = Dec128{coef: c, scale: s, state: st}
 	return nil
 }

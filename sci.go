@@ -189,16 +189,12 @@ func applyExp(coef uint128.Uint128, frac int, exp int, st state.State) Dec128 {
 	}
 
 	// trailing zeros in the coefficient can often bring an out of range scale back in
-	for scale > int(MaxScale) {
-		q, r, _ := coef.QuoRem64(10)
-		if r != 0 {
-			return Dec128{state: state.ScaleOutOfRange}
-		}
-		coef = q
-		scale--
+	coef, s, ok := shedScale(coef, scale)
+	if !ok {
+		return Dec128{state: state.ScaleOutOfRange}
 	}
 
-	return Dec128{coef: coef, scale: uint8(scale), state: st}
+	return Dec128{coef: coef, scale: s, state: st}
 }
 
 // StringSci returns the scientific notation representation of the Dec128, with the trailing zeros of the mantissa

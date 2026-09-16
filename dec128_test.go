@@ -4005,7 +4005,7 @@ func TestSciRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSciSerialisation(t *testing.T) {
+func TestSciSerialization(t *testing.T) {
 	// parsing accepts the scientific form everywhere, output stays regular
 	t.Run("json", func(t *testing.T) {
 		var d Dec128
@@ -4145,7 +4145,7 @@ func TestSqrt5(t *testing.T) {
 			continue
 		}
 
-		// the neighbouring value has a non-zero low half and always worked
+		// the neighboring value has a non-zero low half and always worked
 		n := Dec128{coef: uint128.Uint128{Hi: c.Hi, Lo: c.Lo + 1}, scale: MaxScale}
 		if q := n.Sqrt(); q.IsNaN() {
 			t.Errorf("Sqrt(2^%d+1 at scale %d): unexpected NaN", sh, MaxScale)
@@ -4160,7 +4160,7 @@ func bigOfUint128(u uint128.Uint128) *big.Int {
 	return b.Or(b, new(big.Int).SetUint64(u.Lo))
 }
 
-// TestSqrt6 checks Sqrt against math/big over a randomised sweep: the result must be
+// TestSqrt6 checks Sqrt against math/big over a randomized sweep: the result must be
 // the exact integer square root of the coefficient scaled to 2*defaultScale, and NaN
 // is only acceptable when the 256-bit intermediate genuinely cannot hold the value.
 func TestSqrt6(t *testing.T) {

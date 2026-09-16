@@ -465,7 +465,7 @@ func TestIsqrt256AgainstBig(t *testing.T) {
 			hi.Hi &= ^uint64(0) >> (256 - bl)
 		}
 		check(lo, hi)
-		// perfect squares and their neighbours
+		// perfect squares and their neighbors
 		root := uint128.Uint128{Lo: rnd.Uint64(), Hi: rnd.Uint64() >> uint(rnd.Intn(64))}
 		if rnd.Intn(2) == 0 {
 			root.Hi, root.Lo = 0, root.Lo>>uint(rnd.Intn(64))
@@ -601,5 +601,37 @@ func TestIntTruncatesAndRangeChecks(t *testing.T) {
 	}
 	if _, err := NaN(state.DivisionByZero).Int(); err != state.DivisionByZero.Error() {
 		t.Errorf("Int NaN: %v", err)
+	}
+}
+
+// TestProdHonoursTheLossPolicyOverRoundNaN: Prod used to return NaN(Inexact) whenever SetArithmeticRounding was
+// ROUND_NAN, whatever the loss policy said, because prodFit passed the mode straight to prodAt and prodAt's ROUND_NAN
+// branch is the per-call refusal of ProdRound. On the globals path ROUND_NAN is the deprecated spelling of
+// SetLossPolicy(LossNaNOnInexact) and is a policy rather than a direction, so a program that sets both - the policy
+// second, as the documentation requires - means the policy. Mul, Sum, Div and Sqrt all took it that way already, and
+// TestProdOfTwoAgreesWithMul over the full matrix is what found the disagreement.
+func TestProdHonoursTheLossPolicyOverRoundNaN(t *testing.T) {
+	defer SetArithmeticRounding(ArithmeticRounding())
+	defer SetLossPolicy(CurrentLossPolicy())
+
+	a := FromString("-8836107437009803.61413071588")
+	b := FromString("-0.00000000000005705")
+
+	SetArithmeticRounding(ROUND_NAN) // writes the policy too, so it goes first
+	SetLossPolicy(LossRound)
+	if got, want := Prod(a, b), a.Mul(b); got != want {
+		t.Errorf("under ROUND_NAN with LossRound: Prod = %v, Mul = %v", got, want)
+	}
+
+	// and the policy still refuses when it is the one asking
+	SetLossPolicy(LossNaNOnInexact)
+	if got := Prod(a, b); got.state != state.Inexact {
+		t.Errorf("under LossNaNOnInexact: Prod = %v, want NaN(Inexact)", got)
+	}
+
+	// the per-call form is unchanged: there the mode does mean refusal
+	SetLossPolicy(LossRound)
+	if got := ProdRound(MaxScale, ROUND_NAN, a, b); got.state != state.Inexact {
+		t.Errorf("ProdRound(ROUND_NAN) = %v, want NaN(Inexact)", got)
 	}
 }

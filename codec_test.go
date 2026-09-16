@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jokruger/dec128/state"
+	"github.com/jokruger/dec128/uint128"
 )
 
 // Reference vectors computed independently (Python: struct for PostgreSQL, integer
@@ -472,5 +473,78 @@ func TestEncodeIEEERoundMatchesGlobal(t *testing.T) {
 	}
 	if _, err := big.AppendIEEERound(nil, RoundingMode(99)); err == nil || err != state.InvalidRoundingMode.Error() {
 		t.Errorf("AppendIEEERound with an undefined mode: got %v, want %v", err, state.InvalidRoundingMode.Error())
+	}
+}
+
+// shedScale is the one reduction every decoder performs on the way in, and the four callers used to carry a copy of
+// it each. The chunked step has to agree digit for digit with the one-at-a-time loop they had, including across the
+// MaxScale boundary where the first chunk is a full 19 digits and the second is the remainder.
+func TestShedScale(t *testing.T) {
+	one := uint128.One
+	pow38Plus1, _ := Pow10Uint128[38].Add64(1)
+	tests := []struct {
+		name      string
+		coef      uint128.Uint128
+		scale     int
+		wantCoef  uint128.Uint128
+		wantScale uint8
+		wantOK    bool
+	}{
+		{"already in range", uint128.FromUint64(15), 2, uint128.FromUint64(15), 2, true},
+		{"at the cap", uint128.FromUint64(15), int(MaxScale), uint128.FromUint64(15), MaxScale, true},
+		{"scale 0", one, 0, one, 0, true},
+		{"one zero to shed", uint128.FromUint64(150), int(MaxScale) + 1, uint128.FromUint64(15), MaxScale, true},
+		{"a nonzero digit below the cap", uint128.FromUint64(151), int(MaxScale) + 1, uint128.FromUint64(151), 0, false},
+		// the chunk boundary: 19 zeros go in one division, the 20th in a second
+		{"exactly one chunk", Pow10Uint128[19], 2 * int(MaxScale), one, MaxScale, true},
+		{"one past a chunk", Pow10Uint128[20], 2*int(MaxScale) + 1, one, MaxScale, true},
+		{"two full chunks", Pow10Uint128[38], 3 * int(MaxScale), one, MaxScale, true},
+		{"a nonzero digit inside the second chunk", pow38Plus1, 3 * int(MaxScale), pow38Plus1, 0, false},
+		{"zero coefficient", uint128.Zero, 3 * int(MaxScale), uint128.Zero, MaxScale, true},
+	}
+
+	for _, tt := range tests {
+		coef, scale, ok := shedScale(tt.coef, tt.scale)
+		if ok != tt.wantOK {
+			t.Errorf("%s: ok = %v, want %v", tt.name, ok, tt.wantOK)
+			continue
+		}
+		// a refused reduction hands back the operand as it arrived, not the digits it managed to shed first
+		if !coef.Equal(tt.wantCoef) || scale != tt.wantScale {
+			t.Errorf("%s: got %v at scale %d, want %v at scale %d", tt.name, coef, scale, tt.wantCoef, tt.wantScale)
+		}
+	}
+}
+
+// and it agrees with the loop the callers used to run, over the whole reachable range of scales
+func TestShedScaleMatchesSingleSteps(t *testing.T) {
+	single := func(coef uint128.Uint128, scale int) (uint128.Uint128, uint8, bool) {
+		for scale > int(MaxScale) {
+			q, r, _ := coef.QuoRemPow10(1)
+			if r != 0 {
+				return coef, 0, false
+			}
+			coef, scale = q, scale-1
+		}
+		return coef, uint8(scale), true
+	}
+
+	r := rand.New(rand.NewSource(20260916))
+	for i := 0; i < 20000; i++ {
+		c := uint128.Uint128{Lo: r.Uint64(), Hi: r.Uint64() >> uint(r.Intn(64))}
+		if r.Intn(2) == 0 {
+			// a value with trailing zeros, so the accepting path is exercised too
+			k := uint8(r.Intn(39))
+			c, _, _ = c.QuoRemPow10(k)
+			c, _ = c.Mul(Pow10Uint128[k])
+		}
+		scale := r.Intn(4 * int(MaxScale))
+
+		gotCoef, gotScale, gotOK := shedScale(c, scale)
+		wantCoef, wantScale, wantOK := single(c, scale)
+		if gotOK != wantOK || (gotOK && (!gotCoef.Equal(wantCoef) || gotScale != wantScale)) {
+			t.Fatalf("shedScale(%v, %d) = %v/%d/%v, single steps = %v/%d/%v",
+				c, scale, gotCoef, gotScale, gotOK, wantCoef, wantScale, wantOK)
+		}
 	}
 }

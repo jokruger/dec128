@@ -730,19 +730,25 @@ func TestProdOfTwoAgreesWithMul(t *testing.T) {
 	defer SetArithmeticRounding(ArithmeticRounding())
 	defer SetLossPolicy(CurrentLossPolicy())
 
+	// Prod applies the scale rule over math/big where Mul applies it over the 256-bit product: a third
+	// implementation of the one rule, and this is what holds it to the other two. The whole matrix, because the
+	// policies are where the three differ if they ever do - LossNaNOnInexact turns a dropped digit into a NaN and
+	// LossNaNOnUnderflow only a total loss, and each has to fire on the same operands in both.
 	r := rand.New(rand.NewSource(20260925))
-	for _, mode := range []RoundingMode{ROUND_TOWARD_ZERO, ROUND_BANK, ROUND_HALF_AWAY_FROM_ZERO} {
-		SetArithmeticRounding(mode)
-		SetLossPolicy(LossRound)
-		for range 5000 {
-			a, b := randDec(r), randDec(r)
-			if a.IsNaN() || b.IsNaN() {
-				continue
-			}
-			got, want := Prod(a, b), a.Mul(b)
-			if got != want {
-				t.Fatalf("under %v: Prod(%s, %s) = %s at scale %d, Mul = %s at scale %d",
-					mode, a, b, got, got.Scale(), want, want.Scale())
+	for _, mode := range allModes {
+		for _, policy := range []LossPolicy{LossRound, LossNaNOnUnderflow, LossNaNOnInexact} {
+			SetArithmeticRounding(mode) // writes the loss policy too, so it goes first
+			SetLossPolicy(policy)
+			for range 5000 {
+				a, b := randDec(r), randDec(r)
+				if a.IsNaN() || b.IsNaN() {
+					continue
+				}
+				got, want := Prod(a, b), a.Mul(b)
+				if got != want {
+					t.Fatalf("under %v/%v: Prod(%s, %s) = %s at scale %d, Mul = %s at scale %d",
+						mode, policy, a, b, got, got.Scale(), want, want.Scale())
+				}
 			}
 		}
 	}

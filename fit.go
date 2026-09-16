@@ -200,3 +200,32 @@ func stripZeros(q uint128.Uint128, scale, ideal uint8) (uint128.Uint128, uint8) 
 	}
 	return q, scale
 }
+
+// shedScale lowers scale to MaxScale by cancelling factors of ten out of coef, and reports whether it could. A scale
+// already in range is returned unchanged.
+//
+// It is the reduction every codec performs on the way in: a value written with more decimal places than this type has
+// is still that value when the surplus places are zeros, and trailing zeros are padding rather than information, so
+// 1.50000000000000000000000 is accepted at the scale it can be held. A nonzero digit below MaxScale is not padding and
+// cannot be cancelled, and ok is then false - what that failure is called is the caller's, because it is
+// state.ScaleOutOfRange for a decoder that was handed a scale and state.Inexact for Compose, which was handed an
+// exponent and no scale at all.
+//
+// The digits go in chunks of up to MaxScale rather than one at a time: dropping k of them is a single reciprocal
+// division whatever k is, so a coefficient arriving at scale 40 costs two divisions and not twenty-one. k never
+// exceeds MaxScale, so QuoRemPow10 cannot report an error here.
+//
+// It is the counterpart of stripZeros, which lowers the scale of an exact result for the ideal-exponent rule; this one
+// lowers it because the type cannot hold it otherwise.
+func shedScale(coef uint128.Uint128, scale int) (uint128.Uint128, uint8, bool) {
+	c := coef
+	for scale > int(MaxScale) {
+		k := uint8(min(scale-int(MaxScale), int(MaxScale)))
+		q, r, _ := c.QuoRemPow10(k)
+		if r != 0 {
+			return coef, 0, false // the operand as it arrived, not the half-shed one
+		}
+		c, scale = q, scale-int(k)
+	}
+	return c, uint8(scale), true
+}
