@@ -19,8 +19,8 @@ func BenchmarkUint128FromString(b *testing.B) {
 	}
 
 	sz := len(ss)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for i := 0; b.Loop(); i++ {
 		//_, _ = FromString(ss[i%sz])
 		_, _ = FromSafeString(ss[i%sz])
 	}
@@ -49,8 +49,7 @@ func BenchmarkUint128ToString(b *testing.B) {
 
 	buf := [MaxStrLen]byte{}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		_ = vs[i%sz].StringToBuf(buf[:])
 	}
 }
