@@ -203,6 +203,31 @@ func BenchmarkDec128MulDivRoundWide(b *testing.B) {
 	}
 }
 
+// The three ways to take a percentage of an amount, over the same money-sized operands.
+func BenchmarkDec128MulPercent(b *testing.B) {
+	x, rate := FromString("1119.32"), FromString("7.5")
+
+	for b.Loop() {
+		_ = x.MulPercent(rate)
+	}
+}
+
+func BenchmarkDec128MulPercentRound(b *testing.B) {
+	x, rate := FromString("1119.32"), FromString("7.5")
+
+	for b.Loop() {
+		_ = x.MulPercentRound(rate, 2, ROUND_HALF_AWAY_FROM_ZERO)
+	}
+}
+
+func BenchmarkDec128MulThenDivByHundred(b *testing.B) {
+	x, rate := FromString("1119.32"), FromString("7.5")
+
+	for b.Loop() {
+		_ = x.MulRound(rate, MaxScale, ROUND_HALF_AWAY_FROM_ZERO).DivRound(Decimal100, 2, ROUND_HALF_AWAY_FROM_ZERO)
+	}
+}
+
 func BenchmarkDec128MulDivRoundInt64(b *testing.B) {
 	x := FromString("1119.32")
 

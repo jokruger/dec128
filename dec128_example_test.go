@@ -585,3 +585,52 @@ func ExampleDec128_Pow() {
 	// 3.0000
 	// 1.0245758393924285985
 }
+
+// A ledger that holds every amount at six decimal places and rounds bankers' way: the interest accrued on a
+// principal for 31 days on a 365-day basis, a fee taken out of it, and the remainder split three ways.
+//
+// Nothing here changes the process-global settings. The scale and the mode are arguments, they are applied once per
+// value that leaves the calculation, and the steps in between keep every digit the exact result has.
+func Example_sixPlacesBankersRounding() {
+	const (
+		scale = 6
+		mode  = ROUND_BANK
+	)
+
+	// In: put the inputs on the ledger's grid, once, at the boundary.
+	principal := FromString("12345.678901").RescaleRound(scale, mode)
+	annualRate := FromString("4.25") // per cent per year
+	feeRate := FromString("1.5")     // per cent of the interest
+
+	// Middle: exact. MulPercent adds two places to the scales of its operands rather than rounding, so the yearly
+	// interest is the exact product; the day count is the one rounding, taken at the ledger's scale.
+	yearly := principal.MulPercent(annualRate)
+	interest := yearly.MulDivRoundInt64(31, 365, scale, mode)
+	fee := interest.MulPercentRound(feeRate, scale, mode)
+	net := interest.Sub(fee) // exact: both stand at the ledger's scale already
+
+	// Out: one check for the whole chain, and a split whose shares add back up to it exactly.
+	if err := net.ErrorDetails(); err != nil {
+		fmt.Println("calculation failed:", err)
+		return
+	}
+	shares, ok := net.Split(3, scale)
+	if !ok {
+		fmt.Println("split failed")
+		return
+	}
+
+	fmt.Println(yearly.StringFixed())   // exact, at 6+2+2 places
+	fmt.Println(interest.StringFixed()) // one rounding, at the ledger's scale
+	fmt.Println(fee.StringFixed())
+	fmt.Println(net.StringFixed())
+	fmt.Println(shares[0].StringFixed(), shares[1].StringFixed(), shares[2].StringFixed())
+	fmt.Println(SumSliceRound(shares, scale, mode).Equal(net))
+	// Output:
+	// 524.6913532925
+	// 44.562827
+	// 0.668442
+	// 43.894385
+	// 14.631462 14.631462 14.631461
+	// true
+}

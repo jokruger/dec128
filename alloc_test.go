@@ -88,6 +88,11 @@ func TestAllocationGates(t *testing.T) {
 		{"RoundToPlaces", func() { allocSinkDec = large.RoundToPlaces(-3, ROUND_BANK) }},
 		{"RoundToMultiple", func() { allocSinkDec = a.RoundToMultiple(FromString("0.05"), ROUND_BANK) }},
 		{"ScaleByPow10", func() { allocSinkDec = a.ScaleByPow10(-2) }},
+		{"MulPercent", func() { allocSinkDec = a.MulPercent(b) }},
+		{"MulPercentRound", func() { allocSinkDec = a.MulPercentRound(b, 2, ROUND_BANK) }},
+		{"MulScaled", func() { allocSinkDec = nearMax.MulScaled(nearMax, -4) }},
+		{"MulScaledRound", func() { allocSinkDec = nearMax.MulScaledRound(nearMax, -4, MaxScale, ROUND_BANK) }},
+		{"MulScaledRound up", func() { allocSinkDec = a.MulScaledRound(b, 3, 0, ROUND_BANK) }},
 		{"DivRoundInexact", func() { allocSinkDec, allocSinkBool = a.DivRoundInexact(b, 2, ROUND_BANK) }},
 		{"AppendAllocate", func() {
 			allocSinkShares, allocSinkBool = a.AppendAllocate(allocSinkShares[:0], allocRatios, 4)

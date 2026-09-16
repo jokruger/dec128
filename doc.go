@@ -107,6 +107,13 @@
 // cannot be converted to one first. MulDivRoundInt64 takes that rational as a pair of
 // integers, which is how a day count over a year basis arrives.
 //
+// MulPercent and MulPercentRound are d*f/100 with the division done as a move of the decimal
+// point inside the same reduction, so a percentage costs one rounding and not two; MulScaled
+// and MulScaledRound are the general form, d*f*10^k, which is a per-mille at k = -3 and a
+// basis point at k = -4. MulPercent follows the scale rule as Mul does - the exact product of
+// an amount and a rate carries two places more than the two of them together, so a money-sized
+// calculation is exact and the rounding to the presented scale stays the caller's, at the end.
+//
 // Accumulator is MulAddRound over an unbounded number of terms: Add and AddMul are exact, Total is
 // the only rounding, and the total does not depend on the order the terms arrived in, so
 // "the parts add up to the whole" is an exact assertion rather than an epsilon check.
@@ -233,14 +240,15 @@
 //
 // These operations do read them, and are therefore outside the subset:
 //
-//	Add, Sub, Mul and their Int forms, when the exact result does not fit
+//	Add, Sub, Mul, MulScaled, MulPercent and their Int forms, when the exact result does not fit
 //	Div, Inv, Sqrt, PowInt, PowInt64 and their Int forms, always
 //	Sum, SumSlice, Avg, Prod, ProdSlice
 //	EncodeIEEE, when the coefficient needs more than 34 digits
 //
-// Each has a twin that does not: AddRound and SubRound for the first line, DivRound,
-// InvRound, SqrtRound and PowIntRound for the second, SumRound, SumSliceRound, AvgRound,
-// ProdRound and ProdSliceRound for the third, and EncodeIEEERound for the fourth.
+// Each has a twin that does not: AddRound, SubRound, MulRound, MulScaledRound and
+// MulPercentRound for the first line, DivRound, InvRound, SqrtRound and PowIntRound for the
+// second, SumRound, SumSliceRound, AvgRound, ProdRound and ProdSliceRound for the third, and
+// EncodeIEEERound for the fourth.
 //
 // Everything else is global-free. In particular the whole *Round family, which takes the
 // scale and the rounding mode per call and is the deterministic spelling of the four
@@ -248,6 +256,7 @@
 //
 //	AddRound, SubRound, MulRound, MulAddRound, MulDivRound, MulDivRoundInt64, DivRound,
 //	DivRoundInexact, AddQuoRound, SqrtRound, PowIntRound, InvRound
+//	MulScaledRound, MulPercentRound
 //	NthRootRound, PowRational
 //	Exp, Ln, Ln1p, Expm1, Log10, Log2, Pow
 //	SumRound, SumSliceRound, AvgRound, ProdRound, ProdSliceRound

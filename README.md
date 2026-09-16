@@ -280,19 +280,116 @@ dec128.FromString("1.5").RescaleRound(2, dec128.ROUND_BANK)      // 1.50
 dec128.FromString("200").DivRound(dec128.FromInt64(3), 2, dec128.ROUND_HALF_AWAY_FROM_ZERO) // 66.67
 ```
 
+### What the globals reach, and what they do not
+
+The five `Set*` functions are process-global and are meant to be set once at start-up, if at all. It is worth being
+precise about their reach, because the natural reading -- that they are "this application's scale and rounding" -- is
+not what they are:
+
+* **`SetDefaultScale` is not a maximum scale.** The maximum is `MaxScale`, a compile-time constant of 19, and nothing
+  configures it. The default scale is only the scale `Div`, `Sqrt` and `Inv` compute to when no scale is given. It
+  does not touch `Add`, `Sub` or `Mul`, whose scale comes from the operands -- `Mul` adds the scales -- and is reduced
+  only when the exact result will not fit.
+* **`SetArithmeticRounding` is not the application's rounding rule.** For `Add`, `Sub` and `Mul` it fires only when
+  digits *must* go, past 19 places or past 128 bits, which is the overflow path and not the everyday one. For `Div`
+  and `Sqrt` it applies to every call, because those round by nature.
+* **`SetLossPolicy`** decides whether discarding a digit is allowed at all, and it is the one of the three worth
+  setting for money.
+
+So the shape a calculation wants is: **keep the intermediates wide, round once at the end, at the boundary.**
+
+```go
+// start-up: nothing, or at most the loss policy
+dec128.SetLossPolicy(dec128.LossNaNOnUnderflow) // a non-zero amount never silently becomes zero
+
+// the calculation: exact throughout, no business rounding yet
+gross := qty.Mul(unitPrice)      // exact: the scales add
+vat := gross.MulPercent(vatRate) // exact: two places more again
+total := gross.Add(vat)          // exact
+
+// the boundary: the business scale and the business rounding, once
+out := total.RescaleRound(6, dec128.ROUND_BANK)
+```
+
+Setting `SetDefaultScale(6)` to say "this application works to six places" does something other than it looks like:
+it leaves `Mul` alone and makes every `Div` throw away thirteen digits the later steps would have used, so `1/3` is
+`0.333333` and every step after it inherits that. Leave it at 19 and ask for six places where six places is the
+answer -- `DivRound(x, 6, mode)` for a quotient that is presented, `RescaleRound(6, mode)` at the end of a chain.
+Likewise `SetArithmeticRounding(ROUND_BANK)` changes the direction taken when a result has run out of digits, not how
+the application's amounts are rounded; if banker's rounding is the business rule, it belongs in the `*Round` call that
+produces the presented value. Both are per-call arguments for a reason, and a library that has to produce the same
+bytes in every process should not read the globals at all -- see the global-free subset below.
+
+### A worked example: six places, banker's rounding
+
+Take the common fintech requirement: every amount in and out of the application is held at **six decimal places and
+rounded bankers' way**. That needs no configuration at all -- no `Set*` call anywhere. The scale and the mode are
+arguments; what makes the result right is *where* they are applied. Here is an interest accrual with a fee and a
+three-way split, pinned as `Example_sixPlacesBankersRounding` in the test suite, so the numbers below are the ones
+the code produces:
+
+```go
+const (
+    scale = 6
+    mode  = dec128.ROUND_BANK
+)
+
+// In: put the inputs on the ledger's grid, once, at the boundary.
+principal := dec128.FromString("12345.678901").RescaleRound(scale, mode)
+annualRate := dec128.FromString("4.25") // per cent per year
+feeRate := dec128.FromString("1.5")     // per cent of the interest
+
+// Middle: exact. MulPercent adds two places to the scales of its operands rather than rounding, so the
+// yearly interest is the exact product; the day count is the one rounding, taken at the ledger's scale.
+yearly := principal.MulPercent(annualRate)                // 524.6913532925 -- 6+2+2 places, nothing discarded
+interest := yearly.MulDivRoundInt64(31, 365, scale, mode) // 44.562827      -- the single rounding decision
+fee := interest.MulPercentRound(feeRate, scale, mode)     // 0.668442
+net := interest.Sub(fee)                                  // 43.894385      -- exact: both are already at six places
+
+// Out: one check for the whole chain, and a split whose shares add back up to it exactly.
+if err := net.ErrorDetails(); err != nil {
+    return err
+}
+shares, ok := net.Split(3, scale) // 14.631462, 14.631462, 14.631461 -- and they sum to 43.894385 exactly
+if !ok {
+    return errShareTooWide
+}
+```
+
+Five things are worth naming, because they are the whole method:
+
+* **No global is set, and none is read.** `RescaleRound`, `MulPercentRound`, `MulDivRoundInt64`, `Sub` and `Split`
+  are all in the global-free subset; `MulPercent` would read `SetArithmeticRounding` only if the exact product would
+  not fit -- and at ledger magnitudes it fits. Drop this code into a process whose `init` set the globals to
+  something else and it returns the same bytes.
+* **One rounding per output, not one per operation.** `principal * 4.25% * 31/365` is a multiplication and two
+  divisions, and it makes exactly one rounding decision -- inside `MulDivRoundInt64`, on the exact numerator. Written
+  as three rounded steps it would make three, each one biasing the next.
+* **The six is asked for, never assumed.** Every call that can put a value off the grid takes `scale` and `mode`
+  explicitly, so "six places, banker's" is visible at each point where it actually applies, and a different rule for
+  one field -- a tax line at two places, a rate at nine -- is a different argument rather than a different process.
+* **Exact steps stay exact.** `interest.Sub(fee)` rounds nothing: both operands already stand at six places, so
+  there is nothing to discard. The type only rounds where the exact answer will not fit.
+* **The parts add up to the whole.** `Split` hands out the quanta by largest remainder, so the reconciliation
+  `dec128.SumSliceRound(shares, scale, mode).Equal(net)` is true exactly, not within a tolerance.
+
+The one global worth considering for a ledger is `SetLossPolicy(LossNaNOnUnderflow)`, at start-up and never again: it
+is not a scale or a rounding rule but a safety net, turning "a non-zero amount silently became zero" into a NaN that
+`ErrorDetails` reports.
+
 ## Determinism: the global-free subset
 
 Three of the five process-global settings can change the value an operation returns: `SetDefaultScale`,
 `SetArithmeticRounding` and `SetLossPolicy`. A library that must produce the same bytes in every process, whatever
 some other package passed to those functions at init time, cannot use the operations that read them.
 
-`dec128` therefore documents and tests a **global-free subset**. It excludes `Add`, `Sub` and `Mul` when the exact
-result does not fit, `Div`, `Inv`, `Sqrt`, `PowInt64`, `Sum`, `SumSlice`, `Avg`, `Prod`, `ProdSlice` and
-`EncodeIEEE`, and includes everything else -- in particular the whole `*Round` family, `NthRootRound`,
-`Accumulator`, `QuoRem`, `Mod`, `RemainderNear`, the `Round*` methods, `Allocate`, `Format` and the codecs. Each
-excluded operation has a twin inside the subset: `AddRound`, `SubRound`, `MulRound`, `DivRound`, `InvRound`,
-`SqrtRound`, `PowIntRound`, `SumRound`, `SumSliceRound`, `AvgRound`, `ProdRound`, `ProdSliceRound` and
-`EncodeIEEERound`, so nothing has to be given up to stay deterministic. `TestGlobalFreeSubset` runs every operation on the list under the whole matrix of the three settings and
+`dec128` therefore documents and tests a **global-free subset**. It excludes `Add`, `Sub`, `Mul`, `MulScaled` and
+`MulPercent` when the exact result does not fit, `Div`, `Inv`, `Sqrt`, `PowInt64`, `Sum`, `SumSlice`, `Avg`, `Prod`,
+`ProdSlice` and `EncodeIEEE`, and includes everything else -- in particular the whole `*Round` family,
+`NthRootRound`, `Accumulator`, `QuoRem`, `Mod`, `RemainderNear`, the `Round*` methods, `Allocate`, `Format` and the
+codecs. Each excluded operation has a twin inside the subset: `AddRound`, `SubRound`, `MulRound`, `MulScaledRound`,
+`MulPercentRound`, `DivRound`, `InvRound`, `SqrtRound`, `PowIntRound`, `SumRound`, `SumSliceRound`, `AvgRound`,
+`ProdRound`, `ProdSliceRound` and `EncodeIEEERound`, so nothing has to be given up to stay deterministic. `TestGlobalFreeSubset` runs every operation on the list under the whole matrix of the three settings and
 requires the results to be bit-identical; its complement checks that the operations left out really do depend on
 them. The package documentation carries the maintained list.
 
@@ -311,6 +408,10 @@ share := fee.MulDivRound(weight, totalWeight, 2, dec128.ROUND_HALF_AWAY_FROM_ZER
 // the same, when the rational arrives as a pair of integers - a day count over a year basis
 accrued := interest.MulDivRoundInt64(31, 365, 2, dec128.ROUND_HALF_AWAY_FROM_ZERO)
 
+// a percentage: the product is exact and the division by a hundred is a move of the point
+vat := net.MulPercent(rate)                             // exact, two places more than net and rate together
+fee := amount.MulPercentRound(rate, 2, dec128.ROUND_BANK) // or straight to the presented scale, one rounding
+
 // a sum of products that is exact until Total: NPV, weighted averages, schedule reconciliation
 acc := dec128.NewAccumulator(2)
 for i, cf := range cashflows {
@@ -328,6 +429,22 @@ terminate -- 1/3, 2/7, 31/365 -- has no decimal factor to convert to first, so t
 stay apart until the single division. `MulRound` followed by `DivRound` rounds twice, and on a proration of
 1119.32 by 25.12/204.20 the two answers differ by a quantum. Its exact numerator reaches 2^383, which is why the
 intermediate is held in the 384-bit register rather than the 256-bit one a product needs.
+
+`MulPercent` is the one of these that turns up in every schedule of fees, rates and taxes, and it is a fused
+operation for the same reason as the others. `amount.Mul(rate).Div(dec128.Decimal100)` brings the product to a scale
+under the process-global mode and then rounds the quotient again, two decisions where one will do, and it fails on an
+intermediate the result never needed: `3e37` at 50 per cent is `NaN(Overflow)` that way round and `1.5e37` here,
+because the exact product is held in a register wider than a coefficient until the single reduction. It follows the
+scale rule as `Mul` does, so on money-sized operands it is exact and the rounding to the presented scale stays where
+it belongs -- at the end:
+
+```go
+vat := net.MulPercent(rate).RescaleRound(2, dec128.ROUND_BANK) // 100.00 * 7.5% = 7.50000 -> 7.50
+```
+
+`MulScaled` and `MulScaledRound` are the general form, `d * f * 10^k`: a per-mille at `k = -3`, a basis point at
+`k = -4`, a price quoted per hundred units at `k = 2`. `ScaleByPow10` is the same move of the point with no
+multiplication, for converting a quoted rate to a fraction on its own.
 
 `Accumulator` is the one mutable type in the package, and deliberately so: positive and negative terms are kept apart
 and cancelled once, at the end, so the total does not depend on the order the terms arrived in. `Mean` divides that
@@ -643,6 +760,7 @@ Verified against `shopspring/decimal` v1.4.0. Every mapping below was checked by
 | `d.Mod(x)` | `d.Mod(x)` | identical |
 | `d.Pow(x Decimal)`, `d.PowInt32(n)` | `d.PowInt(n)`, `d.PowIntRound(n, scale, mode)` | integer exponents only; no `PowWithPrecision`, `Ln`, `ExpHullAbrham`, `Atan` or fractional powers. Both keep the running product at 57 places and round once |
 | — | `d.MulAddRound(b, c, scale, mode)` | fused multiply-add; shopspring has no fused form |
+| — | `d.MulPercent(f)`, `d.MulPercentRound(f, scale, mode)`, `d.MulScaled(f, k)` | a percentage, a per-mille or a basis point with one rounding instead of a multiplication and a division |
 | — | `dec128.NewAccumulator(scale)` | an exact wide running total with `Add`, `AddMul` and one rounding in `Total` |
 | — | `d.Sqrt()`, `d.SqrtRound(scale, mode)`, `d.NthRootRound(n, scale, mode)` | shopspring has no roots |
 | `decimal.Sum/Avg/Min/Max(first, rest...)` | `dec128.Sum/Avg/Min/Max(a, b...)` | identical shape |
