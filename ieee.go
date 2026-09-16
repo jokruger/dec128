@@ -45,7 +45,30 @@ func (d Dec128) FitsIEEE() bool {
 // trip through a conforming implementation. A coefficient above 10^34 - 1 is rounded to 34 significant digits with
 // the arithmetic rounding mode; under ROUND_NAN that returns an error carrying state.Inexact, and a NULL value returns
 // an error carrying state.Null.
+//
+// This is the one encoder whose bytes depend on process-global configuration, and only for a coefficient that needs
+// more than 34 digits. Use EncodeIEEERound where two processes must emit the same bytes for the same value.
 func (d Dec128) EncodeIEEE(buf []byte) (int, error) {
+	return d.encodeIEEE(buf, arithmeticRounding, lossPolicy == LossNaNOnInexact)
+}
+
+// EncodeIEEERound is EncodeIEEE with the rounding mode per call: the deterministic spelling, for an encoder whose
+// output must not depend on what some other package passed to SetArithmeticRounding or SetLossPolicy at init time.
+//
+// The mode is consulted only when the coefficient needs more than 34 digits, which is the one case where decimal128
+// cannot hold what a Dec128 does; under ROUND_NAN such a value returns an error carrying state.Inexact rather than
+// being rounded. An undefined mode returns an error carrying state.InvalidRoundingMode. It reads no process-global
+// configuration.
+func (d Dec128) EncodeIEEERound(buf []byte, mode RoundingMode) (int, error) {
+	if !mode.IsValid() {
+		return 0, state.InvalidRoundingMode.Error()
+	}
+	return d.encodeIEEE(buf, mode, mode == ROUND_NAN)
+}
+
+// encodeIEEE is the body of both encoders. nanOnInexact says that a discarded nonzero digit is a failure rather than a
+// rounding, which the global form takes from the loss policy and the per-call form from ROUND_NAN.
+func (d Dec128) encodeIEEE(buf []byte, mode RoundingMode, nanOnInexact bool) (int, error) {
 	if len(buf) < IEEEBytes {
 		return 0, io.ErrShortBuffer
 	}
@@ -70,8 +93,8 @@ func (d Dec128) EncodeIEEE(buf []byte) (int, error) {
 		}
 		// q < 10^34 + 1 after rounding, so it cannot overflow; q == 10^34 (a carry out of 34 nines) loses one more
 		// digit exactly.
-		q, _, inexact := reduceWide(coef, uint128.Zero, k, d.state, arithmeticRounding)
-		if inexact && lossPolicy == LossNaNOnInexact {
+		q, _, inexact := reduceWide(coef, uint128.Zero, k, d.state, mode)
+		if inexact && nanOnInexact {
 			return 0, state.Inexact.Error()
 		}
 		if q.Equal(ieeeCoefLimit) {
@@ -93,8 +116,21 @@ func (d Dec128) EncodeIEEE(buf []byte) (int, error) {
 // AppendIEEE appends the IEEE 754 decimal128 encoding of d to buf, as EncodeIEEE writes it into a caller buffer, and
 // returns the extended slice. On error buf is returned unchanged.
 func (d Dec128) AppendIEEE(buf []byte) ([]byte, error) {
+	return d.appendIEEE(buf, arithmeticRounding, lossPolicy == LossNaNOnInexact)
+}
+
+// AppendIEEERound is AppendIEEE with the rounding mode per call, as EncodeIEEERound is to EncodeIEEE. It reads no
+// process-global configuration.
+func (d Dec128) AppendIEEERound(buf []byte, mode RoundingMode) ([]byte, error) {
+	if !mode.IsValid() {
+		return buf, state.InvalidRoundingMode.Error()
+	}
+	return d.appendIEEE(buf, mode, mode == ROUND_NAN)
+}
+
+func (d Dec128) appendIEEE(buf []byte, mode RoundingMode, nanOnInexact bool) ([]byte, error) {
 	var tmp [IEEEBytes]byte
-	n, err := d.EncodeIEEE(tmp[:])
+	n, err := d.encodeIEEE(tmp[:], mode, nanOnInexact)
 	if err != nil {
 		return buf, err
 	}

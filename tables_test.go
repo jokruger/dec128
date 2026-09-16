@@ -13,9 +13,6 @@ import (
 // Structural invariants: the hand-written tables, the size of the value type, and the inlining the hot paths depend
 // on. None of these is exercised by an ordinary arithmetic test - a wrong table entry or a helper that quietly stops
 // inlining changes results or throughput without failing anything - so they are pinned here.
-//
-// The pattern is borrowed from the reference implementations this package is measured against: zerodecimal pins its
-// pow10 and bit-length tables, its struct layout and its inlining budgets the same way.
 
 // Compile-time layout guard. Both differences must be valid array lengths, which proves equality rather than an
 // upper or lower bound, and does so even when the package is only cross-compiled. Dec128 is a value type that is
@@ -139,7 +136,7 @@ var inlinedHelpers = []string{
 	"Dec128.Abs",
 }
 
-// TestHotPathHelpersStayInlined recompiles the package with the compiler's inlining diagnostic and fails if one of
+// TestHotPathHelpersStayInlined re-compiles the package with the compiler's inlining diagnostic and fails if one of
 // the pinned leaf helpers is no longer inlinable. It shells out to the toolchain because that decision is not
 // observable from inside the test binary.
 func TestHotPathHelpersStayInlined(t *testing.T) {

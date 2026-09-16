@@ -2,7 +2,6 @@ package dec128
 
 import (
 	"github.com/jokruger/dec128/state"
-	"github.com/jokruger/dec128/uint128"
 )
 
 // Accumulator is a running total held in a register wider than a Dec128, so that a sum, or a sum of products, stays
@@ -211,51 +210,5 @@ func (a *Accumulator) Mean(scale uint8, mode RoundingMode) Dec128 {
 	}
 
 	m, st, ws := a.total()
-
-	// Pad before dividing when the mean is wanted at a finer scale than the terms were kept at, so that the division
-	// produces those places instead of the reduction having to discard them.
-	//
-	// The padding cannot carry out of the register. A term is below 2^256 and there are fewer than 2^63 of them,
-	// because the count is an int, so the total at working scale zero is below 2^319; a working scale of ws carries
-	// a further 10^ws, and padding to scale multiplies by 10^(scale-ws), so what is held is below 2^319 * 10^scale,
-	// and scale is at most MaxScale: 2^319 * 10^19 < 2^383.
-	if scale > ws {
-		m, _ = m.mulPow10(scale - ws)
-		ws = scale
-	}
-
-	q, r := m.quoRem64(uint64(a.count))
-
-	// What the rounding decision has to weigh is r/count of the register's last place, plus the ws-scale digits the
-	// reduction drops. When there are no digits to drop the remainder is the whole of it and decides on its own;
-	// otherwise those digits are the more significant part and the remainder is no more than a sticky bit.
-	var qw wide
-	var above, tie, inexact bool
-	if k := ws - scale; k == 0 {
-		half := uint64(a.count) / 2
-		qw, above, tie, inexact = q, r > half, uint64(a.count)%2 == 0 && r == half, r != 0
-	} else {
-		qw, above, tie, inexact = q.quoCmpHalfPow10Sticky(k, r != 0)
-	}
-
-	coef, ok := qw.uint128()
-	if !ok {
-		return Dec128{state: state.Overflow}
-	}
-	if inexact {
-		if mode == ROUND_NAN {
-			return Dec128{state: state.Inexact}
-		}
-		if roundDecision(above, tie, coef.Lo&1 == 1, st, mode) {
-			var carry uint64
-			if coef, carry = coef.AddCarry(uint128.One); carry != 0 {
-				return Dec128{state: state.Overflow}
-			}
-		}
-	}
-	if coef.IsZero() {
-		return Dec128{scale: scale} // a zero is never negative
-	}
-
-	return Dec128{coef: coef, scale: scale, state: st}
+	return meanFromWide(m, ws, a.count, st, scale, mode)
 }

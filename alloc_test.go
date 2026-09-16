@@ -23,6 +23,12 @@ var (
 	allocSinkAny    any
 	allocSinkShares []Dec128
 	allocRatios     = []Dec128{FromInt64(1), FromInt64(2), FromInt64(3)}
+
+	// The decomposer pair needs a caller-owned coefficient buffer on each side, which is the whole point of the
+	// interface taking one.
+	allocDecomposeBuf [16]byte
+	allocComposeCoef  = []byte{0x01, 0x02, 0x03}
+	allocSinkComposed Dec128
 )
 
 func TestAllocationGates(t *testing.T) {
@@ -71,7 +77,13 @@ func TestAllocationGates(t *testing.T) {
 		{"SubRound", func() { allocSinkDec = a.SubRound(b, 2, ROUND_BANK) }},
 		{"MulAddRound", func() { allocSinkDec = a.MulAddRound(b, a, 2, ROUND_BANK) }},
 		{"MulAddRound wide", func() { allocSinkDec = nearMax.MulAddRound(nearMax, a, 2, ROUND_BANK) }},
+		{"MulDivRound", func() { allocSinkDec = a.MulDivRound(b, large, 9, ROUND_BANK) }},
+		{"MulDivRound wide", func() { allocSinkDec = nearMax.MulDivRound(nearMax, a, MaxScale, ROUND_BANK) }},
+		{"MulDivRound narrow", func() { allocSinkDec = nearMax.MulDivRound(nearMax, b, 0, ROUND_BANK) }},
+		{"MulDivRoundInt64", func() { allocSinkDec = a.MulDivRoundInt64(31, 365, 9, ROUND_BANK) }},
+		{"MulDivRoundInt64 wide divisor", func() { allocSinkDec = a.MulDivRoundInt64(31, 365, 0, ROUND_BANK) }},
 		{"PowIntRound", func() { allocSinkDec = FromString("1.05").PowIntRound(360, 10, ROUND_BANK) }},
+		{"Pow integer exponent", func() { allocSinkDec = FromString("1.05").Pow(FromInt64(360), 10, ROUND_BANK) }},
 		{"PowIntRound negative", func() { allocSinkDec = FromString("1.05").PowIntRound(-360, 10, ROUND_BANK) }},
 		{"RoundToPlaces", func() { allocSinkDec = large.RoundToPlaces(-3, ROUND_BANK) }},
 		{"RoundToMultiple", func() { allocSinkDec = a.RoundToMultiple(FromString("0.05"), ROUND_BANK) }},
@@ -167,6 +179,16 @@ func TestAllocationGates(t *testing.T) {
 		{"Clamp", func() { allocSinkDec = a.Clamp(Zero, b) }},
 		{"RoundToSignificant", func() { allocSinkDec = large.RoundToSignificant(5, ROUND_BANK) }},
 		{"RescaleRoundInexact", func() { allocSinkDec, allocSinkBool = a.RescaleRoundInexact(2, ROUND_BANK) }},
+		{"AddQuoRound", func() { allocSinkDec = a.AddQuoRound(b, b, 6, ROUND_BANK) }},
+		{"InvRound", func() { allocSinkDec = a.InvRound(6, ROUND_BANK) }},
+		{"CopySign", func() { allocSinkDec = a.CopySign(b) }},
+		{"Logb", func() { allocSinkDec = large.Logb() }},
+		{"CmpTotal", func() { allocSinkInt = a.CmpTotal(b) }},
+		{"RemainderNear", func() { allocSinkDec = a.RemainderNear(b) }},
+		{"Decompose into a buffer", func() {
+			_, _, allocSinkBytes, _ = large.Decompose(allocDecomposeBuf[:0])
+		}},
+		{"Compose", func() { allocSinkErr = allocSinkComposed.Compose(0, true, allocComposeCoef, -4) }},
 	}
 	for _, c := range zero {
 		if got := testing.AllocsPerRun(100, c.fn); got != 0 {
@@ -220,14 +242,33 @@ func TestAllocationGates(t *testing.T) {
 		t.Errorf("Value: %v allocs/op, want at most 2", got)
 	}
 
-	// NthRootRound is the one operation that is documented to allocate, because the exact comparison its rounding
-	// decision needs is wider than any register the package keeps. The gate is a ceiling rather than a count: it
-	// exists so that a change of algorithm that made it allocate per digit would be noticed.
+	// NthRootRound and PowRational are the two operations documented to allocate, because the exact comparison their
+	// rounding decision needs is wider than any register the package keeps. The gate is a ceiling rather than a
+	// count: it exists so that a change of algorithm that made them allocate per digit would be noticed.
 	if got := testing.AllocsPerRun(100, func() { allocSinkDec = a.NthRootRound(3, 6, ROUND_BANK) }); got > 60 {
 		t.Errorf("NthRootRound: %v allocs/op, want at most 60", got)
 	}
 	if got := testing.AllocsPerRun(20, func() { allocSinkDec = a.NthRootRound(365, 19, ROUND_BANK) }); got > 150 {
 		t.Errorf("NthRootRound at degree 365: %v allocs/op, want at most 150", got)
+	}
+	if got := testing.AllocsPerRun(20, func() { allocSinkDec = a.PowRational(3, 7, 19, ROUND_BANK) }); got > 150 {
+		t.Errorf("PowRational: %v allocs/op, want at most 150", got)
+	}
+	// The transcendentals run a series over guard digits, so their ceiling is a few hundred values rather than a few
+	// dozen. Pow with an integer exponent is the exception and is in the zero gate below, because it is PowIntRound.
+	for _, c := range []struct {
+		name string
+		fn   func()
+	}{
+		{"Ln", func() { allocSinkDec = a.Ln(19, ROUND_BANK) }},
+		{"Exp", func() { allocSinkDec = FromString("1.5").Exp(19, ROUND_BANK) }},
+		{"Ln1p", func() { allocSinkDec = a.Ln1p(19, ROUND_BANK) }},
+		{"Expm1", func() { allocSinkDec = FromString("1.5").Expm1(19, ROUND_BANK) }},
+		{"Pow", func() { allocSinkDec = a.Pow(FromString("0.3333333333"), 19, ROUND_BANK) }},
+	} {
+		if got := testing.AllocsPerRun(20, c.fn); got > 600 {
+			t.Errorf("%s: %v allocs/op, want at most 600", c.name, got)
+		}
 	}
 	// ... and the degrees it refuses cost nothing at all, because they are refused before any of that
 	for _, c := range []struct {
@@ -241,6 +282,42 @@ func TestAllocationGates(t *testing.T) {
 	} {
 		if got := testing.AllocsPerRun(100, c.fn); got != 0 {
 			t.Errorf("%s: %v allocs/op, want 0", c.name, got)
+		}
+	}
+}
+
+// TestAllocatingSetIsNotVacuous is the complement of TestAllocationGates, in the shape
+// TestGlobalFreeSubsetIsNotVacuous has for the other maintained list: the operations doc.go names as allocating must
+// actually allocate. If one of them ever gains a fixed-width form it belongs in the zero-allocation gate above and
+// off the list, rather than being left on a list that no longer says anything.
+func TestAllocatingSetIsNotVacuous(t *testing.T) {
+	a := FromString("1234.5678")
+
+	allocating := []struct {
+		name string
+		fn   func()
+	}{
+		{"NthRootRound", func() { allocSinkDec = a.NthRootRound(3, 6, ROUND_BANK) }},
+		{"PowRational", func() { allocSinkDec = a.PowRational(3, 7, 6, ROUND_BANK) }},
+		{"Ln", func() { allocSinkDec = a.Ln(6, ROUND_BANK) }},
+		{"Exp", func() { allocSinkDec = FromString("1.5").Exp(6, ROUND_BANK) }},
+		{"Ln1p", func() { allocSinkDec = a.Ln1p(6, ROUND_BANK) }},
+		{"Expm1", func() { allocSinkDec = FromString("1.5").Expm1(6, ROUND_BANK) }},
+		{"Pow", func() { allocSinkDec = a.Pow(FromString("0.3333333333"), 6, ROUND_BANK) }},
+		{"Log10", func() { allocSinkDec = a.Log10(6, ROUND_BANK) }},
+		{"Log2", func() { allocSinkDec = a.Log2(6, ROUND_BANK) }},
+		{"Prod", func() { allocSinkDec = Prod(a, a, a) }},
+		{"ProdRound", func() { allocSinkDec = ProdRound(6, ROUND_BANK, a, a, a) }},
+		{"Rat", func() { allocSinkAny, allocSinkErr = a.Rat() }},
+		{"BigInt", func() { allocSinkAny, allocSinkErr = a.BigInt() }},
+		{"FromRat", func() {
+			r, _ := a.Rat()
+			allocSinkDec = FromRat(r, 6, ROUND_BANK)
+		}},
+	}
+	for _, c := range allocating {
+		if got := testing.AllocsPerRun(20, c.fn); got == 0 {
+			t.Errorf("%s no longer allocates: take it off the list in doc.go and put it in TestAllocationGates", c.name)
 		}
 	}
 }

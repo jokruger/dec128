@@ -408,3 +408,69 @@ func TestInt128RoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// TestEncodeIEEERoundMatchesGlobal holds the new per-call encoder and the global one to the same bytes: EncodeIEEE is
+// EncodeIEEERound at whatever the process globals happen to say, and nothing else about it changed.
+func TestEncodeIEEERoundMatchesGlobal(t *testing.T) {
+	defer SetArithmeticRounding(ArithmeticRounding())
+	defer SetLossPolicy(CurrentLossPolicy())
+
+	// Values that need more than 34 digits are the only ones where the mode is consulted at all.
+	wide := []Dec128{
+		FromString("12345678901234567890123456789012345678"),
+		FromString("3.4028236692093846346337460743176821145"),
+		FromString("-99999999999999999999999999999999999999"),
+		FromString("1234.5678"),
+		Zero,
+		NaN(state.Overflow),
+	}
+
+	// SetArithmeticRounding also writes the loss policy - ROUND_NAN is the deprecated spelling of LossNaNOnInexact -
+	// and the two encoders agree exactly while it is left that way: the global form reads the policy where the
+	// per-call form reads ROUND_NAN, and those are the same condition until SetLossPolicy separates them.
+	for _, mode := range allModes {
+		SetArithmeticRounding(mode)
+
+		for _, d := range wide {
+			var a, b [IEEEBytes]byte
+			nA, errA := d.EncodeIEEE(a[:])
+			nB, errB := d.EncodeIEEERound(b[:], mode)
+			if (errA == nil) != (errB == nil) || (errA != nil && errA.Error() != errB.Error()) {
+				t.Fatalf("%s under %s: EncodeIEEE err = %v, EncodeIEEERound err = %v", d.StringFixed(), mode, errA, errB)
+			}
+			if errA == nil && (nA != nB || a != b) {
+				t.Fatalf("%s under %s: EncodeIEEE and EncodeIEEERound disagree", d.StringFixed(), mode)
+			}
+
+			// the Append forms follow the Encode ones
+			gotA, errAA := d.AppendIEEE(nil)
+			gotB, errBB := d.AppendIEEERound(nil, mode)
+			if (errAA == nil) != (errBB == nil) || string(gotA) != string(gotB) {
+				t.Fatalf("%s under %s: AppendIEEE and AppendIEEERound disagree", d.StringFixed(), mode)
+			}
+		}
+	}
+
+	// LossNaNOnInexact is the global form's other input, and ROUND_NAN is how the per-call form spells it.
+	SetArithmeticRounding(ROUND_BANK)
+	SetLossPolicy(LossNaNOnInexact)
+	big := FromString("12345678901234567890123456789012345678")
+	var buf [IEEEBytes]byte
+	if _, err := big.EncodeIEEE(buf[:]); err == nil {
+		t.Error("EncodeIEEE under LossNaNOnInexact: want an error for a coefficient that must lose digits")
+	}
+	if _, err := big.EncodeIEEERound(buf[:], ROUND_NAN); err == nil {
+		t.Error("EncodeIEEERound(ROUND_NAN): want an error for a coefficient that must lose digits")
+	}
+	if _, err := big.EncodeIEEERound(buf[:], ROUND_BANK); err != nil {
+		t.Errorf("EncodeIEEERound(ROUND_BANK) must not read the loss policy: %v", err)
+	}
+
+	// An undefined mode is rejected rather than used.
+	if _, err := big.EncodeIEEERound(buf[:], RoundingMode(99)); err == nil || err != state.InvalidRoundingMode.Error() {
+		t.Errorf("EncodeIEEERound with an undefined mode: got %v, want %v", err, state.InvalidRoundingMode.Error())
+	}
+	if _, err := big.AppendIEEERound(nil, RoundingMode(99)); err == nil || err != state.InvalidRoundingMode.Error() {
+		t.Errorf("AppendIEEERound with an undefined mode: got %v, want %v", err, state.InvalidRoundingMode.Error())
+	}
+}

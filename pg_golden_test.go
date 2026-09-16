@@ -16,7 +16,7 @@ import (
 func TestPostgreSQLGolden(t *testing.T) {
 	f, err := os.Open("testdata/pg_golden.csv")
 	if err != nil {
-		t.Skip("testdata/pg_golden.csv is not generated: run testdata/pg_golden.sql against PostgreSQL (see testdata/pggolden/main.go)")
+		t.Fatal("failed to open golden file: testdata/pg_golden.csv")
 	}
 	defer func() { _ = f.Close() }()
 

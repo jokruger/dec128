@@ -100,14 +100,23 @@
 //	fee := amount.MulRound(rate, 2, ROUND_BANK)
 //
 // MulAddRound is the fused form of the pair: d*b + c with the product held exactly and
-// the sum rounded once, which is what a chain of multiply-accumulate wants. Accumulator
-// is the same idea over an unbounded number of terms: Add and AddMul are exact, Total is
+// the sum rounded once, which is what a chain of multiply-accumulate wants. MulDivRound is
+// its multiplicative counterpart, d*b/c with the numerator and the divisor kept apart until
+// one rounding: that is the only correct way to scale by a rational whose decimal expansion
+// does not terminate, because 1/3 and 31/365 cannot be written as a decimal at all and so
+// cannot be converted to one first. MulDivRoundInt64 takes that rational as a pair of
+// integers, which is how a day count over a year basis arrives.
+//
+// Accumulator is MulAddRound over an unbounded number of terms: Add and AddMul are exact, Total is
 // the only rounding, and the total does not depend on the order the terms arrived in, so
 // "the parts add up to the whole" is an exact assertion rather than an epsilon check.
 // Mean divides that exact total by the number of terms with the same single rounding, and
 // Reset empties the accumulator for the next batch. Sum and SumSlice are the same idea
 // with the scale rule applied at the end instead of a scale per call; they keep a
 // narrower register, because every term of a sum is a term rather than a product.
+// SumRound, SumSliceRound and AvgRound are their global-free spellings, over that same
+// narrow register; AvgRound divides the exact total by the count under a single rounding,
+// where Avg rounds the total and then rounds the quotient.
 //
 // PowIntRound does the same for a power: it keeps the running product at up to 57
 // decimal places, half as many again as a coefficient holds, and rounds once at the end.
@@ -151,10 +160,33 @@
 //
 // SqrtRound is the square root and NthRootRound the n-th, which is the inverse of
 // PowIntRound and the primitive of rate conversion: the monthly factor behind an annual
-// one is factor.NthRootRound(12, scale, mode). It is correctly rounded, and it is the one
-// operation here that allocates, because the comparison its rounding decision needs is
-// wider than any register the package keeps - a few dozen math/big values per call. A
-// degree above 1024 is refused rather than computed.
+// one is factor.NthRootRound(12, scale, mode). PowRational is the general form, d^(p/q)
+// for any reduced fraction, which is the factor of a compound change spread over a
+// fractional number of periods; NthRootRound is its p == 1 case and PowIntRound its q == 1
+// case, though PowIntRound keeps its own guarded-product core and stays fixed-width.
+//
+// Both roots are correctly rounded, which is stronger than PowIntRound's faithful
+// rounding, because the decision is an exact integer comparison rather than a guarded
+// approximation: d^(p/q) is the q-th root of d^p and d^p is an exact rational. They are
+// also the two operations here that allocate - see "Operations that allocate" - because
+// that comparison is wider than any register the package keeps. An exponent above 16384
+// in either half, after the fraction is reduced, is refused rather than computed; see
+// maxRootDegree for the measurements behind the bound.
+//
+// # Exp, Ln and the rest of the completeness set
+//
+// Exp, Ln, Ln1p, Expm1 and Pow complete the type. Pow dispatches on its exponent: an integer goes
+// to PowIntRound and allocates nothing, a fraction that reduces to small halves goes to
+// PowRational and is correctly rounded, and anything else is exp(e*ln d). So x.Pow(Half, ...) is
+// bit-identical to x.SqrtRound(...) without the caller arranging it.
+//
+// Ln1p and Expm1 are the usual entry points for one plus something small, and they are here for
+// that reason, but the cancellation they exist to prevent in a binary format does not arise on
+// this type: a Dec128 carries 39 significant digits, so 1+x is exact for a small x and
+// Ln(One.Add(x)) loses nothing. They are the right thing to write and they stay exact at the top
+// of the range, where 1+x can exceed a coefficient; they do not recover digits Ln would have lost,
+// and the suite pins the two to agree. Log10 and Log2 complete the set. See "Exact, and not exact"
+// for the guarantee they carry.
 //
 // SignificantDigits, IntegerDigits and FitsNumeric report the shape of a value for the
 // column it has to be stored in, so that a value too wide for a NUMERIC(p, s) is caught
@@ -202,37 +234,102 @@
 // These operations do read them, and are therefore outside the subset:
 //
 //	Add, Sub, Mul and their Int forms, when the exact result does not fit
-//	Div, Sqrt, PowInt, PowInt64 and their Int forms, always
-//	Sum, SumSlice, Avg
+//	Div, Inv, Sqrt, PowInt, PowInt64 and their Int forms, always
+//	Sum, SumSlice, Avg, Prod, ProdSlice
 //	EncodeIEEE, when the coefficient needs more than 34 digits
+//
+// Each has a twin that does not: AddRound and SubRound for the first line, DivRound,
+// InvRound, SqrtRound and PowIntRound for the second, SumRound, SumSliceRound, AvgRound,
+// ProdRound and ProdSliceRound for the third, and EncodeIEEERound for the fourth.
 //
 // Everything else is global-free. In particular the whole *Round family, which takes the
 // scale and the rounding mode per call and is the deterministic spelling of the four
 // basic operations:
 //
-//	AddRound, SubRound, MulRound, MulAddRound, DivRound, DivRoundInexact, SqrtRound, PowIntRound
-//	NthRootRound
+//	AddRound, SubRound, MulRound, MulAddRound, MulDivRound, MulDivRoundInt64, DivRound,
+//	DivRoundInexact, AddQuoRound, SqrtRound, PowIntRound, InvRound
+//	NthRootRound, PowRational
+//	Exp, Ln, Ln1p, Expm1, Log10, Log2, Pow
+//	SumRound, SumSliceRound, AvgRound, ProdRound, ProdSliceRound
 //	Accumulator and its methods, Total and Mean included
-//	QuoRem, Mod and their Int forms, which are exact
+//	QuoRem, Mod, RemainderNear and their Int forms, which are exact
 //	Round and the Round* methods, RoundToPlaces, RoundToMultiple, RoundToSignificant,
 //	Trunc, Rescale, RescaleRound, RescaleRoundInexact
 //	ScaleByPow10, Allocate, Split and their Append and Residual forms
-//	Abs, Neg, Compare, Equal, the comparison predicates, Canonical, Clamp
+//	Abs, Neg, CopySign, Logb, Compare, CmpTotal, Equal, the comparison predicates,
+//	Canonical, Clamp
 //	IsInteger, IntFrac, SignificantDigits, IntegerDigits, FitsNumeric
+//	Rat, BigInt and FromRat, and Decompose and Compose
 //	the From* constructors, the String and Append forms, Format, and the Encode/Decode
-//	codecs other than EncodeIEEE
+//	codecs other than EncodeIEEE, whose per-call form is EncodeIEEERound
 //
 // The list is a maintained API contract, and TestGlobalFreeSubset holds it to that: it
 // runs every method named here under a matrix of the three settings and requires the
 // results to be identical.
 //
+// # Operations that allocate
+//
+// Everything here works in fixed registers and allocates nothing, with two exceptions, whose
+// exact intermediate is wider than any register the package keeps:
+//
+//	NthRootRound
+//	PowRational
+//	Exp, Ln, Ln1p, Expm1
+//	Log10 and Log2, unless the argument is an exact power of the base, which is answered
+//	from the coefficient and allocates nothing
+//	Pow, unless the exponent is an integer, where it is PowIntRound and allocates nothing
+//	Prod, ProdRound and their Slice forms
+//	Rat, BigInt and FromRat, which hand back or take a math/big value
+//
+// They have no fixed-width form; they are not slower versions of something cheaper. A root's
+// rounding decision needs a comparison 39*n digits wide and a rational power's 39*|p| + MaxScale*q,
+// and a transcendental has to carry guard digits through a series. The list is a maintained API
+// contract like the one above, and TestAllocationGates holds every operation not on it to zero
+// allocations while TestAllocatingSetIsNotVacuous checks that these really do allocate, so an
+// operation that later gains a fixed-width form is taken off the list rather than left on it.
+//
+// # Exact, and not exact
+//
+// Every operation in this package is exact, in the sense that it computes an exact intermediate and
+// makes a single rounding decision on it, with seven exceptions: Exp, Ln, Ln1p, Expm1, Log10, Log2
+// and Pow. The value of a transcendental is irrational for all but a handful of arguments, so there
+// is no exact intermediate to decide on. Those seven are documented as faithfully rounded - at most
+// one unit in the last place from the correctly rounded value - and the package documents what was
+// measured rather than what is hoped: against a correctly-rounded reference the largest error
+// observed over the public methods was zero units in the last place, against a second and
+// independent oracle over random arguments it was zero again, and over the general arm of Pow in
+// isolation it was one. See the head of transcendental.go for the whole measurement.
+//
+// Log10 and Log2 have an exact case inside the inexact one: an argument that is an exact power of
+// the base is recognized from the coefficient and answered exactly, because a series converging on
+// an integer from below would be truncated away from it by a directed rounding mode. The General
+// Decimal Arithmetic specification requires that of log10; Log2 does it too, so that the two do not
+// disagree about whether an exact answer is worth having.
+//
+// Prod and its forms are exact and not approximate, but they are not fixed-width: the exact product
+// of n coefficients has the sum of their digit counts, so the intermediate is a math/big value and
+// the single rounding is made on it.
+//
+// NthRootRound and PowRational, though they allocate, are correctly rounded: their decision is an
+// exact integer comparison. Allocating and approximating are separate properties and this package
+// keeps them separate. PowIntRound is the other way round again - fixed-width, allocation-free, and
+// faithfully rounded rather than correctly rounded.
+//
+// One rule governs both, and it is what keeps their results identical on every architecture:
+// a float64 may choose a shortcut, never a returned value. nthRootGuess seeds the iteration from
+// a float64 logarithm and an exact integer comparison decides the answer; PowRational estimates
+// the magnitude of its result in float64 and acts on it only a full decade clear of either
+// boundary. math/big is deterministic where binary floating point is not, which is why the
+// intermediate is big.Int and never big.Float.
+//
 // Determinism has one requirement beyond this list: do not use FromFloat64 or
 // InexactFloat64 inside a calculation. They are legitimate at a system boundary, but
 // binary floating point is where architecture-dependent results come from.
 //
-// The two remaining globals affect text and SQL rather than arithmetic. String,
-// StringFixed, Format and the Marshal and Value methods read SetTrimOutput; Scan(nil) and
-// UnmarshalJSON("null") read SetNullValue.
+// The two remaining globals affect text and SQL rather than arithmetic. Format and the
+// Marshal and Value methods read SetTrimOutput, which chooses between the two forms;
+// String and StringFixed are each one of those forms and read nothing, so StringFixed is
+// the deterministic text output. Scan(nil) and UnmarshalJSON("null") read SetNullValue.
 //
 // # Text and interchange
 //

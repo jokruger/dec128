@@ -13,11 +13,37 @@ Apache Arrow's and Parquet's `Decimal128`. It is not IEEE 754 `decimal128`, whic
 supported as an interchange encoding only. The arithmetic follows SQL `NUMERIC` as implemented by PostgreSQL, and
 the test suite checks it against PostgreSQL digit for digit.
 
+### The core, and the completeness set
+
+Two claims run through this README and they apply to different parts of the library, so it is worth separating them
+before anything else.
+
+**The core is the financial one** -- the decimal type itself, `Add`, `Sub`, `Mul`, `Div`, comparison, rounding,
+allocation, splitting, parsing, printing and the interchange codecs. It is what `dec128` is for and what its promises
+are about: fixed 24-byte layout, **zero heap allocation**, and every result exact or rounded by a single documented
+decision. `TestAllocationGates` holds every one of these operations to zero allocations per call.
+
+**The completeness set is the scientific one** -- roots, rational powers, and the transcendentals `Exp`, `Ln`, `Ln1p`,
+`Expm1`, `Log10`, `Log2` and `Pow`. These are here so the type is a complete numeric type rather than because a ledger
+needs them, and they do not carry the core's promises:
+
+| | allocates | exactness |
+|---|---|---|
+| the core, and `PowIntRound` | never | exact, or one documented rounding (`PowIntRound` is faithfully rounded) |
+| `NthRootRound`, `PowRational` | yes | **correctly rounded** -- the decision is an exact integer comparison |
+| `Exp`, `Ln`, `Ln1p`, `Expm1`, `Log10`, `Log2`, `Pow` | yes, unless `Pow` gets an integer exponent or the logarithm gets an exact power of its base | **faithfully rounded** -- within one unit in the last place, measured, not proven |
+| `Prod` and its forms | yes | exact in the middle, **one rounding** at the end |
+
+They allocate because their exact intermediate is wider than any fixed register, so they run on `math/big`. Both lists
+are maintained in the package documentation and pinned from both sides by the test suite: everything not on the
+allocating list is held to zero allocations, and everything on it is checked to really allocate. If you are counting
+allocations in a hot path, stay in the core; the completeness set is for the calculation you do once.
+
 ## Key Objectives / Features
 
 - [x] High performance
 - [x] Zero dependencies
-- [x] Minimal or zero memory allocation
+- [x] Zero memory allocation throughout the core (see above; the scientific completeness set allocates)
 - [x] 38 significant digits (39 near the maximum), up to 19 of them after the decimal point
 - [x] Fixed 24-byte layout with no indirection (128-bit coefficient, scale, sign/state)
 - [x] No panic or error arithmetics (use NaN instead)
@@ -34,14 +60,17 @@ the test suite checks it against PostgreSQL digit for digit.
 - [x] Conversion to human-readable string representation (e.g. 1.0000 -> "1")
 - [x] Scientific notation: parsed by `FromString`, printed on request (e.g. "1.5e3" -> 1500, 12345 -> "1.2345e+4")
 - [x] Per-call scale and rounding mode for every operation (`AddRound`, `SubRound`, `MulRound`, `DivRound`, `SqrtRound`, `PowIntRound`) -- a documented subset that reads no global configuration, so the same inputs give the same bytes in every process
-- [x] Fused multiply-add (`MulAddRound`) and a wide exact accumulator (`Accumulator`, with `AddMul`): a chain of multiply-accumulate rounds once, not once per term
+- [x] Fused multiply-add (`MulAddRound`), fused multiply-divide (`MulDivRound`), fused add-and-divide (`AddQuoRound`) and a wide exact accumulator (`Accumulator`, with `AddMul`): a chain of multiply-accumulate rounds once, not once per term
+- [x] Exact products with one rounding (`Prod`, `ProdRound`, `ProdSlice`, `ProdSliceRound`): chain-linking a year of daily factors drifts by several units in the last place if folded with `Mul`, and by nothing here
 - [x] Integer powers with guard digits (`PowIntRound`): `(1+r)^360` correctly rounded rather than carrying a dozen roundings
 - [x] Exact splitting of an amount (`Allocate`, `Split`, `AllocateResidual`, `SplitResidual`): the shares sum to the whole, digit for digit, by largest remainder or with the difference going to a named party
 - [x] Rounding to a negative number of places, to a multiple and to a number of significant digits (`RoundToPlaces`, `RoundToMultiple`, `RoundToSignificant`) for cash rounding, disclosure rules and quoted rates
 - [x] The n-th root (`NthRootRound`), correctly rounded: the inverse of compounding, for converting an effective rate to a periodic one
 - [x] Column checks before the insert (`FitsNumeric`, `SignificantDigits`, `IntegerDigits`) and `RescaleRoundInexact` to make a value fit and say what it cost
 - [x] `fmt.Formatter`, so `%.2f` on a `Dec128` means what it says
-- [x] Interchange codecs: PostgreSQL `numeric` binary, IEEE 754 decimal128 (BID), Arrow/Parquet int128
+- [x] Interchange codecs: PostgreSQL `numeric` binary, IEEE 754 decimal128 (BID), Arrow/Parquet int128, and the SQL driver `Decompose`/`Compose` pair
+- [x] An exact `math/big` bridge (`Rat`, `BigInt`, `FromRat`): a `Dec128` is a rational, and the conversion says so in both directions
+- [x] The General Decimal Arithmetic operations the specification names: `Log10`, `Log2`, `Logb`, `CopySign`, `CmpTotal`, `RemainderNear` and `Inv`
 - [x] Configurable SQL `NULL` / JSON `null` handling that round-trips (`SetNullValue`)
 
 ## Install
@@ -258,9 +287,12 @@ Three of the five process-global settings can change the value an operation retu
 some other package passed to those functions at init time, cannot use the operations that read them.
 
 `dec128` therefore documents and tests a **global-free subset**. It excludes `Add`, `Sub` and `Mul` when the exact
-result does not fit, `Div`, `Sqrt`, `PowInt64`, `Sum`, `SumSlice`, `Avg` and `EncodeIEEE`, and includes everything
-else -- in particular the whole `*Round` family, `NthRootRound`, `Accumulator`, `QuoRem`, `Mod`, the `Round*`
-methods, `Allocate`, `Format` and the codecs. `TestGlobalFreeSubset` runs every operation on the list under the whole matrix of the three settings and
+result does not fit, `Div`, `Inv`, `Sqrt`, `PowInt64`, `Sum`, `SumSlice`, `Avg`, `Prod`, `ProdSlice` and
+`EncodeIEEE`, and includes everything else -- in particular the whole `*Round` family, `NthRootRound`,
+`Accumulator`, `QuoRem`, `Mod`, `RemainderNear`, the `Round*` methods, `Allocate`, `Format` and the codecs. Each
+excluded operation has a twin inside the subset: `AddRound`, `SubRound`, `MulRound`, `DivRound`, `InvRound`,
+`SqrtRound`, `PowIntRound`, `SumRound`, `SumSliceRound`, `AvgRound`, `ProdRound`, `ProdSliceRound` and
+`EncodeIEEERound`, so nothing has to be given up to stay deterministic. `TestGlobalFreeSubset` runs every operation on the list under the whole matrix of the three settings and
 requires the results to be bit-identical; its complement checks that the operations left out really do depend on
 them. The package documentation carries the maintained list.
 
@@ -273,6 +305,12 @@ operations a financial formula leans on have forms that round once.
 // d*b + c with the product held exactly and one rounding, instead of three
 pv := principal.MulAddRound(rate, fee, 2, dec128.ROUND_BANK)
 
+// d*b/c with the numerator and the divisor kept apart until one rounding
+share := fee.MulDivRound(weight, totalWeight, 2, dec128.ROUND_HALF_AWAY_FROM_ZERO)
+
+// the same, when the rational arrives as a pair of integers - a day count over a year basis
+accrued := interest.MulDivRoundInt64(31, 365, 2, dec128.ROUND_HALF_AWAY_FROM_ZERO)
+
 // a sum of products that is exact until Total: NPV, weighted averages, schedule reconciliation
 acc := dec128.NewAccumulator(2)
 for i, cf := range cashflows {
@@ -284,11 +322,20 @@ npv := acc.Total(2, dec128.ROUND_HALF_AWAY_FROM_ZERO)
 factor := dec128.FromString("1.000164383561643836").PowIntRound(3650, 19, dec128.ROUND_HALF_AWAY_FROM_ZERO)
 ```
 
+`MulDivRound` is the multiplicative counterpart of `MulAddRound`, and it is the one operation here that cannot be
+composed at all rather than merely composed badly: scaling by an exact rational whose decimal expansion does not
+terminate -- 1/3, 2/7, 31/365 -- has no decimal factor to convert to first, so the numerator and the divisor have to
+stay apart until the single division. `MulRound` followed by `DivRound` rounds twice, and on a proration of
+1119.32 by 25.12/204.20 the two answers differ by a quantum. Its exact numerator reaches 2^383, which is why the
+intermediate is held in the 384-bit register rather than the 256-bit one a product needs.
+
 `Accumulator` is the one mutable type in the package, and deliberately so: positive and negative terms are kept apart
 and cancelled once, at the end, so the total does not depend on the order the terms arrived in. `Mean` divides that
 exact total by the number of terms under the same single rounding, `Reset` empties it for the next batch, its zero
 value is a usable empty accumulator, and nothing in it reads the globals. `Sum` and `SumSlice` are the same idea for a
-plain sum, over a narrower register.
+plain sum, over a narrower register, and `SumRound`, `SumSliceRound` and `AvgRound` are their global-free spellings --
+`AvgRound` divides the exact total by the count under one rounding, where `Avg` rounds the total and then rounds the
+quotient.
 
 ## Splitting an amount
 
@@ -304,7 +351,7 @@ shares, ok := dec128.FromString("100.00").Allocate([]dec128.Dec128{one, one, one
 parts, ok := dec128.FromString("0.05").Split(3, 2)  // 0.02, 0.02, 0.01
 ```
 
-`AllocateResidual` and `SplitResidual` are the other convention, the one an amortisation schedule and a syndicated
+`AllocateResidual` and `SplitResidual` are the other convention, the one an amortization schedule and a syndicated
 facility use: every share but one is its proportion rounded the agreed way, and the share at an index you name takes
 whatever is left.
 
@@ -332,15 +379,71 @@ dec128.FromString("1.09875").RoundToSignificant(5, dec128.ROUND_BANK)           
 
 ## Roots, and the shape of a value
 
-`NthRootRound` is the inverse of `PowIntRound` and the primitive of rate conversion. It is correctly rounded, and it
-is the one operation in the package that allocates -- the comparison its rounding decision needs is wider than any
-register here, so it runs on `math/big`, a few dozen values per call. A degree above 1024 is refused rather than
-computed.
+`NthRootRound` is the inverse of `PowIntRound` and the primitive of rate conversion, and `PowRational` is the general
+form: `d^(p/q)` for any reduced fraction, which is the factor of a compound change spread over a fractional number of
+periods. Both are **correctly rounded** -- a stronger guarantee than `PowIntRound`'s faithful rounding -- because the
+decision is an exact integer comparison rather than a guarded approximation. `d^(p/q)` is the `q`-th root of `d^p`
+and `d^p` is an exact rational, so the whole computation is one integer root and two integer comparisons with nothing
+rounded on the way.
 
 ```go
 annual := dec128.FromString("1.126825")
 monthly := annual.NthRootRound(12, 10, dec128.ROUND_HALF_AWAY_FROM_ZERO) // 1.0099999977
+
+// five months of a 6% year: the exponent 5/12 has no decimal form at all
+part := dec128.FromString("1.06").PowRational(5, 12, 19, dec128.ROUND_HALF_AWAY_FROM_ZERO)
+// 1.0245758393924285985, where a twelfth root raised to the fifth gives ...983
 ```
+
+Taking the root and the power separately rounds twice, and the root is where the significant digits are lost, so the
+error is then amplified rather than cancelled. Reduction happens first, and for a negative base it is the whole of
+the answer: `(-8)^(2/6)` is `(-8)^(1/3)` and so `-2`, not `64^(1/6)` and so `2`.
+
+Both allocate, for the reason given at the top of this README: the comparison their rounding decision needs is wider
+than any register here, so they run on `math/big`. The bound on the exponent is a measurement rather than a caution:
+at the worst operand the package has, a degree of 1024 costs 1--3 ms, 10950 costs 23--89 ms and 16384 costs
+44--151 ms, so 16384 is where it is refused. That covers 30 years of daily rests (10950) and 40 years of them
+(14600), and refuses a century of them, which is not an instrument.
+
+## Exp, Ln and the rest of the completeness set
+
+`Exp`, `Ln`, `Ln1p`, `Expm1`, `Log10`, `Log2` and `Pow` complete the type. They are **the only operations here that
+are not exact**, and they say so: everything else computes an exact intermediate and makes one rounding decision on
+it, while a transcendental is irrational for all but a handful of arguments and has no exact intermediate to decide
+on. `Log10` and `Log2` are the exception within the exception: an exact power of the base is detected from the
+coefficient and answered exactly, which the General Decimal Arithmetic specification requires of `log10` and which a
+series alone would not give -- converging on 3 from below, a directed rounding mode would return 2.999... instead.
+
+```go
+r := dec128.FromString("0.06")
+force := r.Ln1p(19, dec128.ROUND_HALF_AWAY_FROM_ZERO)      // the continuously-compounded equivalent of 6%
+back := force.Expm1(19, dec128.ROUND_HALF_AWAY_FROM_ZERO)  // and back again
+
+part := dec128.FromString("1.06").Pow(dec128.FromString("0.4166666666666666667"), 19, dec128.ROUND_BANK)
+```
+
+**The guarantee is faithful rounding: within one unit in the last place of the correctly rounded value.** That is a
+measurement, not a proof, and here is the measurement. Against `testdata/transcendental_golden.csv` -- 80-digit values
+from an implementation of the General Decimal Arithmetic specification, in which `exp` and `ln` are correctly rounded
+-- the methods were compared at five scales in every rounding mode, 6097 results, and **every one was correctly
+rounded**. A second, randomized oracle computes `Exp` and `Ln` again by a construction sharing nothing with the one
+under test -- the plain Taylor series in 512-bit binary floating point, with the logarithm obtained by inverting it
+with Newton's method -- and over 28000 further results the largest error was again **zero**. Comparing the general
+arm of `Pow` against the exact `PowRational` over random operands, 1515 results, the largest error was **one unit in
+the last place**.
+
+That one unit cannot be engineered away with more guard digits. It shows up where the exact value is itself
+representable -- 19 to the power 24/8 is exactly 6859 -- and a series converging on it from below is truncated by a
+directed rounding mode; deciding those correctly means proving the value exact, which is the table-maker's dilemma.
+Where an exact answer matters and the exponent is a short fraction, `PowRational` gives one, and `Pow` reaches
+`PowRational` by itself: `x.Pow(half, ...)` is bit-identical to `x.SqrtRound(...)`.
+
+`Pow` dispatches on the exponent -- an integer goes to `PowIntRound`, which allocates nothing; a fraction that reduces
+to small halves goes to `PowRational`, which is correctly rounded; anything else is `exp(e·ln d)`. `Ln1p` and `Expm1`
+are the usual entry points for one-plus-something-small, but note that the cancellation they exist to prevent in a
+binary format **does not arise here**: a Dec128 carries 39 significant digits, so `1+x` is exact and `Ln(One.Add(x))`
+loses nothing. They are the right thing to write and they stay exact at the top of the range; they do not give you
+back digits that `Ln` would have lost, and the test suite pins the two to agree.
 
 Three methods report the shape of a value for the column it has to live in, so that a value too wide for its
 `NUMERIC(p, s)` is caught where it is computed and not by the database halfway through a batch:
@@ -379,7 +482,7 @@ the round trip. `SetTrimOutput(true)` restores the trimmed output of versions up
 
 ## Interchange formats
 
-Besides its own compact binary form (`EncodeBinary`, at most 18 bytes), `dec128` reads and writes three external
+Besides its own compact binary form (`EncodeBinary`, at most 18 bytes), `dec128` reads and writes four external
 formats, all into caller-supplied buffers without allocating:
 
 - **PostgreSQL `numeric` binary** (`EncodePgNumeric`, `DecodePgNumeric`): the wire format of the binary protocol, dscale
@@ -390,6 +493,10 @@ formats, all into caller-supplied buffers without allocating:
   tells in advance.
 - **int128 with a schema scale** (`EncodeInt128`, `DecodeInt128`): Apache Arrow (little-endian) and
   Parquet (big-endian) `Decimal128`.
+- **The SQL driver decomposer interface** (`Decompose`, `Compose`): the form/sign/coefficient/exponent shape that
+  the pgx and go-mssqldb drivers all speak. A coefficient with digits below `MaxScale` that cannot be
+  cancelled away is refused rather than rounded. This type has no infinity, so composing one is an error rather than a
+  silent NaN.
 
 A value the type cannot hold decodes to a NaN carrying the reason rather than being rounded on the way in.
 
@@ -496,8 +603,9 @@ The 128-bit budget is a deliberate trade, not an oversight. Reach for `math/big`
   wei amounts at full precision, factorials and unbounded exponentiation do not fit.
 - **You need arbitrary precision or the full IEEE 754-2008 condition model.** `apd` implements the General Decimal
   Arithmetic specification with contexts, traps and conditions; `dec128` implements SQL `NUMERIC` in 128 bits.
-- **You need transcendental functions.** `Sqrt`, `NthRootRound` and the integer powers `PowInt` and `PowIntRound` are
-  the extent of it: no `Ln`, `Exp`, `Log10` or general fractional powers.
+- **You need transcendental functions at more than 19 places, or correctly rounded.** `Exp`, `Ln`, `Ln1p`, `Expm1`,
+  `Log10`, `Log2` and `Pow` are here and are faithfully rounded, but they stop at `MaxScale` and they do not claim
+  correct rounding. An arbitrary-precision context is `apd`'s job, not this one's.
 - **You want the compiler to make you handle failure.** Arithmetic returns a NaN, not an `error`, so nothing
   forces a check. That is the point of the design, and it is the wrong design for a codebase that relies on
   `errcheck` to catch mistakes.
@@ -577,6 +685,10 @@ Verified against `shopspring/decimal` v1.4.0. Every mapping below was checked by
 | `d.StringFixedBank(n)` | `d.RescaleRound(n, dec128.ROUND_BANK).StringFixed()` | same shape with ties-to-even |
 | `d.IntPart()` | `d.Int64()` | shopspring returns a silently wrong `int64` when the value does not fit (`1e30` gives `5076944270305263616`); `dec128` returns `overflow` |
 | `d.InexactFloat64()` | `d.InexactFloat64()` | returns `(float64, error)` here, `float64` alone in shopspring |
+| `d.Rat() *big.Rat` | `d.Rat() (*big.Rat, error)` | exact in both; a NaN has no rational value, so it returns the NaN's reason |
+| `d.BigInt() *big.Int` | `d.BigInt() (*big.Int, error)` | the truncated integer part in both, not the coefficient; this is the only exit for the integer part of a value past the `int64` range |
+| `d.BigFloat() *big.Float` | `new(big.Float).SetRat(r)` on `d.Rat()` | shopspring's goes through `String()` and loses digits; via `Rat` it is exact and the caller picks the precision |
+| — | `dec128.FromRat(r, scale, mode)` | the way back in, with a single rounding rather than the two a formatted round trip costs |
 | `d.Coefficient() *big.Int`, `d.Exponent() int32` | `d.Coefficient() uint128.Uint128`, `d.Scale() uint8` | the coefficient is unsigned here, so combine it with `Sign()`; and the exponent flips sign, since `1.50` has shopspring exponent `-2` and `dec128` scale `2` (`Exponent()` is a synonym for `Scale()`, not the negated form) |
 | `decimal.NullDecimal` | `dec128.SetNullValue(dec128.Null())` | a policy on the type itself rather than a separate wrapper -- see [SQL NULL](#sql-null) |
 

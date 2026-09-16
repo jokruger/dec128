@@ -471,3 +471,117 @@ func ExampleAccumulator_Mean() {
 	// 3 70.05 23.35
 	// 1 1.00
 }
+
+func ExampleDec128_MulDivRound() {
+	// Proration: a fee shared out in proportion to a weight. The exact share is a rational whose decimal expansion
+	// does not terminate, so there is no factor to convert to a decimal and multiply by - the numerator and the
+	// divisor have to stay apart until the single rounding.
+	fee := FromString("1119.32")
+	weight, total := FromString("25.12"), FromString("204.20")
+
+	fmt.Println(fee.MulDivRound(weight, total, 2, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// The composed form rounds the product first, and that rounding moves the quotient by a quantum.
+	fmt.Println(fee.MulRound(weight, 2, ROUND_HALF_AWAY_FROM_ZERO).
+		DivRound(total, 2, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// Output:
+	// 137.69
+	// 137.70
+}
+
+func ExampleDec128_MulDivRoundInt64() {
+	// Interest accrued over 31 days on an Act/365 basis. 31/365 has no decimal form, and the day count arrives as a
+	// pair of integers rather than as a decimal, which is the case this form is for.
+	interest := FromString("10000.00").MulRound(FromString("0.0525"), MaxScale, ROUND_HALF_AWAY_FROM_ZERO)
+
+	fmt.Println(interest.MulDivRoundInt64(31, 365, 2, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// Output:
+	// 44.59
+}
+
+func ExampleSumRound() {
+	// The terms are totalled exactly and only the total is rounded, so a payment split three ways adds back up to
+	// the whole rather than to a quantum short of it.
+	third := FromString("0.3333333333333333333")
+
+	fmt.Println(SumRound(MaxScale, ROUND_HALF_AWAY_FROM_ZERO, third, third, third).StringFixed())
+	fmt.Println(SumRound(2, ROUND_HALF_AWAY_FROM_ZERO, third, third, third).StringFixed())
+	// Output:
+	// 0.9999999999999999999
+	// 1.00
+}
+
+func ExampleAvgRound() {
+	// The exact total divided by the count, with the division and the reduction to scale taking one rounding
+	// decision together rather than one each.
+	amounts := []Dec128{FromString("10.00"), FromString("20.00"), FromString("30.01")}
+
+	fmt.Println(AvgRound(2, ROUND_HALF_AWAY_FROM_ZERO, amounts[0], amounts[1:]...).StringFixed())
+	fmt.Println(AvgRound(MaxScale, ROUND_HALF_AWAY_FROM_ZERO, amounts[0], amounts[1:]...).StringFixed())
+	// Output:
+	// 20.00
+	// 20.0033333333333333333
+}
+
+func ExampleDec128_PowRational() {
+	// A 6% annual factor over five months of a twelve-month year. The exponent 5/12 has no decimal form, so the
+	// alternative is a twelfth root followed by a fifth power - and the root is where the significant digits go, so
+	// raising it afterwards amplifies that error rather than cancelling it.
+	annual := FromString("1.06")
+
+	fmt.Println(annual.PowRational(5, 12, MaxScale, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	fmt.Println(annual.NthRootRound(12, MaxScale, ROUND_HALF_AWAY_FROM_ZERO).
+		PowIntRound(5, MaxScale, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// Output:
+	// 1.0245758393924285985
+	// 1.0245758393924285983
+}
+
+func ExampleDec128_PowRational_exact() {
+	// Where the value is exact it comes back exact, in every mode, because the rounding decision is an exact integer
+	// comparison rather than a guarded approximation.
+	fmt.Println(FromInt64(8).PowRational(2, 3, 0, ROUND_BANK).StringFixed())
+	fmt.Println(FromInt64(4).PowRational(-3, 2, 3, ROUND_BANK).StringFixed())
+	// The fraction is reduced first, which for a negative base is the whole of the answer: 2/6 is 1/3, so this is
+	// the cube root and not the sixth root of the square.
+	fmt.Println(FromInt64(-8).PowRational(2, 6, 0, ROUND_BANK).StringFixed())
+	// Output:
+	// 4
+	// 0.125
+	// -2
+}
+
+func ExampleDec128_Ln() {
+	// The two constants, to every place a Dec128 has.
+	fmt.Println(FromInt64(2).Ln(MaxScale, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	fmt.Println(One.Exp(MaxScale, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// Output:
+	// 0.6931471805599453094
+	// 2.7182818284590452354
+}
+
+func ExampleDec128_Ln1p() {
+	// A 6% effective rate as a continuously-compounded force of interest, and back again. Ln1p and Expm1 are the
+	// pair that converts between the two without the caller writing One.Add and Sub around them.
+	rate := FromString("0.06")
+
+	force := rate.Ln1p(MaxScale, ROUND_HALF_AWAY_FROM_ZERO)
+	fmt.Println(force.StringFixed())
+	fmt.Println(force.Expm1(MaxScale, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// Output:
+	// 0.0582689081239757755
+	// 0.0600000000000000000
+}
+
+func ExampleDec128_Pow() {
+	// Pow dispatches on the exponent. An integer goes to PowIntRound and allocates nothing.
+	fmt.Println(FromString("1.05").Pow(FromInt64(360), 10, ROUND_BANK).StringFixed())
+	// A fraction that reduces to small halves goes to PowRational and is correctly rounded, so a square root
+	// arrives exactly.
+	fmt.Println(FromInt64(9).Pow(FromString("0.5"), 4, ROUND_BANK).StringFixed())
+	// Anything else is exp(e*ln d), which is faithfully rounded.
+	fmt.Println(FromString("1.06").Pow(FromString("0.4166666666666666667"), MaxScale, ROUND_HALF_AWAY_FROM_ZERO).StringFixed())
+	// Output:
+	// 42476396.4086800204
+	// 3.0000
+	// 1.0245758393924285985
+}

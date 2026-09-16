@@ -46,7 +46,7 @@ func FuzzFromString(f *testing.F) {
 
 		// a parsed value round-trips through its own fixed text, bit for bit
 		if back := FromString(d.StringFixed()); back != d {
-			t.Fatalf("FromString(%q) = %v, whose StringFixed %q reparses to %v", s, d, d.StringFixed(), back)
+			t.Fatalf("FromString(%q) = %v, whose StringFixed %q re-parses to %v", s, d, d.StringFixed(), back)
 		}
 		// and it is the number that was written
 		if r, ok := new(big.Rat).SetString(strings.TrimSuffix(s, ".")); ok {
@@ -98,10 +98,6 @@ func FuzzDecoders(f *testing.F) {
 		_, _ = d.EncodeInt128(make([]byte, Int128Bytes), scale, binary.BigEndian)
 	})
 }
-
-// Per-operation targets. The two above cover the untrusted surfaces; these carry an oracle for each operation, so the
-// engine's coverage guidance drives it into the branch it has not reached yet rather than into a generic smoke test.
-// udecimal and zerodecimal both fuzz per operation this way.
 
 // fuzzDec builds a value from fuzzer-supplied limbs. The scale is folded into range rather than rejected, so no input
 // is wasted, and a zero is never negative.
@@ -363,6 +359,41 @@ func FuzzInvariants(f *testing.F) {
 		}
 		if !d.Neg().Neg().Equal(d) || d.Abs().Sign() < 0 {
 			t.Fatalf("Neg/Abs are inconsistent for %v", d)
+		}
+	})
+}
+
+// FuzzMulDivRound checks the fused multiply-divide against the exact rational, in every mode and at every scale. It
+// is the only operation here whose intermediate reaches 384 bits, so the two alignment paths and the narrowing back
+// to a coefficient are what the target is aimed at.
+func FuzzMulDivRound(f *testing.F) {
+	addOperandSeeds(f, uint64(3), uint8(2), uint8(0), uint8(0))
+	f.Fuzz(func(t *testing.T, xh, xl uint64, xs uint8, xn bool, yh, yl uint64, ys uint8, yn bool,
+		cl uint64, cs uint8, m, target uint8) {
+		x, y := fuzzDec(xh, xl, xs, xn), fuzzDec(yh, yl, ys, yn)
+		c := fuzzDec(0, cl, cs, false)
+		if c.coef.IsZero() {
+			return
+		}
+		mode := fuzzMode(m)
+		scale := target % (MaxScale + 1)
+
+		exact := new(big.Rat).Mul(bigOf(x), bigOf(y))
+		exact.Quo(exact, bigOf(c))
+		checkMulDiv(t, "MulDivRound", x.MulDivRound(y, c, scale, mode), exact, scale, mode)
+
+		// The integer form must agree with the general one wherever both apply.
+		if c.scale == 0 && c.coef.Hi == 0 && c.coef.Lo <= 1<<62 && x.coef.Hi == 0 && x.scale == 0 && x.coef.Lo <= 1<<62 {
+			num, den := int64(x.coef.Lo), int64(c.coef.Lo)
+			if x.state == state.Neg {
+				num = -num
+			}
+			got := y.MulDivRoundInt64(num, den, scale, mode)
+			want := y.MulDivRound(x, c, scale, mode)
+			if got != want {
+				t.Fatalf("MulDivRoundInt64(%s, %d, %d) = %s, MulDivRound = %s",
+					y.StringFixed(), num, den, got.StringFixed(), want.StringFixed())
+			}
 		}
 	})
 }

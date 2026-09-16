@@ -23,7 +23,7 @@ const MaxStrLen = uint128.MaxStrLen + 2
 // MaxSciStrLen is the maximum number of characters that can be in a scientific notation representation of a Dec128.
 const MaxSciStrLen = uint128.MaxStrLen + 6
 
-// Zero is the value 0 at scale 0. It is also the zero value of the type, so an uninitialised Dec128 is a valid zero.
+// Zero is the value 0 at scale 0. It is also the zero value of the type, so an uninitialized Dec128 is a valid zero.
 var Zero = Dec128{}
 
 // One is the value 1.

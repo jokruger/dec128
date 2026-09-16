@@ -15,11 +15,10 @@ import (
 
 // Corner cases the random oracles reach only by luck: a curated corpus of boundary values crossed with itself, the
 // zero value of the type used directly, every uint8 a scale parameter can take, and a handful of named properties
-// the documentation promises. The corpus idea is udecimal's; the uninitialised-value sweep is shopspring's; the
-// full-uint8 parameter sweep and the layout and table pins are zerodecimal's.
+// the documentation promises.
 
 // boundaryCorpus returns the values worth crossing with each other: the ends of the coefficient range, the limb
-// boundary, the powers of ten and their neighbours, at the scales a caller actually picks, in both signs.
+// boundary, the powers of ten and their neighbors, at the scales a caller actually picks, in both signs.
 func boundaryCorpus() []Dec128 {
 	coefs := []uint128.Uint128{
 		{},                   // 0
@@ -35,7 +34,7 @@ func boundaryCorpus() []Dec128 {
 		Pow10Uint128[19],
 		Pow10Uint128[38],
 	}
-	// the neighbours of the powers of ten, where carries cross limbs
+	// the neighbors of the powers of ten, where carries cross limbs
 	for _, k := range []int{19, 20, 38} {
 		p := Pow10Uint128[k]
 		lo, _ := p.SubBorrow(uint128.One)
@@ -105,9 +104,9 @@ func TestBoundaryCorpusCrossProduct(t *testing.T) {
 	}
 }
 
-// TestUninitialisedValue exercises the whole method surface on the zero value of the type. doc.go promises that an
-// uninitialised Dec128 is a valid zero, which means no method may treat it as NaN or as negative.
-func TestUninitialisedValue(t *testing.T) {
+// TestUninitializedValue exercises the whole method surface on the zero value of the type. doc.go promises that an
+// uninitialized Dec128 is a valid zero, which means no method may treat it as NaN or as negative.
+func TestUninitializedValue(t *testing.T) {
 	var a, b Dec128
 
 	derived := []struct {
@@ -252,8 +251,8 @@ func TestEveryScaleParameterValue(t *testing.T) {
 	}
 }
 
-// TestCrossScaleRoundingAgrees is the RoundBank-anomaly class shopspring pins: 2.5 and 2.50 are the same number, so
-// every mode must round them alike. An implementation that looks only at the first discarded digit gets 2.50 wrong.
+// TestCrossScaleRoundingAgrees is the RoundBank-anomaly class: 2.5 and 2.50 are the same number, so every mode must
+// round them alike. An implementation that looks only at the first discarded digit gets 2.50 wrong.
 func TestCrossScaleRoundingAgrees(t *testing.T) {
 	// the named case first
 	for _, mode := range allModes {
@@ -289,7 +288,7 @@ func TestCrossScaleRoundingAgrees(t *testing.T) {
 }
 
 // TestNoDoubleRounding pins the reason DivRound and MulRound exist: they decide once, on the exact remainder, where
-// rounding an already-rounded quotient can land a step away. The named case is zerodecimal's.
+// rounding an already-rounded quotient can land a step away.
 func TestNoDoubleRounding(t *testing.T) {
 	defer SetDefaultScale(DefaultScale())
 	SetDefaultScale(MaxScale)
@@ -459,7 +458,7 @@ func TestOmitZeroAndIsZero(t *testing.T) {
 // TestMarshalResultIsPrivate pins the ownership half of the allocation contract in alloc_test.go: the marshallers
 // return an owned slice. The shortcut cases used to hand out the package's own ZeroStrBytes, NaNStrBytes,
 // NaNJsonStrBytes and nullValue, so a caller writing into the result corrupted the constant for the whole process -
-// silently, and for every later value. zerodecimal pins the same property.
+// silently, and for every later value.
 func TestMarshalResultIsPrivate(t *testing.T) {
 	defer SetTrimOutput(TrimOutput())
 
@@ -488,7 +487,7 @@ func TestMarshalResultIsPrivate(t *testing.T) {
 			} {
 				b, err := m.fn()
 				if err != nil {
-					continue // AppendPgNumeric refuses a NULL, which is its documented behaviour
+					continue // AppendPgNumeric refuses a NULL, which is its documented behavior
 				}
 				for i := range b {
 					b[i] ^= 0xFF // scribble over every byte the caller was handed

@@ -205,6 +205,246 @@ func (d Dec128) MulAddRound(b, c Dec128, scale uint8, mode RoundingMode) Dec128 
 	return mulAddSlow(lo, hi, needed, st, c, scale, mode)
 }
 
+// MulDivRound returns d * b / c at exactly the given scale, rounding with mode: the fused multiply-divide.
+//
+// The product is formed exactly and the numerator and the divisor are kept apart until one rounding decision is made
+// at the end. MulRound followed by DivRound rounds twice, and the first rounding perturbs the second whenever the
+// product is not representable at the intermediate scale. The case that has no other answer at all is scaling by an
+// exact rational whose decimal expansion does not terminate - 1/3, 2/7, 31/365 - because such a factor cannot be
+// written as a decimal, so "convert the factor, then multiply" is not available. Proration of a total across parts, a
+// percentage of a total, unit conversion by a rational factor and a weighted average are all that shape. It is the
+// multiplicative counterpart of MulAddRound.
+//
+// The exact numerator reaches 2^383, the 256-bit product carrying a further 10^38 when the scales are at their
+// extremes, so the intermediate is held in the wide register and the division is exact against the full divisor.
+//
+// A zero c is NaN(DivisionByZero), a quotient that does not fit NaN(Overflow), a scale above MaxScale
+// NaN(ScaleOutOfRange), an undefined mode NaN(InvalidRoundingMode), and under ROUND_NAN a nonzero remainder is
+// NaN(Inexact). A NaN operand propagates: d first, then b, then c. It reads no process-global configuration.
+func (d Dec128) MulDivRound(b, c Dec128, scale uint8, mode RoundingMode) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case b.state >= state.Error:
+		return b
+	case c.state >= state.Error:
+		return c
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
+	case !mode.IsValid():
+		return Dec128{state: state.InvalidRoundingMode}
+	case c.coef.IsZero():
+		return Dec128{state: state.DivisionByZero}
+	case d.coef.IsZero() || b.coef.IsZero():
+		return Dec128{scale: scale} // a zero is never negative
+	}
+
+	st := signOf(signOf(d.state, b.state), c.state)
+	lo, hi := d.coef.MulCarry(b.coef)
+
+	// The exact quotient is d.coef * b.coef * 10^f / c.coef.
+	f := int(scale) + int(c.scale) - int(d.scale) - int(b.scale)
+
+	if f >= 0 {
+		// The alignment cannot carry out of the register: the product is below 2^256 and f is at most twice MaxScale,
+		// so 10^f is below 2^127 and the numerator stays under 2^383.
+		n, _ := wideFrom256(lo, hi).mulPow10(uint8(f))
+		q, r := n.quoRem128(c.coef)
+		return quotientAt(q, r, c.coef, scale, st, mode)
+	}
+
+	// f < 0: the true divisor is c.coef * 10^-f, which reaches 2^254 and is not a coefficient. Divide by the two
+	// factors in turn instead, and let the reduction by the power of ten take the decision: the remainder of the
+	// division by c.coef is worth less than one unit in that quotient's last place, which is exactly the sticky bit
+	// quoCmpHalfPow10Sticky folds into the comparison.
+	q, rem := wideFrom256(lo, hi).quoRem128(c.coef)
+	qw, above, tie, inexact := q.quoCmpHalfPow10Sticky(uint8(-f), !rem.IsZero())
+	// Overflow before Inexact, as reduceAt and every other reduction in the package order them.
+	coef, ok := qw.uint128()
+	if !ok {
+		return Dec128{state: state.Overflow}
+	}
+	if inexact && mode == ROUND_NAN {
+		return Dec128{state: state.Inexact}
+	}
+	if inexact && roundDecision(above, tie, coef.Lo&1 == 1, st, mode) {
+		var carry uint64
+		if coef, carry = coef.AddCarry(uint128.One); carry != 0 {
+			return Dec128{state: state.Overflow}
+		}
+	}
+	if coef.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
+
+	return Dec128{coef: coef, scale: scale, state: st}
+}
+
+// MulDivRoundInt64 returns d * num / den at exactly the given scale, rounding with mode.
+//
+// It is MulDivRound for the common case where the rational factor is a pair of integers - a day count over a year
+// basis, a share over a total, a period over a term - and it saves the caller two conversions. It is not a wrapper:
+// with integer operands the numerator stays below 2^255 and the divisor below 2^127 whatever the scales are, so the
+// numerator is a 192-bit magnitude rather than a 256-bit product and the divisor is usually a single limb, which
+// makes the division a hardware divide per occupied limb instead of a 192-by-128 reciprocal step. That is worth
+// about a tenth of the running time at MaxScale and rather less at a money scale, where both forms are dominated by
+// the same work; the reason to reach for it is the operands, not the speed.
+//
+// It fails as MulDivRound does, with a zero den giving NaN(DivisionByZero).
+func (d Dec128) MulDivRoundInt64(num, den int64, scale uint8, mode RoundingMode) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
+	case !mode.IsValid():
+		return Dec128{state: state.InvalidRoundingMode}
+	case den == 0:
+		return Dec128{state: state.DivisionByZero}
+	case d.coef.IsZero() || num == 0:
+		return Dec128{scale: scale} // a zero is never negative
+	}
+
+	// magnitudes: negating in uint64 is correct for math.MinInt64 as well
+	n, m := uint64(num), uint64(den)
+	neg := d.state == state.Neg
+	if num < 0 {
+		n, neg = -n, !neg
+	}
+	if den < 0 {
+		m, neg = -m, !neg
+	}
+	st := state.Default
+	if neg {
+		st = state.Neg
+	}
+
+	// d.coef * |num| is below 2^191 and cannot carry out of the register.
+	w, _ := wideFrom128(d.coef).mul64(n)
+	div := uint128.FromUint64(m)
+
+	if f := int(scale) - int(d.scale); f >= 0 {
+		// below 2^191 * 10^19 < 2^255
+		w, _ = w.mulPow10(uint8(f))
+	} else {
+		// |den| * 10^-f is below 2^63 * 2^64 = 2^127, so the scaled divisor is still a coefficient
+		div, _ = div.Mul64(Pow10Uint64[-f])
+	}
+
+	if div.Hi == 0 {
+		// a one-limb divisor is one 128-by-64 division per limb instead of one 192-by-128
+		q, r := w.quoRem64(div.Lo)
+		return quotientAt(q, uint128.FromUint64(r), div, scale, st, mode)
+	}
+
+	q, r := w.quoRem128(div)
+	return quotientAt(q, r, div, scale, st, mode)
+}
+
+// AddQuoRound returns d + e/f at exactly the given scale, rounding with mode. It is the fused add-and-divide, and it
+// makes one rounding decision where the written-out form makes two.
+//
+// It is the shape a per-unit figure takes: a base plus a share, a fixed leg plus an accrual over a day count, a
+// running total plus the next instalment of a division that does not terminate. Written as d.Add(e.DivRound(f, ...))
+// the quotient is rounded to a scale before it is added, and whatever that rounding discarded is gone; here the whole
+// of d + e/f is formed exactly first - the identity is (d*f + e)/f, whose numerator is an exact 384-bit magnitude -
+// and the single decision is made on the true value.
+//
+// MulAddRound and MulDivRound are the other two fused forms; this is the one whose inexactness is in the divisor
+// rather than the product. For d - e/f, negate e: there is no SubQuoRound, because Neg is exact and a second method
+// would only be a second place for the sign to go wrong.
+//
+// A zero f is NaN(DivisionByZero), a scale above MaxScale NaN(ScaleOutOfRange), an undefined mode
+// NaN(InvalidRoundingMode), a result too large for the coefficient NaN(Overflow), and under ROUND_NAN a result that is
+// not exact is NaN(Inexact). NaN propagates: d first, then e, then f.
+//
+// It reads no process-global configuration and allocates nothing.
+func (d Dec128) AddQuoRound(e, f Dec128, scale uint8, mode RoundingMode) Dec128 {
+	switch {
+	case d.state >= state.Error:
+		return d
+	case e.state >= state.Error:
+		return e
+	case f.state >= state.Error:
+		return f
+	case scale > MaxScale:
+		return Dec128{state: state.ScaleOutOfRange}
+	case !mode.IsValid():
+		return Dec128{state: state.InvalidRoundingMode}
+	case f.coef.IsZero():
+		return Dec128{state: state.DivisionByZero}
+	}
+
+	// The exact numerator is d*f + e, formed at the scale of whichever term has more places. The product occupies 256
+	// bits and the alignment at most 10^19 more, so the sum is under 2^321 and the register never fills.
+	ps := int(d.scale) + int(f.scale)
+	ns := max(ps, int(e.scale))
+
+	lo, hi := d.coef.MulCarry(f.coef)
+	pw, over := wideFrom256(lo, hi).mulPow10(uint8(ns - ps))
+	if over {
+		return Dec128{state: state.Overflow}
+	}
+	ew, over := wideFrom128(e.coef).mulPow10(uint8(ns - int(e.scale)))
+	if over {
+		return Dec128{state: state.Overflow}
+	}
+
+	// The two terms carry their own signs, so the sum is a magnitude and a sign rather than a signed register. A zero
+	// coefficient is never negative, which is what makes the state comparison the whole of the sign test.
+	pst := signOf(d.state, f.state)
+	n, nst := pw, pst
+	if pst == e.state {
+		var carry bool
+		if n, carry = pw.add(ew); carry {
+			return Dec128{state: state.Overflow}
+		}
+	} else if pw.compare(ew) >= 0 {
+		n = pw.sub(ew)
+	} else {
+		n, nst = ew.sub(pw), e.state
+	}
+
+	// The quotient's coefficient is n * 10^(f.scale + scale - ns) / f.coef, and that exponent is within one MaxScale
+	// of zero in either direction: above, ns is the product's own scale; below, it is e's.
+	st := signOf(nst, f.state)
+	g := int(f.scale) + int(scale) - ns
+
+	if g >= 0 {
+		n2, over := n.mulPow10(uint8(g))
+		if over {
+			return Dec128{state: state.Overflow}
+		}
+		q, r := n2.quoRem128(f.coef)
+		return quotientAt(q, r, f.coef, scale, st, mode)
+	}
+
+	// g < 0: divide by the two factors in turn and let the reduction by the power of ten take the decision, with the
+	// remainder of the first division folded in as the sticky bit - the same split MulDivRound makes, for the same
+	// reason.
+	q, rem := n.quoRem128(f.coef)
+	qw, above, tie, inexact := q.quoCmpHalfPow10Sticky(uint8(-g), !rem.IsZero())
+	// Overflow before Inexact, as every other reduction in the package orders them.
+	coef, ok := qw.uint128()
+	if !ok {
+		return Dec128{state: state.Overflow}
+	}
+	if inexact && mode == ROUND_NAN {
+		return Dec128{state: state.Inexact}
+	}
+	if inexact && roundDecision(above, tie, coef.Lo&1 == 1, st, mode) {
+		var carry uint64
+		if coef, carry = coef.AddCarry(uint128.One); carry != 0 {
+			return Dec128{state: state.Overflow}
+		}
+	}
+	if coef.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
+
+	return Dec128{coef: coef, scale: scale, state: st}
+}
+
 // MulInt returns d * other.
 // If Dec128 is NaN, the result will be NaN. In case of overflow, the result will be NaN.
 func (d Dec128) MulInt(other int) Dec128 {

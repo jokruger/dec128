@@ -134,9 +134,42 @@ func (a wide) quoRemPow10Small(k uint8) (q wide, r uint64) {
 
 // quoRem64 returns a / v and a % v for a nonzero v, with one 128-by-64 division per limb from the top down. Each
 // step's remainder is below v, which is what bits.Div64 requires of its high word.
+//
+// The division starts at the highest nonzero limb, as quoRemPow10Small and quoRem128 do: a leading zero limb divides
+// to a zero quotient digit and leaves the remainder at zero, so skipping it changes nothing. It is worth the scan
+// here because each step is a hardware divide rather than a reciprocal multiply, and the register is usually far
+// wider than the value in it - a fused multiply-divide over money-sized operands occupies one limb of six.
 func (a wide) quoRem64(v uint64) (q wide, r uint64) {
-	for i := wideLimbs - 1; i >= 0; i-- {
+	top := wideLimbs - 1
+	for top > 0 && a[top] == 0 {
+		top--
+	}
+	for i := top; i >= 0; i-- {
 		q[i], r = bits.Div64(r, a[i], v)
+	}
+	return q, r
+}
+
+// quoRem128 returns a / v and a % v for a nonzero v, with one 192-by-128 division per limb from the top down.
+//
+// Each step divides r*2^64 + a[i] by v, where r is the remainder the step above left and is therefore below v. The
+// dividend is then below v * 2^64 <= 2^192, so the quotient digit fits a single limb and the division can never report
+// an overflow. The remainder that falls out at the end is the exact one against the exact divisor, which is what the
+// rounding decision in roundUp takes.
+//
+// The division starts at the highest nonzero limb rather than at the top of the register, as quoRemPow10Small does:
+// a leading zero limb contributes a zero quotient digit and leaves the remainder alone, so a numerator that fits 256
+// bits - which is every fused multiply-divide whose scales leave the alignment small - costs four divisions and not
+// six.
+func (a wide) quoRem128(v uint128.Uint128) (q wide, r uint128.Uint128) {
+	top := wideLimbs - 1
+	for top > 0 && a[top] == 0 {
+		top--
+	}
+	for i := top; i >= 0; i-- {
+		// the 256-bit dividend r*2^64 + a[i], as the (lo, hi) pair QuoRem256By128 takes
+		d, rem, _ := uint128.QuoRem256By128(uint128.Uint128{Lo: a[i], Hi: r.Lo}, uint128.Uint128{Lo: r.Hi}, v)
+		q[i], r = d.Lo, rem
 	}
 	return q, r
 }
@@ -359,4 +392,84 @@ func mulAddSlow(lo, hi uint128.Uint128, prodScale uint8, st state.State, c Dec12
 	default:
 		return q.sub(p).at(needed, scale, c.state, mode)
 	}
+}
+
+// quotientAt completes a division whose quotient and exact remainder are already in hand: it narrows the quotient to a
+// coefficient at the given scale and takes the single rounding against the true divisor v. It is the tail shared by
+// MulDivRound and MulDivRoundInt64, so that the two spellings of a fused multiply-divide cannot disagree about a
+// rounding decision.
+func quotientAt(q wide, r, v uint128.Uint128, scale uint8, st state.State, mode RoundingMode) Dec128 {
+	coef, ok := q.uint128()
+	if !ok {
+		return Dec128{state: state.Overflow}
+	}
+	if !r.IsZero() && mode == ROUND_NAN {
+		return Dec128{state: state.Inexact}
+	}
+	if up, _ := roundUp(coef, r, v, st, mode); up {
+		var carry uint64
+		if coef, carry = coef.AddCarry(uint128.One); carry != 0 {
+			return Dec128{state: state.Overflow}
+		}
+	}
+	if coef.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
+
+	return Dec128{coef: coef, scale: scale, state: st}
+}
+
+// meanFromWide divides the exact magnitude m, which stands at the working scale ws with sign st, by count and brings
+// the quotient to exactly the scale requested, taking one rounding decision for the division and the reduction
+// together rather than one each. It is the tail shared by Accumulator.Mean and AvgRound, so that the running mean and
+// the one-shot mean cannot disagree.
+//
+// count must be positive; the callers return NaN(DivisionByZero) for an empty set of terms before reaching here.
+func meanFromWide(m wide, ws uint8, count int, st state.State, scale uint8, mode RoundingMode) Dec128 {
+	// Pad before dividing when the mean is wanted at a finer scale than the terms were kept at, so that the division
+	// produces those places instead of the reduction having to discard them.
+	//
+	// The padding cannot carry out of the register. A term is below 2^256 and there are fewer than 2^63 of them,
+	// because the count is an int, so the total at working scale zero is below 2^319; a working scale of ws carries
+	// a further 10^ws, and padding to scale multiplies by 10^(scale-ws), so what is held is below 2^319 * 10^scale,
+	// and scale is at most MaxScale: 2^319 * 10^19 < 2^383.
+	if scale > ws {
+		m, _ = m.mulPow10(scale - ws)
+		ws = scale
+	}
+
+	q, r := m.quoRem64(uint64(count))
+
+	// What the rounding decision has to weigh is r/count of the register's last place, plus the ws-scale digits the
+	// reduction drops. When there are no digits to drop the remainder is the whole of it and decides on its own;
+	// otherwise those digits are the more significant part and the remainder is no more than a sticky bit.
+	var qw wide
+	var above, tie, inexact bool
+	if k := ws - scale; k == 0 {
+		half := uint64(count) / 2
+		qw, above, tie, inexact = q, r > half, uint64(count)%2 == 0 && r == half, r != 0
+	} else {
+		qw, above, tie, inexact = q.quoCmpHalfPow10Sticky(k, r != 0)
+	}
+
+	coef, ok := qw.uint128()
+	if !ok {
+		return Dec128{state: state.Overflow}
+	}
+	if inexact {
+		if mode == ROUND_NAN {
+			return Dec128{state: state.Inexact}
+		}
+		if roundDecision(above, tie, coef.Lo&1 == 1, st, mode) {
+			var carry uint64
+			if coef, carry = coef.AddCarry(uint128.One); carry != 0 {
+				return Dec128{state: state.Overflow}
+			}
+		}
+	}
+	if coef.IsZero() {
+		return Dec128{scale: scale} // a zero is never negative
+	}
+
+	return Dec128{coef: coef, scale: scale, state: st}
 }

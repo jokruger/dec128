@@ -350,7 +350,48 @@ func TestGlobalFreeSubset(t *testing.T) {
 			return back
 		}},
 		{"comparison", func(a, b Dec128) Dec128 { return FromInt64(int64(a.Compare(b))) }},
+		{"CmpTotal", func(a, b Dec128) Dec128 { return FromInt64(int64(a.CmpTotal(b))) }},
+		{"AddQuoRound", func(a, b Dec128) Dec128 { return a.AddQuoRound(b, b, 6, ROUND_BANK) }},
+		{"Log10", func(a, b Dec128) Dec128 { return a.Abs().Log10(6, ROUND_BANK) }},
+		{"Log2", func(a, b Dec128) Dec128 { return a.Abs().Log2(6, ROUND_BANK) }},
+		{"CopySign", func(a, b Dec128) Dec128 { return a.CopySign(b) }},
+		{"Logb", func(a, b Dec128) Dec128 { return a.Logb() }},
+		{"InvRound", func(a, b Dec128) Dec128 { return a.InvRound(6, ROUND_BANK) }},
+		{"RemainderNear", func(a, b Dec128) Dec128 { return a.RemainderNear(b) }},
+		{"ProdRound", func(a, b Dec128) Dec128 { return ProdRound(6, ROUND_BANK, a, b, a) }},
+		{"ProdSliceRound", func(a, b Dec128) Dec128 { return ProdSliceRound([]Dec128{a, b}, 6, ROUND_BANK) }},
+		{"Rat round trip", func(a, b Dec128) Dec128 {
+			r, err := a.Rat()
+			if err != nil {
+				return NaN(state.NaN)
+			}
+			return FromRat(r, a.Scale(), ROUND_BANK)
+		}},
+		{"BigInt", func(a, b Dec128) Dec128 {
+			n, err := a.BigInt()
+			if err != nil {
+				return NaN(state.NaN)
+			}
+			return FromString(n.String())
+		}},
+		{"decomposer round trip", func(a, b Dec128) Dec128 {
+			var buf [16]byte
+			f, neg, c, e := a.Decompose(buf[:0])
+			var back Dec128
+			if err := back.Compose(f, neg, c, e); err != nil {
+				return NaN(state.InvalidFormat)
+			}
+			return back
+		}},
 		{"NthRootRound", func(a, b Dec128) Dec128 { return a.Abs().NthRootRound(3, 6, ROUND_BANK) }},
+		{"PowRational", func(a, b Dec128) Dec128 { return a.PowRational(3, 7, 6, ROUND_BANK) }},
+		{"Ln", func(a, b Dec128) Dec128 { return a.Abs().Ln(6, ROUND_BANK) }},
+		{"Ln1p", func(a, b Dec128) Dec128 { return a.Abs().Ln1p(6, ROUND_BANK) }},
+		{"Exp", func(a, b Dec128) Dec128 { return a.Clamp(FromInt64(-40), FromInt64(40)).Exp(6, ROUND_BANK) }},
+		{"Expm1", func(a, b Dec128) Dec128 { return a.Clamp(FromInt64(-40), FromInt64(40)).Expm1(6, ROUND_BANK) }},
+		{"Pow", func(a, b Dec128) Dec128 { return a.Abs().Pow(FromString("0.3333333333"), 6, ROUND_BANK) }},
+		{"Pow integer exponent", func(a, b Dec128) Dec128 { return a.Pow(FromInt64(3), 6, ROUND_BANK) }},
+		{"PowRational negative", func(a, b Dec128) Dec128 { return a.PowRational(-2, 5, 6, ROUND_BANK) }},
 		{"NthRootRound squared", func(a, b Dec128) Dec128 { return a.Abs().NthRootRound(2, 6, ROUND_BANK) }},
 		{"RoundToSignificant", func(a, b Dec128) Dec128 { return a.RoundToSignificant(5, ROUND_BANK) }},
 		{"RescaleRoundInexact", func(a, b Dec128) Dec128 { q, _ := a.RescaleRoundInexact(4, ROUND_BANK); return q }},
@@ -399,6 +440,24 @@ func TestGlobalFreeSubset(t *testing.T) {
 			return shares[2]
 		}},
 		{"Format", func(a, b Dec128) Dec128 { return FromString(fmt.Sprintf("%.6f", a)) }},
+		{"MulDivRound", func(a, b Dec128) Dec128 { return a.MulDivRound(b, b, 6, ROUND_BANK) }},
+		{"MulDivRound wide", func(a, b Dec128) Dec128 { return a.MulDivRound(a, b, MaxScale, ROUND_BANK) }},
+		{"MulDivRound narrow", func(a, b Dec128) Dec128 { return a.MulDivRound(a, b, 0, ROUND_BANK) }},
+		{"MulDivRoundInt64", func(a, b Dec128) Dec128 { return a.MulDivRoundInt64(31, 365, 6, ROUND_BANK) }},
+		{"SumRound", func(a, b Dec128) Dec128 { return SumRound(6, ROUND_BANK, a, b, a) }},
+		{"SumSliceRound", func(a, b Dec128) Dec128 { return SumSliceRound([]Dec128{a, b, a}, 6, ROUND_BANK) }},
+		{"AvgRound", func(a, b Dec128) Dec128 { return AvgRound(6, ROUND_BANK, a, b, a) }},
+		{"EncodeIEEERound round trip", func(a, b Dec128) Dec128 {
+			var buf [IEEEBytes]byte
+			if _, err := a.EncodeIEEERound(buf[:], ROUND_BANK); err != nil {
+				return NaN(state.InvalidFormat)
+			}
+			var back Dec128
+			if err := back.DecodeIEEE(buf[:]); err != nil {
+				return NaN(state.InvalidFormat)
+			}
+			return back
+		}},
 	}
 
 	// the defaults, which every combination below must reproduce
@@ -458,6 +517,8 @@ func TestGlobalFreeSubsetIsNotVacuous(t *testing.T) {
 		{"PowInt64", func() Dec128 { return wide2.PowInt64(9) }},
 		{"Sum", func() Dec128 { return Sum(wide1, nearMax) }},
 		{"Avg", func() Dec128 { return Avg(a, b, b) }},
+		{"Prod", func() Dec128 { return Prod(wide2, wide2) }},
+		{"Inv", func() Dec128 { return b.Inv() }},
 	}
 
 	SetDefaultScale(MaxScale)
