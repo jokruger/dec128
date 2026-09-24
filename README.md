@@ -88,6 +88,9 @@ This library requires Go version `>=1.24` (as declared in `go.mod`).
   with no `pgtype.Numeric`, no `math/big.Int`, no text round trip and no allocation.
 - [**kavun**](https://github.com/jokruger/kavun) — an embeddable scripting language for Go whose `decimal` type is a
   `Dec128`, giving rules and decisioning scripts exact money arithmetic instead of a float workaround.
+- [**fin128**](https://github.com/jokruger/fin128) — deterministic financial mathematics on `Dec128`: day counts with
+  exact (unrounded) year fractions, accrual, time value of money, depreciation, discount instruments and rate solving,
+  with no `float64`, and byte-identical results on amd64 and arm64.
 - [**go-decimal-benchmark**](https://github.com/jokruger/go-decimal-benchmark) — the comparative harness the numbers
   in [Benchmarks](#benchmarks) come from.
 
